@@ -1,0 +1,12 @@
+- git:
+    local-name: ros_industrial_cmake_boilerplate
+    uri: https://github.com/ros-industrial/ros_industrial_cmake_boilerplate.git
+    version: 0.6.2
+- git:
+    local-name: hpp-fcl
+    uri: https://github.com/humanoid-path-planner/hpp-fcl.git
+    version: devel
+- git:
+    local-name: octomap
+    uri: https://github.com/OctoMap/octomap.git
+    version: v1.9.8

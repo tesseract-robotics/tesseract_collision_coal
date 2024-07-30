@@ -1,0 +1,47 @@
+name: Nightly
+
+on:
+  pull_request:
+    types: [labeled]
+  schedule:
+    - cron: '0 5 * * *'
+
+  # allow manually starting this workflow
+  workflow_dispatch:
+
+jobs:
+  ci:
+    if: contains(github.event.pull_request.labels.*.name, 'check-tesseract-ros') || github.event.schedule == true
+    name: ${{ matrix.distro }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        distro: [focal, jammy]
+    container:
+      image: ubuntu:${{ matrix.distro }}
+      env:
+        CCACHE_DIR: "$GITHUB_WORKSPACE/${{ matrix.distro }}/.ccache"
+        DEBIAN_FRONTEND: noninteractive
+        TZ: Etc/UTC
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          path: target_ws/src
+
+      - name: Install Depends
+        shell: bash
+        run: |
+          apt update
+          apt upgrade -y
+          apt install -y liboctomap-dev
+
+      - name: Build and Tests
+        uses: tesseract-robotics/colcon-action@v1
+        with:
+          ccache-prefix: ${{ matrix.distro }}
+          vcs-file: dependencies.repos
+          upstream-args: --cmake-args -DCMAKE_BUILD_TYPE=Release
+          target-path: target_ws/src
+          target-args: --cmake-args -DCMAKE_BUILD_TYPE=Debug -DTESSERACT_ENABLE_TESTING=ON
