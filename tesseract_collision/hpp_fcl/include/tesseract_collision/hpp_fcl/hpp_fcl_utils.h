@@ -270,8 +270,6 @@ inline void updateCollisionObjectFilters(const std::vector<std::string>& active,
   }
 }
 
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wnon-virtual-dtor"
 struct CollisionCallback : hpp::fcl::CollisionCallBackBase
 {
   ContactTestData* cdata{};
@@ -285,7 +283,6 @@ struct DistanceCollisionCallback : hpp::fcl::CollisionCallBackBase
   bool collide(hpp::fcl::CollisionObject* o1, hpp::fcl::CollisionObject* o2) override;
   virtual ~DistanceCollisionCallback() = default;
 };
-#pragma GCC diagnostic pop
 
 }  // namespace tesseract_collision::tesseract_collision_hpp_fcl
 #endif  // TESSERACT_COLLISION_HPP_FCL_UTILS_H
