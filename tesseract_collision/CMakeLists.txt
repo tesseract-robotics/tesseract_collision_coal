@@ -91,6 +91,15 @@ endif()
 # target_compile_definitions(${PROJECT_NAME}_core
 #                            PRIVATE TESSERACT_CONTACT_MANAGERS_PLUGINS="${CONTACT_MANAGERS_PLUGINS_STRING}")
 
+# Add compiler definition to hpp_fcl so it can find all plugins produced
+string(
+  REPLACE ";"
+          ":"
+          CONTACT_MANAGERS_PLUGINS_STRING
+          "${CONTACT_MANAGERS_PLUGINS}")
+target_compile_definitions(${PROJECT_NAME}_hpp_fcl
+                           PRIVATE TESSERACT_CONTACT_MANAGERS_PLUGINS="${CONTACT_MANAGERS_PLUGINS_STRING}")
+
 # Testing
 if((TESSERACT_ENABLE_TESTING OR TESSERACT_COLLISION_ENABLE_TESTING) AND TESSERACT_BUILD_HPP_FCL)
   enable_testing()

@@ -47,7 +47,6 @@ target_link_libraries(
           ${PROJECT_NAME}_fcl
           ${PROJECT_NAME}_hpp_fcl
           tesseract::tesseract_geometry
-          tesseract::tesseract_support
           ${Boost_LIBRARIES}
           ${OCTOMAP_LIBRARIES}
           ${LIBFCL_LIBRARIES})
