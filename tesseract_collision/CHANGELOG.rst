@@ -2,6 +2,33 @@
 Changelog for package tesseract_collision
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+0.27.1 (2024-12-03)
+-------------------
+
+0.27.0 (2024-12-01)
+-------------------
+* Update package.xml
+* Update fcl rosdep key in package.xml
+* Contributors: Levi Armstrong
+
+0.26.0 (2024-10-27)
+-------------------
+* Remove TesseractSupportResourceLocator
+* Contributors: Levi Armstrong
+
+0.25.0 (2024-09-28)
+-------------------
+* Add geometry type CompoundMesh
+* Contributors: Levi Armstrong
+
+0.24.1 (2024-08-19)
+-------------------
+
+0.24.0 (2024-08-14)
+-------------------
+* Add any poly support for collision types
+* Contributors: Levi Armstrong
+
 0.23.1 (2024-07-28)
 -------------------
 

@@ -4,24 +4,22 @@
 #include <tesseract_collision/test_suite/benchmarks/primatives_benchmarks.hpp>
 #include <tesseract_collision/test_suite/benchmarks/large_dataset_benchmarks.hpp>
 #include <tesseract_collision/test_suite/benchmarks/benchmark_utils.hpp>
-#include <tesseract_collision/hpp_fcl/hpp_fcl_discrete_managers.h>
+#include <tesseract_collision/bullet/bullet_discrete_bvh_manager.h>
 #include <tesseract_geometry/geometry.h>
 
 using namespace tesseract_collision;
 using namespace test_suite;
 using namespace tesseract_geometry;
 
-// Removes some of the long running tests (greater than 30s). Set to false to run everything.
-static bool RUN_QUICK = true;
-
 int main(int argc, char** argv)
 {
-  const tesseract_collision_hpp_fcl::HPP_FCLDiscreteBVHManager::ConstPtr checker =
-      std::make_shared<tesseract_collision_hpp_fcl::HPP_FCLDiscreteBVHManager>();
+  const tesseract_collision_bullet::BulletDiscreteBVHManager::ConstPtr checker =
+      std::make_shared<tesseract_collision_bullet::BulletDiscreteBVHManager>();
 
   //////////////////////////////////////
   // Clone
   //////////////////////////////////////
+
   {
     std::vector<int> num_links = { 0, 2, 4, 8, 16, 32, 64, 128, 256, 512 };
     std::function<void(benchmark::State&, DiscreteBenchmarkInfo, int)> BM_CLONE_FUNC = BM_CLONE;
@@ -48,16 +46,9 @@ int main(int argc, char** argv)
   std::function<void(benchmark::State&, DiscreteBenchmarkInfo)> BM_CONTACT_TEST_FUNC = BM_CONTACT_TEST;
 
   // Make vector of all shapes to try
-  // Cone, Sphere, and Capsule are absurdly slow. It doesn't even make sense to run them (4/7/2020).
   std::vector<tesseract_geometry::GeometryType> geometry_types = {
-    GeometryType::BOX, GeometryType::CYLINDER, GeometryType::CONE, GeometryType::SPHERE, GeometryType::CAPSULE
+    GeometryType::BOX, GeometryType::CONE, GeometryType::SPHERE, GeometryType::CAPSULE, GeometryType::CYLINDER
   };
-  if (RUN_QUICK)
-  {
-    geometry_types.pop_back();
-    geometry_types.pop_back();
-    geometry_types.pop_back();
-  }
 
   std::vector<ContactTestType> test_types = {
     ContactTestType::ALL, ContactTestType::FIRST, ContactTestType::CLOSEST, ContactTestType::LIMITED
@@ -120,7 +111,7 @@ int main(int argc, char** argv)
     }
   }
 
-  // Not in collision. Outside contact threshold
+  //  Not in collision. Outside contact threshold
   {
     for (const auto& test_type : test_types)
     {
@@ -258,12 +249,6 @@ int main(int argc, char** argv)
           name.c_str(), BM_LARGE_DATASET_MULTILINK_FUNC, clone, edge_size, tesseract_geometry::GeometryType::SPHERE)
           ->UseRealTime()
           ->Unit(benchmark::TimeUnit::kNanosecond);
-    }
-    // These last two took 45s and 120s. Too long to run in CI, and impractical for our purposes anyway.
-    if (RUN_QUICK)
-    {
-      edge_sizes.pop_back();
-      edge_sizes.pop_back();
     }
     for (const auto& edge_size : edge_sizes)
     {

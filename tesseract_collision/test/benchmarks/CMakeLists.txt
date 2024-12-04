@@ -1,6 +1,6 @@
 find_package(benchmark REQUIRED)
-find_package(tesseract_support REQUIRED)
 find_package(tesseract_scene_graph REQUIRED)
+find_package(tesseract_collision REQUIRED COMPONENTS core bullet fcl)
 
 macro(add_benchmark benchmark_name benchmark_file)
   add_executable(${benchmark_name} ${benchmark_file})

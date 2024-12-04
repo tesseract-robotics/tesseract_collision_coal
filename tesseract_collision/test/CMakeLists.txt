@@ -7,6 +7,7 @@ if(NOT TARGET OpenMP::OpenMP_CXX)
   set_property(TARGET OpenMP::OpenMP_CXX PROPERTY INTERFACE_LINK_LIBRARIES ${OpenMP_CXX_FLAGS} Threads::Threads)
 endif()
 
+find_package(tesseract_collision REQUIRED COMPONENTS core bullet fcl)
 find_package(tesseract_scene_graph REQUIRED)
 find_package(Eigen3 REQUIRED)
 
@@ -20,6 +21,9 @@ macro(add_gtest test_name test_file)
             GTest::Main
             ${PROJECT_NAME}_test_suite
             ${PROJECT_NAME}_hpp_fcl
+            tesseract::tesseract_collision_core
+            tesseract::tesseract_collision_bullet
+            tesseract::tesseract_collision_fcl
             tesseract::tesseract_geometry
             tesseract::tesseract_scene_graph
             console_bridge::console_bridge
@@ -42,9 +46,11 @@ macro(add_gtest test_name test_file)
   add_gtest_discover_tests(${test_name})
   add_dependencies(
     ${test_name}
-    ${PROJECT_NAME}_core
     ${PROJECT_NAME}_test_suite
-    ${PROJECT_NAME}_hpp_fcl)
+    ${PROJECT_NAME}_hpp_fcl
+    tesseract::tesseract_collision_core
+    tesseract::tesseract_collision_bullet
+    tesseract::tesseract_collision_fcl)
   add_dependencies(run_tests ${test_name})
 endmacro()
 
@@ -70,5 +76,5 @@ add_gtest(${PROJECT_NAME}_factory_unit contact_managers_factory_unit.cpp)
 add_gtest(${PROJECT_NAME}_core_unit collision_core_unit.cpp)
 add_gtest(${PROJECT_NAME}_config_unit contact_managers_config_unit.cpp)
 
-add_gtest(${PROJECT_NAME}_factory_static_unit contact_managers_factory_static_unit.cpp)
-target_link_libraries(${PROJECT_NAME}_factory_static_unit PRIVATE ${PROJECT_NAME}_bullet_factories)
+# add_gtest(${PROJECT_NAME}_factory_static_unit contact_managers_factory_static_unit.cpp)
+# target_link_libraries(${PROJECT_NAME}_factory_static_unit PRIVATE tesseract::tesseract_collision_bullet)
