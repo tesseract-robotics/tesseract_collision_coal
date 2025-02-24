@@ -113,10 +113,9 @@ public:
   void setCollisionObjectsTransform(const Eigen::Isometry3d& pose)
   {
     world_pose_ = pose;
-    for (unsigned i = 0; i < collision_objects_.size(); ++i)
+    for (auto& co : collision_objects_)
     {
-      const CollisionObjectPtr& co = collision_objects_[i];
-      auto tf = pose * shape_poses_[i];
+      auto tf = pose * shape_poses_[static_cast<std::size_t>(co->getShapeIndex())];
       co->setTransform(hpp::fcl::Transform3f(tf.rotation(), tf.translation()));
       co->updateAABB();  // This a tesseract function that updates the aabb to take into account contact distance
     }
@@ -169,7 +168,7 @@ public:
    * @param co fcl collision shape
    * @return links collision shape index
    */
-  int getShapeIndex(const hpp::fcl::CollisionObject* co) const;
+  static int getShapeIndex(const hpp::fcl::CollisionObject* co);
 
 protected:
   std::string name_;                                              // name of the collision object
@@ -194,7 +193,7 @@ using COW = CollisionObjectWrapper;
 using Link2COW = std::map<std::string, COW::Ptr>;
 using Link2ConstCOW = std::map<std::string, COW::ConstPtr>;
 
-inline COW::Ptr createFCLCollisionObject(const std::string& name,
+inline COW::Ptr createHPP_FCLCollisionObject(const std::string& name,
                                          const int& type_id,
                                          const CollisionShapesConst& shapes,
                                          const tesseract_common::VectorIsometry3d& shape_poses,
@@ -218,7 +217,7 @@ inline COW::Ptr createFCLCollisionObject(const std::string& name,
  * @brief Update collision objects filters
  * @param active The active collision objects
  * @param cow The collision object to update
- * @param static_manager Broadphasse manager for static objects
+ * @param static_manager Broadphase manager for static objects
  * @param dynamic_manager Broadphase manager for dynamic objects
  */
 inline void updateCollisionObjectFilters(const std::vector<std::string>& active,
@@ -226,7 +225,7 @@ inline void updateCollisionObjectFilters(const std::vector<std::string>& active,
                                          const std::unique_ptr<hpp::fcl::BroadPhaseCollisionManager>& static_manager,
                                          const std::unique_ptr<hpp::fcl::BroadPhaseCollisionManager>& dynamic_manager)
 {
-  // For descrete checks we can check static to kinematic and kinematic to
+  // For discrete checks we can check static to kinematic and kinematic to
   // kinematic
   if (!isLinkActive(active, cow->getName()))
   {
@@ -270,6 +269,10 @@ inline void updateCollisionObjectFilters(const std::vector<std::string>& active,
   }
 }
 
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wnon-virtual-dtor"
+
 struct CollisionCallback : hpp::fcl::CollisionCallBackBase
 {
   ContactTestData* cdata{};
@@ -277,12 +280,14 @@ struct CollisionCallback : hpp::fcl::CollisionCallBackBase
   virtual ~CollisionCallback() = default;
 };
 
-struct DistanceCollisionCallback : hpp::fcl::CollisionCallBackBase
+struct DistanceCallback : hpp::fcl::CollisionCallBackBase
 {
   ContactTestData* cdata{};
   bool collide(hpp::fcl::CollisionObject* o1, hpp::fcl::CollisionObject* o2) override;
-  virtual ~DistanceCollisionCallback() = default;
+  virtual ~DistanceCallback() = default;
 };
+
+#pragma GCC diagnostic pop
 
 }  // namespace tesseract_collision::tesseract_collision_hpp_fcl
 #endif  // TESSERACT_COLLISION_HPP_FCL_UTILS_H

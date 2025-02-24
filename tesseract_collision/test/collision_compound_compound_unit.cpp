@@ -36,6 +36,7 @@ TEST(TesseractCollisionUnit, HPP_FCLDiscreteBVHCollisionCompoundCompoundUnit)  /
   tesseract_collision_hpp_fcl::HPP_FCLDiscreteBVHManager checker;
   test_suite::runTest(checker);
 }
+
 TEST(TesseractCollisionUnit, BulletContinuousSimpleCollisionCompoundCompoundUnit)  // NOLINT
 {
   tesseract_collision_bullet::BulletCastSimpleManager checker;

@@ -42,4 +42,12 @@ void HPP_FCLCollisionObjectWrapper::updateAABB()
   aabb.expand(contact_distance_);
 }
 
+void HPP_FCLCollisionObjectWrapper::setShapeIndex(int index) { shape_index_ = index; }
+
+int HPP_FCLCollisionObjectWrapper::getShapeIndex() const
+{
+  assert(shape_index_ >= 0);
+  return shape_index_;
+}
+
 }  // namespace tesseract_collision::tesseract_collision_hpp_fcl

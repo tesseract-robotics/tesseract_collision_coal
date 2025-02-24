@@ -58,6 +58,7 @@ TEST(TesseractCollisionMultiThreadedUnit, HPP_FCLDiscreteBVHCollisionMultiThread
   tesseract_collision_hpp_fcl::HPP_FCLDiscreteBVHManager checker;
   test_suite::runTest(checker);
 }
+
 int main(int argc, char** argv)
 {
   testing::InitGoogleTest(&argc, argv);

@@ -69,7 +69,7 @@ DiscreteContactManager::UPtr HPP_FCLDiscreteBVHManager::clone() const
 
   manager->setActiveCollisionObjects(active_);
   manager->setCollisionMarginData(collision_margin_data_);
-  manager->setIsContactAllowedFn(fn_);
+  manager->setContactAllowedValidator(validator_);
 
   return manager;
 }
@@ -83,7 +83,7 @@ bool HPP_FCLDiscreteBVHManager::addCollisionObject(const std::string& name,
   if (link2cow_.find(name) != link2cow_.end())
     removeCollisionObject(name);
 
-  const COW::Ptr new_cow = createFCLCollisionObject(name, mask_id, shapes, shape_poses, enabled);
+  const COW::Ptr new_cow = createHPP_FCLCollisionObject(name, mask_id, shapes, shape_poses, enabled);
   if (new_cow != nullptr)
   {
     addCollisionObject(new_cow);
@@ -313,16 +313,24 @@ void HPP_FCLDiscreteBVHManager::setPairCollisionMarginData(const std::string& na
 }
 
 const CollisionMarginData& HPP_FCLDiscreteBVHManager::getCollisionMarginData() const { return collision_margin_data_; }
-void HPP_FCLDiscreteBVHManager::setIsContactAllowedFn(IsContactAllowedFn fn) { fn_ = fn; }
-IsContactAllowedFn HPP_FCLDiscreteBVHManager::getIsContactAllowedFn() const { return fn_; }
+void HPP_FCLDiscreteBVHManager::setContactAllowedValidator(
+    std::shared_ptr<const tesseract_common::ContactAllowedValidator> validator)
+{
+  validator_ = std::move(validator);
+}
+std::shared_ptr<const tesseract_common::ContactAllowedValidator>
+HPP_FCLDiscreteBVHManager::getContactAllowedValidator() const
+{
+  return validator_;
+}
 
 void HPP_FCLDiscreteBVHManager::contactTest(ContactResultMap& collisions, const ContactRequest& request)
 {
-  ContactTestData cdata(active_, collision_margin_data_, fn_, request, collisions);
+  ContactTestData cdata(active_, collision_margin_data_, validator_, request, collisions);
 
   if (collision_margin_data_.getMaxCollisionMargin() > 0)
   {
-    DistanceCollisionCallback distanceCallback;
+    DistanceCallback distanceCallback;
     distanceCallback.cdata = &cdata;
 
     // TODO: Should the order be flipped?

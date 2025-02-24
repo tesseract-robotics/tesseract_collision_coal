@@ -35,6 +35,7 @@ TEST(TesseractCollisionUnit, HPP_FCLDiscreteBVHCollisionCloneUnit)  // NOLINT
   tesseract_collision_hpp_fcl::HPP_FCLDiscreteBVHManager checker;
   test_suite::runTest(checker, 0.001, 0.001, 0.001);
 }
+
 int main(int argc, char** argv)
 {
   testing::InitGoogleTest(&argc, argv);

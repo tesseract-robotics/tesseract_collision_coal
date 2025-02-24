@@ -141,8 +141,7 @@ CollisionGeometryPtr createShapePrimitive(const tesseract_geometry::ConvexMesh::
                                                                    static_cast<size_t>(triangles[(4 * i) + 3]));
     }
 
-    return CollisionGeometryPtr(
-        new hpp::fcl::Convex<hpp::fcl::Triangle>(vertices, vertex_count, tri_indices, triangle_count));
+    return std::make_shared<hpp::fcl::Convex<hpp::fcl::Triangle>>(vertices, vertex_count, tri_indices, triangle_count);
   }
 
   CONSOLE_BRIDGE_logError("The mesh is empty!");
@@ -155,7 +154,7 @@ CollisionGeometryPtr createShapePrimitive(const tesseract_geometry::Octree::Cons
   {
     case tesseract_geometry::OctreeSubType::BOX:
     {
-      return CollisionGeometryPtr(new hpp::fcl::OcTree(geom->getOctree()));
+      return std::make_shared<hpp::fcl::OcTree>(geom->getOctree());
     }
     default:
     {
@@ -167,7 +166,7 @@ CollisionGeometryPtr createShapePrimitive(const tesseract_geometry::Octree::Cons
 }
 }  // namespace
 
-CollisionGeometryPtr createShapePrimitive(const CollisionShapeConstPtr& geom)
+CollisionGeometryPtr createShapePrimitiveHelper(const CollisionShapeConstPtr& geom)
 {
   switch (geom->getType())
   {
@@ -220,6 +219,17 @@ CollisionGeometryPtr createShapePrimitive(const CollisionShapeConstPtr& geom)
   }
 }
 
+CollisionGeometryPtr createShapePrimitive(const CollisionShapeConstPtr& geom)
+{
+  // CollisionGeometryPtr shape = FCLCollisionGeometryCache::get(geom);
+  // if (shape != nullptr)
+  //   return shape;
+
+  // shape = createShapePrimitiveHelper(geom);
+  // FCLCollisionGeometryCache::insert(geom, shape);
+  return createShapePrimitiveHelper(geom);
+}
+
 bool CollisionCallback::collide(hpp::fcl::CollisionObject* o1, hpp::fcl::CollisionObject* o2)
 {
   if (cdata->done)
@@ -231,7 +241,7 @@ bool CollisionCallback::collide(hpp::fcl::CollisionObject* o1, hpp::fcl::Collisi
   const bool needs_collision = cd1->m_enabled && cd2->m_enabled &&
                                (cd1->m_collisionFilterGroup & cd2->m_collisionFilterMask) &&  // NOLINT
                                (cd2->m_collisionFilterGroup & cd1->m_collisionFilterMask) &&  // NOLINT
-                               !isContactAllowed(cd1->getName(), cd2->getName(), cdata->fn, false);
+                               !isContactAllowed(cd1->getName(), cd2->getName(), cdata->validator, false);
 
   assert(std::find(cdata->active->begin(), cdata->active->end(), cd1->getName()) != cdata->active->end() ||
          std::find(cdata->active->begin(), cdata->active->end(), cd2->getName()) != cdata->active->end());
@@ -262,19 +272,19 @@ bool CollisionCallback::collide(hpp::fcl::CollisionObject* o1, hpp::fcl::Collisi
       ContactResult contact;
       contact.link_names[0] = cd1->getName();
       contact.link_names[1] = cd2->getName();
-      contact.shape_id[0] = cd1->getShapeIndex(o1);
-      contact.shape_id[1] = cd2->getShapeIndex(o2);
+      contact.shape_id[0] = CollisionObjectWrapper::getShapeIndex(o1);
+      contact.shape_id[1] = CollisionObjectWrapper::getShapeIndex(o2);
       contact.subshape_id[0] = static_cast<int>(fcl_contact.b1);
       contact.subshape_id[1] = static_cast<int>(fcl_contact.b2);
-      contact.nearest_points[0] = fcl_contact.pos;
-      contact.nearest_points[1] = fcl_contact.pos;
+      contact.nearest_points[0] = fcl_contact.nearest_points[0];
+      contact.nearest_points[1] = fcl_contact.nearest_points[1];
       contact.nearest_points_local[0] = tf1.inverse() * contact.nearest_points[0];
       contact.nearest_points_local[1] = tf2.inverse() * contact.nearest_points[1];
       contact.transform[0] = tf1;
       contact.transform[1] = tf2;
       contact.type_id[0] = cd1->getTypeID();
       contact.type_id[1] = cd2->getTypeID();
-      contact.distance = -1.0 * fcl_contact.penetration_depth;
+      contact.distance = fcl_contact.penetration_depth;
       contact.normal = fcl_contact.normal;
 
       const ObjectPairKey pc = tesseract_common::makeOrderedLinkPair(cd1->getName(), cd2->getName());
@@ -288,7 +298,7 @@ bool CollisionCallback::collide(hpp::fcl::CollisionObject* o1, hpp::fcl::Collisi
   return cdata->done;
 }
 
-bool DistanceCollisionCallback::collide(hpp::fcl::CollisionObject* o1, hpp::fcl::CollisionObject* o2)
+bool DistanceCallback::collide(hpp::fcl::CollisionObject* o1, hpp::fcl::CollisionObject* o2)
 {
   if (cdata->done)
     return true;
@@ -299,7 +309,7 @@ bool DistanceCollisionCallback::collide(hpp::fcl::CollisionObject* o1, hpp::fcl:
   const bool needs_collision = cd1->m_enabled && cd2->m_enabled &&
                                (cd1->m_collisionFilterGroup & cd2->m_collisionFilterMask) &&  // NOLINT
                                (cd2->m_collisionFilterGroup & cd1->m_collisionFilterMask) &&  // NOLINT
-                               !isContactAllowed(cd1->getName(), cd2->getName(), cdata->fn, false);
+                               !isContactAllowed(cd1->getName(), cd2->getName(), cdata->validator, false);
 
   assert(std::find(cdata->active->begin(), cdata->active->end(), cd1->getName()) != cdata->active->end() ||
          std::find(cdata->active->begin(), cdata->active->end(), cd2->getName()) != cdata->active->end());
@@ -320,8 +330,8 @@ bool DistanceCollisionCallback::collide(hpp::fcl::CollisionObject* o1, hpp::fcl:
     ContactResult contact;
     contact.link_names[0] = cd1->getName();
     contact.link_names[1] = cd2->getName();
-    contact.shape_id[0] = cd1->getShapeIndex(o1);
-    contact.shape_id[1] = cd2->getShapeIndex(o2);
+    contact.shape_id[0] = CollisionObjectWrapper::getShapeIndex(o1);
+    contact.shape_id[1] = CollisionObjectWrapper::getShapeIndex(o2);
     contact.subshape_id[0] = fcl_result.b1;
     contact.subshape_id[1] = fcl_result.b2;
     contact.nearest_points[0] = fcl_result.nearest_points[0];
@@ -333,9 +343,8 @@ bool DistanceCollisionCallback::collide(hpp::fcl::CollisionObject* o1, hpp::fcl:
     contact.type_id[0] = cd1->getTypeID();
     contact.type_id[1] = cd2->getTypeID();
     contact.distance = fcl_result.min_distance;
-    // contact.normal = (fcl_result.min_distance * (contact.nearest_points[1] -
-    // contact.nearest_points[0])).normalized();
-    contact.normal = fcl_result.normal;
+    contact.normal = (fcl_result.min_distance * (contact.nearest_points[1] - contact.nearest_points[0])).normalized();
+    // contact.normal = fcl_result.normal;
 
     const ObjectPairKey pc = tesseract_common::makeOrderedLinkPair(cd1->getName(), cd2->getName());
     const auto it = cdata->res->find(pc);
@@ -377,6 +386,7 @@ CollisionObjectWrapper::CollisionObjectWrapper(std::string name,
           collision_geometries_.push_back(subshape);
           auto co = std::make_shared<HPP_FCLCollisionObjectWrapper>(subshape);
           co->setUserData(this);
+          co->setShapeIndex(static_cast<int>(i));
           co->setTransform(hpp::fcl::Transform3f(shape_poses_[i].rotation(), shape_poses_[i].translation()));
           co->updateAABB();
           collision_objects_.push_back(co);
@@ -392,6 +402,7 @@ CollisionObjectWrapper::CollisionObjectWrapper(std::string name,
         collision_geometries_.push_back(subshape);
         auto co = std::make_shared<HPP_FCLCollisionObjectWrapper>(subshape);
         co->setUserData(this);
+        co->setShapeIndex(static_cast<int>(i));
         co->setTransform(hpp::fcl::Transform3f(shape_poses_[i].rotation(), shape_poses_[i].translation()));
         co->updateAABB();
         collision_objects_.push_back(co);
@@ -401,16 +412,9 @@ CollisionObjectWrapper::CollisionObjectWrapper(std::string name,
   }
 }
 
-int CollisionObjectWrapper::getShapeIndex(const hpp::fcl::CollisionObject* co) const
+int CollisionObjectWrapper::getShapeIndex(const hpp::fcl::CollisionObject* co)
 {
-  auto it = std::find_if(collision_objects_.begin(), collision_objects_.end(), [&co](const CollisionObjectPtr& c) {
-    return c.get() == co;
-  });
-
-  if (it != collision_objects_.end())
-    return static_cast<int>(std::distance(collision_objects_.begin(), it));
-
-  return -1;
+  return static_cast<const HPP_FCLCollisionObjectWrapper*>(co)->getShapeIndex();
 }
 
 }  // namespace tesseract_collision::tesseract_collision_hpp_fcl

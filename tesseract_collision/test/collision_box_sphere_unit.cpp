@@ -58,6 +58,7 @@ TEST(TesseractCollisionUnit, HPP_FCLDiscreteBVHCollisionBoxSphereConvexHullUnit)
   tesseract_collision_hpp_fcl::HPP_FCLDiscreteBVHManager checker;
   test_suite::runTest(checker, true);
 }
+
 int main(int argc, char** argv)
 {
   testing::InitGoogleTest(&argc, argv);

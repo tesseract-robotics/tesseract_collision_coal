@@ -1,6 +1,11 @@
 #ifndef TESSERACT_COLLISION_COLLISION_BOX_SPHERE_UNIT_HPP
 #define TESSERACT_COLLISION_COLLISION_BOX_SPHERE_UNIT_HPP
 
+#include <tesseract_common/macros.h>
+TESSERACT_COMMON_IGNORE_WARNINGS_PUSH
+#include <gtest/gtest.h>
+TESSERACT_COMMON_IGNORE_WARNINGS_POP
+
 #include <tesseract_collision/bullet/convex_hull_utils.h>
 #include <tesseract_collision/core/discrete_contact_manager.h>
 #include <tesseract_collision/core/common.h>
@@ -135,7 +140,7 @@ inline void runTestPrimitive(DiscreteContactManager& checker)
   std::vector<std::string> check_active_links = checker.getActiveCollisionObjects();
   EXPECT_TRUE(tesseract_common::isIdentical<std::string>(active_links, check_active_links, false));
 
-  EXPECT_TRUE(checker.getIsContactAllowedFn() == nullptr);
+  EXPECT_TRUE(checker.getContactAllowedValidator() == nullptr);
 
   checker.setDefaultCollisionMarginData(0.1);
   EXPECT_NEAR(checker.getCollisionMarginData().getMaxCollisionMargin(), 0.1, 1e-5);
@@ -248,7 +253,7 @@ inline void runTestConvex(DiscreteContactManager& checker)
   std::vector<std::string> check_active_links = checker.getActiveCollisionObjects();
   EXPECT_TRUE(tesseract_common::isIdentical<std::string>(active_links, check_active_links, false));
 
-  EXPECT_TRUE(checker.getIsContactAllowedFn() == nullptr);
+  EXPECT_TRUE(checker.getContactAllowedValidator() == nullptr);
 
   checker.setDefaultCollisionMarginData(0.1);
   EXPECT_NEAR(checker.getCollisionMarginData().getMaxCollisionMargin(), 0.1, 1e-5);

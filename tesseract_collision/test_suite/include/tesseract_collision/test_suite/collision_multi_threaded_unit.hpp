@@ -5,6 +5,7 @@
 TESSERACT_COMMON_IGNORE_WARNINGS_PUSH
 #include <console_bridge/console.h>
 #include <chrono>
+#include <gtest/gtest.h>
 TESSERACT_COMMON_IGNORE_WARNINGS_POP
 
 #include <tesseract_collision/bullet/convex_hull_utils.h>
@@ -73,7 +74,7 @@ inline void runTest(DiscreteContactManager& checker, bool use_convex_mesh = fals
   std::vector<std::string> check_active_links = checker.getActiveCollisionObjects();
   EXPECT_TRUE(tesseract_common::isIdentical<std::string>(link_names, check_active_links, false));
 
-  EXPECT_TRUE(checker.getIsContactAllowedFn() == nullptr);
+  EXPECT_TRUE(checker.getContactAllowedValidator() == nullptr);
 
   checker.setCollisionMarginData(CollisionMarginData(0.1));
   EXPECT_NEAR(checker.getCollisionMarginData().getMaxCollisionMargin(), 0.1, 1e-5);

@@ -5,6 +5,7 @@
 TESSERACT_COMMON_IGNORE_WARNINGS_PUSH
 #include <octomap/octomap.h>
 #include <console_bridge/console.h>
+#include <gtest/gtest.h>
 #include <tesseract_geometry/mesh_parser.h>
 TESSERACT_COMMON_IGNORE_WARNINGS_POP
 
@@ -84,7 +85,7 @@ inline void runTest(DiscreteContactManager& checker, const std::string& file_pat
   std::vector<std::string> check_active_links = checker.getActiveCollisionObjects();
   EXPECT_TRUE(tesseract_common::isIdentical<std::string>(active_links, check_active_links, false));
 
-  EXPECT_TRUE(checker.getIsContactAllowedFn() == nullptr);
+  EXPECT_TRUE(checker.getContactAllowedValidator() == nullptr);
 
   checker.setCollisionMarginData(CollisionMarginData(0.5));
   EXPECT_NEAR(checker.getCollisionMarginData().getMaxCollisionMargin(), 0.5, 1e-5);

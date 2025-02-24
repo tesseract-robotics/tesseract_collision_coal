@@ -1,6 +1,11 @@
 #ifndef TESSERACT_COLLISION_COLLISION_BOX_BOX_UNIT_HPP
 #define TESSERACT_COLLISION_COLLISION_BOX_BOX_UNIT_HPP
 
+#include <tesseract_common/macros.h>
+TESSERACT_COMMON_IGNORE_WARNINGS_PUSH
+#include <gtest/gtest.h>
+TESSERACT_COMMON_IGNORE_WARNINGS_POP
+
 #include <tesseract_collision/bullet/convex_hull_utils.h>
 #include <tesseract_collision/core/continuous_contact_manager.h>
 #include <tesseract_collision/core/discrete_contact_manager.h>
@@ -136,7 +141,7 @@ inline void runTestTyped(DiscreteContactManager& checker, ContactTestType test_t
   std::vector<std::string> check_active_links = checker.getActiveCollisionObjects();
   EXPECT_TRUE(tesseract_common::isIdentical<std::string>(active_links, check_active_links, false));
 
-  EXPECT_TRUE(checker.getIsContactAllowedFn() == nullptr);
+  EXPECT_TRUE(checker.getContactAllowedValidator() == nullptr);
 
   checker.setCollisionMarginData(CollisionMarginData(0.1));
   EXPECT_NEAR(checker.getCollisionMarginData().getPairCollisionMargin("box_link", "second_box_link"), 0.1, 1e-5);
@@ -186,7 +191,7 @@ inline void runTestTyped(DiscreteContactManager& checker, ContactTestType test_t
   // Test object is outside the contact distance
   ////////////////////////////////////////////////
   {
-    location["box_link"].translation() = Eigen::Vector3d(1.60, 0, 0);
+    location["box_link"].translation() = Eigen::Vector3d(1.60 + 1e-6, 0, 0);
     result.clear();
     result_vector.clear();
 
@@ -209,7 +214,7 @@ inline void runTestTyped(DiscreteContactManager& checker, ContactTestType test_t
 
     EXPECT_EQ(checker.getCollisionMarginData().getMaxCollisionMargin(), 1.7);
     EXPECT_NEAR(checker.getCollisionMarginData().getPairCollisionMargin("box_link", "second_box_link"), 0.1, 1e-5);
-    location["box_link"].translation() = Eigen::Vector3d(1.60, 0, 0);
+    location["box_link"].translation() = Eigen::Vector3d(1.60 + 1e-6, 0, 0);
     result.clear();
     result_vector.clear();
 

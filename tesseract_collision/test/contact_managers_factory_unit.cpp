@@ -32,13 +32,17 @@ TESSERACT_COMMON_IGNORE_WARNINGS_POP
 #include <tesseract_collision/core/contact_managers_plugin_factory.h>
 #include <tesseract_collision/core/discrete_contact_manager.h>
 #include <tesseract_collision/core/continuous_contact_manager.h>
+#include <tesseract_common/yaml_utils.h>
+#include <tesseract_common/resource_locator.h>
 
 using namespace tesseract_collision;
 
-void runContactManagersFactoryTest(const tesseract_common::fs::path& config_path)
+void runContactManagersFactoryTest(const std::filesystem::path& config_path)
 {
-  ContactManagersPluginFactory factory(config_path);
-  YAML::Node plugin_config = YAML::LoadFile(config_path.string());
+  tesseract_common::GeneralResourceLocator locator;
+  ContactManagersPluginFactory factory(config_path, locator);
+  YAML::Node plugin_config =
+      tesseract_common::processYamlIncludeDirective(YAML::LoadFile(config_path.string()), locator);
 
   const YAML::Node& plugin_info = plugin_config["contact_manager_plugins"];
   const YAML::Node& search_paths = plugin_info["search_paths"];
@@ -52,7 +56,7 @@ void runContactManagersFactoryTest(const tesseract_common::fs::path& config_path
 
     for (auto it = search_paths.begin(); it != search_paths.end(); ++it)
     {
-      EXPECT_TRUE(std::find(sp.begin(), sp.end(), it->as<std::string>()) != sp.end());
+      EXPECT_TRUE(sp.find(it->as<std::string>()) != sp.end());
     }
   }
 
@@ -62,7 +66,7 @@ void runContactManagersFactoryTest(const tesseract_common::fs::path& config_path
 
     for (auto it = search_libraries.begin(); it != search_libraries.end(); ++it)
     {
-      EXPECT_TRUE(std::find(sl.begin(), sl.end(), it->as<std::string>()) != sl.end());
+      EXPECT_TRUE(sl.find(it->as<std::string>()) != sl.end());
     }
   }
 
@@ -84,8 +88,8 @@ void runContactManagersFactoryTest(const tesseract_common::fs::path& config_path
     EXPECT_TRUE(cm != nullptr);
   }
 
-  factory.saveConfig(tesseract_common::fs::path(tesseract_common::getTempPath()) / "contact_manager_plugins_export."
-                                                                                   "yaml");
+  factory.saveConfig(std::filesystem::path(tesseract_common::getTempPath()) / "contact_manager_plugins_export."
+                                                                              "yaml");
 
   // Failures
   {
@@ -112,18 +116,18 @@ void runContactManagersFactoryTest(const tesseract_common::fs::path& config_path
 
 TEST(TesseractContactManagersFactoryUnit, LoadAndExportPluginTest)  // NOLINT
 {
-  tesseract_common::fs::path file_path(__FILE__);
-  tesseract_common::fs::path config_path = file_path.parent_path() / "contact_manager_plugins.yaml";
+  std::filesystem::path file_path(__FILE__);
+  std::filesystem::path config_path = file_path.parent_path() / "contact_manager_plugins.yaml";
   runContactManagersFactoryTest(config_path);
 
-  tesseract_common::fs::path export_config_path = tesseract_common::fs::path(tesseract_common::getTempPath()) / "contac"
-                                                                                                                "t_"
-                                                                                                                "manage"
-                                                                                                                "r_"
-                                                                                                                "plugin"
-                                                                                                                "s_"
-                                                                                                                "export"
-                                                                                                                ".yaml";
+  std::filesystem::path export_config_path = std::filesystem::path(tesseract_common::getTempPath()) / "contac"
+                                                                                                      "t_"
+                                                                                                      "manage"
+                                                                                                      "r_"
+                                                                                                      "plugin"
+                                                                                                      "s_"
+                                                                                                      "export"
+                                                                                                      ".yaml";
   runContactManagersFactoryTest(export_config_path);
 }
 
@@ -155,8 +159,9 @@ TEST(TesseractContactManagersFactoryUnit, LoadStringPluginTest)  // NOLINT
                                 BulletCastSimpleManager:
                                   class: BulletCastSimpleManagerFactory)";
 
-  ContactManagersPluginFactory factory(config);
-  YAML::Node plugin_config = YAML::Load(config);
+  tesseract_common::GeneralResourceLocator locator;
+  ContactManagersPluginFactory factory(config, locator);
+  YAML::Node plugin_config = tesseract_common::loadYamlString(config, locator);
 
   const YAML::Node& plugin_info = plugin_config["contact_manager_plugins"];
   const YAML::Node& search_paths = plugin_info["search_paths"];
@@ -170,7 +175,7 @@ TEST(TesseractContactManagersFactoryUnit, LoadStringPluginTest)  // NOLINT
 
     for (auto it = search_paths.begin(); it != search_paths.end(); ++it)
     {
-      EXPECT_TRUE(std::find(sp.begin(), sp.end(), it->as<std::string>()) != sp.end());
+      EXPECT_TRUE(sp.find(it->as<std::string>()) != sp.end());
     }
   }
 
@@ -180,7 +185,7 @@ TEST(TesseractContactManagersFactoryUnit, LoadStringPluginTest)  // NOLINT
 
     for (auto it = search_libraries.begin(); it != search_libraries.end(); ++it)
     {
-      EXPECT_TRUE(std::find(sl.begin(), sl.end(), it->as<std::string>()) != sl.end());
+      EXPECT_TRUE(sl.find(it->as<std::string>()) != sl.end());
     }
   }
 
@@ -324,8 +329,9 @@ TEST(TesseractContactManagersFactoryUnit, LoadOnlyDiscretePluginTest)  // NOLINT
                                 HPP_FCLDiscreteBVHManager:
                                   class: HPP_FCLDiscreteBVHManagerFactory)";
 
-  ContactManagersPluginFactory factory(config);
-  YAML::Node plugin_config = YAML::Load(config);
+  tesseract_common::GeneralResourceLocator locator;
+  ContactManagersPluginFactory factory(config, locator);
+  YAML::Node plugin_config = tesseract_common::loadYamlString(config, locator);
 
   const YAML::Node& plugin_info = plugin_config["contact_manager_plugins"];
   const YAML::Node& search_paths = plugin_info["search_paths"];
@@ -338,7 +344,7 @@ TEST(TesseractContactManagersFactoryUnit, LoadOnlyDiscretePluginTest)  // NOLINT
 
     for (auto it = search_paths.begin(); it != search_paths.end(); ++it)
     {
-      EXPECT_TRUE(std::find(sp.begin(), sp.end(), it->as<std::string>()) != sp.end());
+      EXPECT_TRUE(sp.find(it->as<std::string>()) != sp.end());
     }
   }
 
@@ -348,7 +354,7 @@ TEST(TesseractContactManagersFactoryUnit, LoadOnlyDiscretePluginTest)  // NOLINT
 
     for (auto it = search_libraries.begin(); it != search_libraries.end(); ++it)
     {
-      EXPECT_TRUE(std::find(sl.begin(), sl.end(), it->as<std::string>()) != sl.end());
+      EXPECT_TRUE(sl.find(it->as<std::string>()) != sl.end());
     }
   }
 
@@ -379,8 +385,9 @@ TEST(TesseractContactManagersFactoryUnit, LoadOnlyContinuousPluginTest)  // NOLI
                                 BulletCastSimpleManager:
                                   class: BulletCastSimpleManagerFactory)";
 
-  ContactManagersPluginFactory factory(config);
-  YAML::Node plugin_config = YAML::Load(config);
+  tesseract_common::GeneralResourceLocator locator;
+  ContactManagersPluginFactory factory(config, locator);
+  YAML::Node plugin_config = tesseract_common::loadYamlString(config, locator);
 
   const YAML::Node& plugin_info = plugin_config["contact_manager_plugins"];
   const YAML::Node& search_paths = plugin_info["search_paths"];
@@ -393,7 +400,7 @@ TEST(TesseractContactManagersFactoryUnit, LoadOnlyContinuousPluginTest)  // NOLI
 
     for (auto it = search_paths.begin(); it != search_paths.end(); ++it)
     {
-      EXPECT_TRUE(std::find(sp.begin(), sp.end(), it->as<std::string>()) != sp.end());
+      EXPECT_TRUE(sp.find(it->as<std::string>()) != sp.end());
     }
   }
 
@@ -403,7 +410,7 @@ TEST(TesseractContactManagersFactoryUnit, LoadOnlyContinuousPluginTest)  // NOLI
 
     for (auto it = search_libraries.begin(); it != search_libraries.end(); ++it)
     {
-      EXPECT_TRUE(std::find(sl.begin(), sl.end(), it->as<std::string>()) != sl.end());
+      EXPECT_TRUE(sl.find(it->as<std::string>()) != sl.end());
     }
   }
 
