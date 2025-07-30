@@ -12,7 +12,7 @@ TESSERACT_COMMON_IGNORE_WARNINGS_POP
 #include <tesseract_collision/core/discrete_contact_manager.h>
 #include <tesseract_collision/core/common.h>
 #include <tesseract_geometry/geometries.h>
-#include <tesseract_common/resource_locator.h>
+#include <tesseract_common/ply_io.h>
 
 namespace tesseract_collision::test_suite
 {
@@ -90,7 +90,7 @@ inline void runTest(DiscreteContactManager& checker, const std::string& file_pat
   checker.setCollisionMarginData(CollisionMarginData(0.5));
   EXPECT_NEAR(checker.getCollisionMarginData().getMaxCollisionMargin(), 0.5, 1e-5);
 
-  checker.setPairCollisionMarginData("octomap_link", "plane_link", 0.1);
+  checker.setCollisionMarginPair("octomap_link", "plane_link", 0.1);
 
   // Set the collision object transforms
   tesseract_common::TransformMap location;
@@ -128,7 +128,8 @@ inline void runTest(DiscreteContactManager& checker, const std::string& file_pat
         (*mesh_triangles)[4 * r.subshape_id[static_cast<std::size_t>(idx)] + 3])] = Eigen::Vector3i(255, 0, 0);
   }
 
-  writeSimplePlyFile(file_path, *mesh_vertices, mesh_vertices_color, *mesh_triangles, mesh->getFaceCount());
+  tesseract_common::writeSimplePlyFile(
+      file_path, *mesh_vertices, mesh_vertices_color, *mesh_triangles, mesh->getFaceCount());
 
   EXPECT_TRUE(!result_vector.empty());
   EXPECT_TRUE(result_vector.size() == 2712);

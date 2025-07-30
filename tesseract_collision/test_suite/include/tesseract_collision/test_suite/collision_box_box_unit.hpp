@@ -11,6 +11,7 @@ TESSERACT_COMMON_IGNORE_WARNINGS_POP
 #include <tesseract_collision/core/discrete_contact_manager.h>
 #include <tesseract_collision/core/common.h>
 #include <tesseract_geometry/geometries.h>
+#include <tesseract_common/ply_io.h>
 #include <tesseract_common/resource_locator.h>
 
 namespace tesseract_collision::test_suite
@@ -61,10 +62,11 @@ inline void addCollisionObjects(DiscreteContactManager& checker, bool use_convex
     auto mesh_faces = std::make_shared<Eigen::VectorXi>();
     // TODO: Need to figure out why this test not pass of bullet when using the box_2m.ply mesh
     tesseract_common::GeneralResourceLocator locator;
-    EXPECT_GT(loadSimplePlyFile(locator.locateResource("package://tesseract_support/meshes/box2_2m.ply")->getFilePath(),
-                                *mesh_vertices,
-                                *mesh_faces,
-                                true),
+    EXPECT_GT(tesseract_common::loadSimplePlyFile(
+                  locator.locateResource("package://tesseract_support/meshes/box2_2m.ply")->getFilePath(),
+                  *mesh_vertices,
+                  *mesh_faces,
+                  true),
               0);
 
     auto mesh = std::make_shared<tesseract_geometry::Mesh>(mesh_vertices, mesh_faces);
@@ -88,13 +90,12 @@ inline void addCollisionObjects(DiscreteContactManager& checker, bool use_convex
   /////////////////////////////////////////////
   // Add box and remove
   /////////////////////////////////////////////
-  CollisionShapePtr remove_box = std::make_shared<tesseract_geometry::Box>(0.1, 1, 1);
   Eigen::Isometry3d remove_box_pose;
   remove_box_pose.setIdentity();
 
   CollisionShapesConst obj4_shapes;
   tesseract_common::VectorIsometry3d obj4_poses;
-  obj4_shapes.push_back(remove_box);
+  obj4_shapes.push_back(thin_box);
   obj4_poses.push_back(remove_box_pose);
 
   checker.addCollisionObject("remove_box_link", 0, obj4_shapes, obj4_poses);
@@ -144,7 +145,7 @@ inline void runTestTyped(DiscreteContactManager& checker, ContactTestType test_t
   EXPECT_TRUE(checker.getContactAllowedValidator() == nullptr);
 
   checker.setCollisionMarginData(CollisionMarginData(0.1));
-  EXPECT_NEAR(checker.getCollisionMarginData().getPairCollisionMargin("box_link", "second_box_link"), 0.1, 1e-5);
+  EXPECT_NEAR(checker.getCollisionMarginData().getCollisionMargin("box_link", "second_box_link"), 0.1, 1e-5);
 
   // Set the collision object transforms
   tesseract_common::TransformMap location;
@@ -191,7 +192,7 @@ inline void runTestTyped(DiscreteContactManager& checker, ContactTestType test_t
   // Test object is outside the contact distance
   ////////////////////////////////////////////////
   {
-    location["box_link"].translation() = Eigen::Vector3d(1.60 + 1e-6, 0, 0);
+    location["box_link"].translation() = Eigen::Vector3d(1.60, 0, 0);
     result.clear();
     result_vector.clear();
 
@@ -209,12 +210,12 @@ inline void runTestTyped(DiscreteContactManager& checker, ContactTestType test_t
   ////////////////////////////////////////////////
   {
     CollisionMarginData data = checker.getCollisionMarginData();
-    data.setPairCollisionMargin("not_box_link", "also_not_box_link", 1.7);
+    data.setCollisionMargin("not_box_link", "also_not_box_link", 1.7);
     checker.setCollisionMarginData(data);
 
     EXPECT_EQ(checker.getCollisionMarginData().getMaxCollisionMargin(), 1.7);
-    EXPECT_NEAR(checker.getCollisionMarginData().getPairCollisionMargin("box_link", "second_box_link"), 0.1, 1e-5);
-    location["box_link"].translation() = Eigen::Vector3d(1.60 + 1e-6, 0, 0);
+    EXPECT_NEAR(checker.getCollisionMarginData().getCollisionMargin("box_link", "second_box_link"), 0.1, 1e-5);
+    location["box_link"].translation() = Eigen::Vector3d(1.60, 0, 0);
     result.clear();
     result_vector.clear();
 
@@ -235,10 +236,10 @@ inline void runTestTyped(DiscreteContactManager& checker, ContactTestType test_t
     result_vector.clear();
 
     CollisionMarginData data(0.1);
-    data.setPairCollisionMargin("box_link", "second_box_link", 0.25);
+    data.setCollisionMargin("box_link", "second_box_link", 0.25);
 
     checker.setCollisionMarginData(data);
-    EXPECT_NEAR(checker.getCollisionMarginData().getPairCollisionMargin("box_link", "second_box_link"), 0.25, 1e-5);
+    EXPECT_NEAR(checker.getCollisionMarginData().getCollisionMargin("box_link", "second_box_link"), 0.25, 1e-5);
     EXPECT_NEAR(checker.getCollisionMarginData().getMaxCollisionMargin(), 0.25, 1e-5);
     checker.contactTest(result, ContactRequest(test_type));
     result.flattenCopyResults(result_vector);
