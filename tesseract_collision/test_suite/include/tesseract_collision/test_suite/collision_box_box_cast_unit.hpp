@@ -168,29 +168,32 @@ inline void runTest(ContinuousContactManager& checker)
     result.flattenMoveResults(result_vector);
 
     EXPECT_TRUE(!result_vector.empty());
-    EXPECT_NEAR(result_vector[0].distance, -0.2475, 0.001);
-    EXPECT_NEAR(result_vector[0].cc_time[0], -1.0, 0.001);
-    EXPECT_NEAR(result_vector[0].cc_time[1], 0.25, 0.001);
-    EXPECT_TRUE(result_vector[0].cc_type[0] == ContinuousCollisionType::CCType_None);
-    EXPECT_TRUE(result_vector[0].cc_type[1] == ContinuousCollisionType::CCType_Between);
+    if (!result_vector.empty())
+    {
+      EXPECT_NEAR(result_vector[0].distance, -0.2475, 0.001);
+      EXPECT_NEAR(result_vector[0].cc_time[0], -1.0, 0.001);
+      EXPECT_NEAR(result_vector[0].cc_time[1], 0.25, 0.001);
+      EXPECT_TRUE(result_vector[0].cc_type[0] == ContinuousCollisionType::CCType_None);
+      EXPECT_TRUE(result_vector[0].cc_type[1] == ContinuousCollisionType::CCType_Between);
 
-    EXPECT_NEAR(result_vector[0].nearest_points[0][0], -0.5, 0.001);
-    EXPECT_NEAR(result_vector[0].nearest_points[0][1], 0.5, 0.001);
-    EXPECT_NEAR(result_vector[0].nearest_points[0][2], 0.0, 0.001);
+      EXPECT_NEAR(result_vector[0].nearest_points[0][0], -0.5, 0.001);
+      EXPECT_NEAR(result_vector[0].nearest_points[0][1], 0.5, 0.001);
+      EXPECT_NEAR(result_vector[0].nearest_points[0][2], 0.0, 0.001);
 
-    EXPECT_NEAR(result_vector[0].nearest_points[1][0], -0.325, 0.001);
-    EXPECT_NEAR(result_vector[0].nearest_points[1][1], 0.325, 0.001);
-    EXPECT_NEAR(result_vector[0].nearest_points[1][2], 0.0, 0.001);
+      EXPECT_NEAR(result_vector[0].nearest_points[1][0], -0.325, 0.001);
+      EXPECT_NEAR(result_vector[0].nearest_points[1][1], 0.325, 0.001);
+      EXPECT_NEAR(result_vector[0].nearest_points[1][2], 0.0, 0.001);
 
-    Eigen::Vector3d p0 = result_vector[0].transform[1] * result_vector[0].nearest_points_local[1];
-    EXPECT_NEAR(p0[0], -1.275, 0.001);
-    EXPECT_NEAR(p0[1], -0.625, 0.001);
-    EXPECT_NEAR(p0[2], 0.0, 0.001);
+      Eigen::Vector3d p0 = result_vector[0].transform[1] * result_vector[0].nearest_points_local[1];
+      EXPECT_NEAR(p0[0], -1.275, 0.001);
+      EXPECT_NEAR(p0[1], -0.625, 0.001);
+      EXPECT_NEAR(p0[2], 0.0, 0.001);
 
-    Eigen::Vector3d p1 = result_vector[0].cc_transform[1] * result_vector[0].nearest_points_local[1];
-    EXPECT_NEAR(p1[0], 2.525, 0.001);
-    EXPECT_NEAR(p1[1], 3.175, 0.001);
-    EXPECT_NEAR(p1[2], 0.0, 0.001);
+      Eigen::Vector3d p1 = result_vector[0].cc_transform[1] * result_vector[0].nearest_points_local[1];
+      EXPECT_NEAR(p1[0], 2.525, 0.001);
+      EXPECT_NEAR(p1[1], 3.175, 0.001);
+      EXPECT_NEAR(p1[2], 0.0, 0.001);
+    }
   }
 }
 }  // namespace tesseract_collision::test_suite

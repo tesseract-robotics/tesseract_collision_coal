@@ -164,23 +164,26 @@ inline void runTest(DiscreteContactManager& checker)
   result.flattenMoveResults(result_vector);
 
   EXPECT_TRUE(!result_vector.empty());
-  EXPECT_NEAR(result_vector[0].distance, -0.30, 0.0001);
+  if (!result_vector.empty())
+  {
+    EXPECT_NEAR(result_vector[0].distance, -0.30, 0.0001);
 
-  std::vector<int> idx = { 0, 1, 1 };
-  if (result_vector[0].link_names[0] != "sphere_link")
-    idx = { 1, 0, -1 };
+    std::vector<int> idx = { 0, 1, 1 };
+    if (result_vector[0].link_names[0] != "sphere_link")
+      idx = { 1, 0, -1 };
 
-  EXPECT_NEAR(result_vector[0].nearest_points[static_cast<size_t>(idx[0])][0], 0.25, 0.001);
-  EXPECT_NEAR(result_vector[0].nearest_points[static_cast<size_t>(idx[0])][1], 0.0, 0.001);
-  EXPECT_NEAR(result_vector[0].nearest_points[static_cast<size_t>(idx[0])][2], 0.0, 0.001);
-  EXPECT_NEAR(result_vector[0].nearest_points[static_cast<size_t>(idx[1])][0], -0.05, 0.001);
-  EXPECT_NEAR(result_vector[0].nearest_points[static_cast<size_t>(idx[1])][1], 0.0, 0.001);
-  EXPECT_NEAR(result_vector[0].nearest_points[static_cast<size_t>(idx[1])][2], 0.0, 0.001);
+    EXPECT_NEAR(result_vector[0].nearest_points[static_cast<size_t>(idx[0])][0], 0.25, 0.001);
+    EXPECT_NEAR(result_vector[0].nearest_points[static_cast<size_t>(idx[0])][1], 0.0, 0.001);
+    EXPECT_NEAR(result_vector[0].nearest_points[static_cast<size_t>(idx[0])][2], 0.0, 0.001);
+    EXPECT_NEAR(result_vector[0].nearest_points[static_cast<size_t>(idx[1])][0], -0.05, 0.001);
+    EXPECT_NEAR(result_vector[0].nearest_points[static_cast<size_t>(idx[1])][1], 0.0, 0.001);
+    EXPECT_NEAR(result_vector[0].nearest_points[static_cast<size_t>(idx[1])][2], 0.0, 0.001);
 
-  EXPECT_NEAR(result_vector[0].normal[0], idx[2] * 1.0, 0.001);
-  EXPECT_NEAR(result_vector[0].normal[1], idx[2] * 0.0, 0.001);
-  EXPECT_NEAR(result_vector[0].normal[2], idx[2] * 0.0, 0.0016);  // TODO LEVI: This was increased due to FLC
-                                                                  // calculation because it is using GJK
+    EXPECT_NEAR(result_vector[0].normal[0], idx[2] * 1.0, 0.001);
+    EXPECT_NEAR(result_vector[0].normal[1], idx[2] * 0.0, 0.001);
+    EXPECT_NEAR(result_vector[0].normal[2], idx[2] * 0.0, 0.0016);  // TODO LEVI: This was increased due to FLC
+                                                                    // calculation because it is using GJK
+  }
 
   ////////////////////////////////////////////////
   // Test object is out side the contact distance
@@ -208,22 +211,25 @@ inline void runTest(DiscreteContactManager& checker)
   result.flattenMoveResults(result_vector);
 
   EXPECT_TRUE(!result_vector.empty());
-  EXPECT_NEAR(result_vector[0].distance, 0.5, 0.0001);
+  if (!result_vector.empty())
+  {
+    EXPECT_NEAR(result_vector[0].distance, 0.5, 0.0001);
 
-  idx = { 0, 1, 1 };
-  if (result_vector[0].link_names[0] != "sphere_link")
-    idx = { 1, 0, -1 };
+    std::vector<int> idx = { 0, 1, 1 };
+    if (result_vector[0].link_names[0] != "sphere_link")
+      idx = { 1, 0, -1 };
 
-  EXPECT_NEAR(result_vector[0].nearest_points[static_cast<size_t>(idx[0])][0], 0.25, 0.001);
-  EXPECT_NEAR(result_vector[0].nearest_points[static_cast<size_t>(idx[0])][1], 0.0, 0.001);
-  EXPECT_NEAR(result_vector[0].nearest_points[static_cast<size_t>(idx[0])][2], 0.0, 0.001);
-  EXPECT_NEAR(result_vector[0].nearest_points[static_cast<size_t>(idx[1])][0], 0.75, 0.001);
-  EXPECT_NEAR(result_vector[0].nearest_points[static_cast<size_t>(idx[1])][1], 0.0, 0.001);
-  EXPECT_NEAR(result_vector[0].nearest_points[static_cast<size_t>(idx[1])][2], 0.0, 0.001);
+    EXPECT_NEAR(result_vector[0].nearest_points[static_cast<size_t>(idx[0])][0], 0.25, 0.001);
+    EXPECT_NEAR(result_vector[0].nearest_points[static_cast<size_t>(idx[0])][1], 0.0, 0.001);
+    EXPECT_NEAR(result_vector[0].nearest_points[static_cast<size_t>(idx[0])][2], 0.0, 0.001);
+    EXPECT_NEAR(result_vector[0].nearest_points[static_cast<size_t>(idx[1])][0], 0.75, 0.001);
+    EXPECT_NEAR(result_vector[0].nearest_points[static_cast<size_t>(idx[1])][1], 0.0, 0.001);
+    EXPECT_NEAR(result_vector[0].nearest_points[static_cast<size_t>(idx[1])][2], 0.0, 0.001);
 
-  EXPECT_NEAR(result_vector[0].normal[0], idx[2] * 1.0, 0.001);
-  EXPECT_NEAR(result_vector[0].normal[1], idx[2] * 0.0, 0.001);
-  EXPECT_NEAR(result_vector[0].normal[2], idx[2] * 0.0, 0.001);
+    EXPECT_NEAR(result_vector[0].normal[0], idx[2] * 1.0, 0.001);
+    EXPECT_NEAR(result_vector[0].normal[1], idx[2] * 0.0, 0.001);
+    EXPECT_NEAR(result_vector[0].normal[2], idx[2] * 0.0, 0.001);
+  }
 }
 
 inline void runTest(ContinuousContactManager& checker)
@@ -286,44 +292,50 @@ inline void runTest(ContinuousContactManager& checker)
   result.flattenCopyResults(result_vector);
 
   EXPECT_TRUE(!result_vector.empty());
-  EXPECT_NEAR(result_vector[0].distance, -0.1, 0.0001);
+  if (!result_vector.empty())
+  {
+    EXPECT_NEAR(result_vector[0].distance, -0.1, 0.0001);
 
-  std::vector<int> idx = { 0, 1, 1 };
-  if (result_vector[0].link_names[0] != "sphere_link")
-    idx = { 1, 0, -1 };
+    std::vector<int> idx = { 0, 1, 1 };
+    if (result_vector[0].link_names[0] != "sphere_link")
+      idx = { 1, 0, -1 };
 
-  EXPECT_NEAR(result_vector[0].cc_time[static_cast<size_t>(idx[0])], 0.5, 0.001);
-  EXPECT_NEAR(result_vector[0].cc_time[static_cast<size_t>(idx[1])], 0.5, 0.001);
+    EXPECT_NEAR(result_vector[0].cc_time[static_cast<size_t>(idx[0])], 0.5, 0.001);
+    EXPECT_NEAR(result_vector[0].cc_time[static_cast<size_t>(idx[1])], 0.5, 0.001);
 
-  EXPECT_TRUE(result_vector[0].cc_type[static_cast<size_t>(static_cast<size_t>(idx[0]))] ==
-              ContinuousCollisionType::CCType_Between);
-  EXPECT_TRUE(result_vector[0].cc_type[static_cast<size_t>(static_cast<size_t>(idx[0]))] ==
-              ContinuousCollisionType::CCType_Between);
+    EXPECT_TRUE(result_vector[0].cc_type[static_cast<size_t>(static_cast<size_t>(idx[0]))] ==
+                ContinuousCollisionType::CCType_Between);
+    EXPECT_TRUE(result_vector[0].cc_type[static_cast<size_t>(static_cast<size_t>(idx[0]))] ==
+                ContinuousCollisionType::CCType_Between);
 
-  EXPECT_NEAR(result_vector[0].nearest_points[static_cast<size_t>(idx[0])][0], 0.05, 0.001);
-  EXPECT_NEAR(result_vector[0].nearest_points[static_cast<size_t>(idx[0])][1], 0.0, 0.001);
-  EXPECT_NEAR(result_vector[0].nearest_points[static_cast<size_t>(idx[0])][2], 0.25, 0.001);
+    EXPECT_NEAR(result_vector[0].nearest_points[static_cast<size_t>(idx[0])][0], 0.05, 0.001);
+    EXPECT_NEAR(result_vector[0].nearest_points[static_cast<size_t>(idx[0])][1], 0.0, 0.001);
+    EXPECT_NEAR(result_vector[0].nearest_points[static_cast<size_t>(idx[0])][2], 0.25, 0.001);
 
-  EXPECT_NEAR(result_vector[0].nearest_points[static_cast<size_t>(idx[1])][0], -0.05, 0.001);
-  EXPECT_NEAR(result_vector[0].nearest_points[static_cast<size_t>(idx[1])][1], 0.0, 0.001);
-  EXPECT_NEAR(result_vector[0].nearest_points[static_cast<size_t>(idx[1])][2], 0.25, 0.001);
+    EXPECT_NEAR(result_vector[0].nearest_points[static_cast<size_t>(idx[1])][0], -0.05, 0.001);
+    EXPECT_NEAR(result_vector[0].nearest_points[static_cast<size_t>(idx[1])][1], 0.0, 0.001);
+    EXPECT_NEAR(result_vector[0].nearest_points[static_cast<size_t>(idx[1])][2], 0.25, 0.001);
 
-  EXPECT_NEAR(result_vector[0].nearest_points_local[static_cast<size_t>(idx[0])][0], 0.25, 0.001);
-  EXPECT_NEAR(result_vector[0].nearest_points_local[static_cast<size_t>(idx[0])][1], 0.0, 0.001);
-  EXPECT_NEAR(result_vector[0].nearest_points_local[static_cast<size_t>(idx[0])][2], 0.25, 0.001);
-  EXPECT_NEAR(result_vector[0].nearest_points_local[static_cast<size_t>(idx[1])][0], -0.25, 0.001);
-  EXPECT_NEAR(result_vector[0].nearest_points_local[static_cast<size_t>(idx[1])][1], 0.0, 0.001);
-  EXPECT_NEAR(result_vector[0].nearest_points_local[static_cast<size_t>(idx[1])][2], 0.25, 0.001);
+    EXPECT_NEAR(result_vector[0].nearest_points_local[static_cast<size_t>(idx[0])][0], 0.25, 0.001);
+    EXPECT_NEAR(result_vector[0].nearest_points_local[static_cast<size_t>(idx[0])][1], 0.0, 0.001);
+    EXPECT_NEAR(result_vector[0].nearest_points_local[static_cast<size_t>(idx[0])][2], 0.25, 0.001);
+    EXPECT_NEAR(result_vector[0].nearest_points_local[static_cast<size_t>(idx[1])][0], -0.25, 0.001);
+    EXPECT_NEAR(result_vector[0].nearest_points_local[static_cast<size_t>(idx[1])][1], 0.0, 0.001);
+    EXPECT_NEAR(result_vector[0].nearest_points_local[static_cast<size_t>(idx[1])][2], 0.25, 0.001);
 
-  EXPECT_TRUE(result_vector[0].transform[static_cast<size_t>(idx[0])].isApprox(location_start["sphere_link"], 0.0001));
-  EXPECT_TRUE(result_vector[0].transform[static_cast<size_t>(idx[1])].isApprox(location_start["sphere1_link"], 0.0001));
-  EXPECT_TRUE(result_vector[0].cc_transform[static_cast<size_t>(idx[0])].isApprox(location_end["sphere_link"], 0.0001));
-  EXPECT_TRUE(
-      result_vector[0].cc_transform[static_cast<size_t>(idx[1])].isApprox(location_end["sphere1_link"], 0.0001));
+    EXPECT_TRUE(
+        result_vector[0].transform[static_cast<size_t>(idx[0])].isApprox(location_start["sphere_link"], 0.0001));
+    EXPECT_TRUE(
+        result_vector[0].transform[static_cast<size_t>(idx[1])].isApprox(location_start["sphere1_link"], 0.0001));
+    EXPECT_TRUE(
+        result_vector[0].cc_transform[static_cast<size_t>(idx[0])].isApprox(location_end["sphere_link"], 0.0001));
+    EXPECT_TRUE(
+        result_vector[0].cc_transform[static_cast<size_t>(idx[1])].isApprox(location_end["sphere1_link"], 0.0001));
 
-  EXPECT_NEAR(result_vector[0].normal[0], idx[2] * 1.0, 0.001);
-  EXPECT_NEAR(result_vector[0].normal[1], idx[2] * 0.0, 0.001);
-  EXPECT_NEAR(result_vector[0].normal[2], idx[2] * 0.0, 0.001);
+    EXPECT_NEAR(result_vector[0].normal[0], idx[2] * 1.0, 0.001);
+    EXPECT_NEAR(result_vector[0].normal[1], idx[2] * 0.0, 0.001);
+    EXPECT_NEAR(result_vector[0].normal[2], idx[2] * 0.0, 0.001);
+  }
 
   /////////////////////////////////////////////////////////////
   // Test when object is in collision at cc_time 0.333 and 0.5
@@ -357,44 +369,50 @@ inline void runTest(ContinuousContactManager& checker)
   result.flattenMoveResults(result_vector);
 
   EXPECT_TRUE(!result_vector.empty());
-  EXPECT_NEAR(result_vector[0].distance, -0.1, 0.0001);
+  if (!result_vector.empty())
+  {
+    EXPECT_NEAR(result_vector[0].distance, -0.1, 0.0001);
 
-  idx = { 0, 1, 1 };
-  if (result_vector[0].link_names[0] != "sphere_link")
-    idx = { 1, 0, -1 };
+    std::vector<int> idx = { 0, 1, 1 };
+    if (result_vector[0].link_names[0] != "sphere_link")
+      idx = { 1, 0, -1 };
 
-  EXPECT_NEAR(result_vector[0].cc_time[static_cast<size_t>(idx[0])], 0.3333, 0.001);
-  EXPECT_NEAR(result_vector[0].cc_time[static_cast<size_t>(idx[1])], 0.5, 0.001);
+    EXPECT_NEAR(result_vector[0].cc_time[static_cast<size_t>(idx[0])], 0.3333, 0.001);
+    EXPECT_NEAR(result_vector[0].cc_time[static_cast<size_t>(idx[1])], 0.5, 0.001);
 
-  EXPECT_TRUE(result_vector[0].cc_type[static_cast<size_t>(static_cast<size_t>(idx[0]))] ==
-              ContinuousCollisionType::CCType_Between);
-  EXPECT_TRUE(result_vector[0].cc_type[static_cast<size_t>(static_cast<size_t>(idx[1]))] ==
-              ContinuousCollisionType::CCType_Between);
+    EXPECT_TRUE(result_vector[0].cc_type[static_cast<size_t>(static_cast<size_t>(idx[0]))] ==
+                ContinuousCollisionType::CCType_Between);
+    EXPECT_TRUE(result_vector[0].cc_type[static_cast<size_t>(static_cast<size_t>(idx[1]))] ==
+                ContinuousCollisionType::CCType_Between);
 
-  EXPECT_NEAR(result_vector[0].nearest_points[static_cast<size_t>(idx[0])][0], 0.05, 0.001);
-  EXPECT_NEAR(result_vector[0].nearest_points[static_cast<size_t>(idx[0])][1], 0.0, 0.001);
-  EXPECT_NEAR(result_vector[0].nearest_points[static_cast<size_t>(idx[0])][2], 0.25, 0.001);
+    EXPECT_NEAR(result_vector[0].nearest_points[static_cast<size_t>(idx[0])][0], 0.05, 0.001);
+    EXPECT_NEAR(result_vector[0].nearest_points[static_cast<size_t>(idx[0])][1], 0.0, 0.001);
+    EXPECT_NEAR(result_vector[0].nearest_points[static_cast<size_t>(idx[0])][2], 0.25, 0.001);
 
-  EXPECT_NEAR(result_vector[0].nearest_points[static_cast<size_t>(idx[1])][0], -0.05, 0.001);
-  EXPECT_NEAR(result_vector[0].nearest_points[static_cast<size_t>(idx[1])][1], 0.0, 0.001);
-  EXPECT_NEAR(result_vector[0].nearest_points[static_cast<size_t>(idx[1])][2], 0.25, 0.001);
+    EXPECT_NEAR(result_vector[0].nearest_points[static_cast<size_t>(idx[1])][0], -0.05, 0.001);
+    EXPECT_NEAR(result_vector[0].nearest_points[static_cast<size_t>(idx[1])][1], 0.0, 0.001);
+    EXPECT_NEAR(result_vector[0].nearest_points[static_cast<size_t>(idx[1])][2], 0.25, 0.001);
 
-  EXPECT_NEAR(result_vector[0].nearest_points_local[static_cast<size_t>(idx[0])][0], 0.25, 0.001);
-  EXPECT_NEAR(result_vector[0].nearest_points_local[static_cast<size_t>(idx[0])][1], 0.0, 0.001);
-  EXPECT_NEAR(result_vector[0].nearest_points_local[static_cast<size_t>(idx[0])][2], 0.25, 0.001);
-  EXPECT_NEAR(result_vector[0].nearest_points_local[static_cast<size_t>(idx[1])][0], -0.25, 0.001);
-  EXPECT_NEAR(result_vector[0].nearest_points_local[static_cast<size_t>(idx[1])][1], 0.0, 0.001);
-  EXPECT_NEAR(result_vector[0].nearest_points_local[static_cast<size_t>(idx[1])][2], 0.25, 0.001);
+    EXPECT_NEAR(result_vector[0].nearest_points_local[static_cast<size_t>(idx[0])][0], 0.25, 0.001);
+    EXPECT_NEAR(result_vector[0].nearest_points_local[static_cast<size_t>(idx[0])][1], 0.0, 0.001);
+    EXPECT_NEAR(result_vector[0].nearest_points_local[static_cast<size_t>(idx[0])][2], 0.25, 0.001);
+    EXPECT_NEAR(result_vector[0].nearest_points_local[static_cast<size_t>(idx[1])][0], -0.25, 0.001);
+    EXPECT_NEAR(result_vector[0].nearest_points_local[static_cast<size_t>(idx[1])][1], 0.0, 0.001);
+    EXPECT_NEAR(result_vector[0].nearest_points_local[static_cast<size_t>(idx[1])][2], 0.25, 0.001);
 
-  EXPECT_TRUE(result_vector[0].transform[static_cast<size_t>(idx[0])].isApprox(location_start["sphere_link"], 0.0001));
-  EXPECT_TRUE(result_vector[0].transform[static_cast<size_t>(idx[1])].isApprox(location_start["sphere1_link"], 0.0001));
-  EXPECT_TRUE(result_vector[0].cc_transform[static_cast<size_t>(idx[0])].isApprox(location_end["sphere_link"], 0.0001));
-  EXPECT_TRUE(
-      result_vector[0].cc_transform[static_cast<size_t>(idx[1])].isApprox(location_end["sphere1_link"], 0.0001));
+    EXPECT_TRUE(
+        result_vector[0].transform[static_cast<size_t>(idx[0])].isApprox(location_start["sphere_link"], 0.0001));
+    EXPECT_TRUE(
+        result_vector[0].transform[static_cast<size_t>(idx[1])].isApprox(location_start["sphere1_link"], 0.0001));
+    EXPECT_TRUE(
+        result_vector[0].cc_transform[static_cast<size_t>(idx[0])].isApprox(location_end["sphere_link"], 0.0001));
+    EXPECT_TRUE(
+        result_vector[0].cc_transform[static_cast<size_t>(idx[1])].isApprox(location_end["sphere1_link"], 0.0001));
 
-  EXPECT_NEAR(result_vector[0].normal[0], idx[2] * 1.0, 0.001);
-  EXPECT_NEAR(result_vector[0].normal[1], idx[2] * 0.0, 0.001);
-  EXPECT_NEAR(result_vector[0].normal[2], idx[2] * 0.0, 0.001);
+    EXPECT_NEAR(result_vector[0].normal[0], idx[2] * 1.0, 0.001);
+    EXPECT_NEAR(result_vector[0].normal[1], idx[2] * 0.0, 0.001);
+    EXPECT_NEAR(result_vector[0].normal[2], idx[2] * 0.0, 0.001);
+  }
 }
 }  // namespace tesseract_collision::test_suite
 #endif  // TESSERACT_COLLISION_CONTACT_MANAGER_CONFIG_UNIT_H
