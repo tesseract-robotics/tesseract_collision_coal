@@ -1,8 +1,8 @@
 /**
  * @file coal_utils.h
- * @brief Tesseract ROS Coal Utility Functions.
+ * @brief Tesseract Coal Utility Functions.
  *
- * @author Levi Armstrong
+ * @author Roelof Oomen, Levi Armstrong
  * @date Dec 18, 2017
  * @version TODO
  * @bug No known bugs
@@ -53,6 +53,7 @@ TESSERACT_COMMON_IGNORE_WARNINGS_POP
 #include <tesseract_collision/core/common.h>
 
 #include <tesseract_collision/coal/coal_collision_object_wrapper.h>
+#include <tesseract_collision/coal/coal_casthullshape.h>
 
 namespace tesseract_collision::tesseract_collision_coal
 {
@@ -193,10 +194,10 @@ using Link2COW = std::map<std::string, COW::Ptr>;
 using Link2ConstCOW = std::map<std::string, COW::ConstPtr>;
 
 inline COW::Ptr createCoalCollisionObject(const std::string& name,
-                                             const int& type_id,
-                                             const CollisionShapesConst& shapes,
-                                             const tesseract_common::VectorIsometry3d& shape_poses,
-                                             bool enabled)
+                                          const int& type_id,
+                                          const CollisionShapesConst& shapes,
+                                          const tesseract_common::VectorIsometry3d& shape_poses,
+                                          bool enabled)
 {
   // dont add object that does not have geometry
   if (shapes.empty() || shape_poses.empty() || (shapes.size() != shape_poses.size()))
@@ -266,6 +267,139 @@ inline void updateCollisionObjectFilters(const std::vector<std::string>& active,
   {
     cow->m_collisionFilterMask = CollisionFilterGroups::StaticFilter | CollisionFilterGroups::KinematicFilter;
   }
+}
+
+/**
+ * @brief Update collision objects filters for continuous collision checking
+ * @param active The active collision objects
+ * @param cow The regular collision object
+ * @param cast_cow The cast collision object
+ * @param static_manager Broadphase manager for static objects
+ * @param dynamic_manager Broadphase manager for dynamic objects
+ */
+inline void updateCollisionObjectFilters(const std::vector<std::string>& active,
+                                         const COW::Ptr& cow,
+                                         const COW::Ptr& cast_cow,
+                                         const std::unique_ptr<coal::BroadPhaseCollisionManager>& static_manager,
+                                         const std::unique_ptr<coal::BroadPhaseCollisionManager>& dynamic_manager)
+{
+  const std::vector<CollisionObjectPtr>& reg_objects = cow->getCollisionObjects();
+  const std::vector<CollisionObjectPtr>& cast_objects = cast_cow->getCollisionObjects();
+  // For inactive objects, we want the regular version in the static manager
+  if (!isLinkActive(active, cow->getName()))
+  {
+    if (cow->m_collisionFilterGroup != CollisionFilterGroups::StaticFilter)
+    {
+      // This link was dynamic but is now static
+      for (const auto& co : cast_objects)
+      {
+        dynamic_manager->unregisterObject(co.get());
+      }
+      for (const auto& co : reg_objects)
+      {
+        static_manager->registerObject(co.get());
+      }
+    }
+    cow->m_collisionFilterGroup = CollisionFilterGroups::StaticFilter;
+    cast_cow->m_collisionFilterGroup = CollisionFilterGroups::StaticFilter;
+  }
+  // For active objects, we want the cast version in the dynamic manager
+  else
+  {
+    if (cow->m_collisionFilterGroup != CollisionFilterGroups::KinematicFilter)
+    {
+      // This link was static but is now dynamic
+      for (const auto& co : reg_objects)
+      {
+        static_manager->unregisterObject(co.get());
+      }
+      for (const auto& co : cast_objects)
+      {
+        dynamic_manager->registerObject(co.get());
+      }
+    }
+    cow->m_collisionFilterGroup = CollisionFilterGroups::KinematicFilter;
+    cast_cow->m_collisionFilterGroup = CollisionFilterGroups::KinematicFilter;
+  }
+
+  // If the group is StaticFilter then the Mask is KinematicFilter, then StaticFilter groups can only collide with
+  // KinematicFilter groups. If the group is KinematicFilter then the mask is StaticFilter and KinematicFilter meaning
+  // that KinematicFilter groups can collide with both StaticFilter and KinematicFilter groups.
+  if (cow->m_collisionFilterGroup == CollisionFilterGroups::StaticFilter)
+  {
+    cow->m_collisionFilterMask = CollisionFilterGroups::KinematicFilter;
+  }
+  else
+  {
+    cow->m_collisionFilterMask = CollisionFilterGroups::StaticFilter | CollisionFilterGroups::KinematicFilter;
+  }
+  if (cast_cow->m_collisionFilterGroup == CollisionFilterGroups::StaticFilter)
+  {
+    cast_cow->m_collisionFilterMask = CollisionFilterGroups::KinematicFilter;
+  }
+  else
+  {
+    cast_cow->m_collisionFilterMask = CollisionFilterGroups::StaticFilter | CollisionFilterGroups::KinematicFilter;
+  }
+}
+
+/**
+ * @brief Create a cast collision object from a regular collision object
+ * @param cow The collision object to convert
+ * @return A new collision object with shapes converted to CastHullShapes
+ */
+inline COW::Ptr makeCastCollisionObject(const COW::Ptr& cow)
+{
+  auto cast_cow = cow->clone();
+
+  // Create the vector of new collision objects
+  std::vector<CollisionObjectPtr> new_collision_objects;
+  std::vector<CollisionObjectRawPtr> new_collision_objects_raw;
+  std::vector<CollisionGeometryPtr> new_collision_geometries;
+
+  // Identity transform for initial state
+  coal::Transform3s identity_tf;
+  identity_tf.setIdentity();
+
+  const auto& current_collision_objects = cast_cow->getCollisionObjects();
+  new_collision_objects.reserve(current_collision_objects.size());
+  new_collision_objects_raw.reserve(current_collision_objects.size());
+  new_collision_geometries.reserve(current_collision_objects.size());
+
+  for (const auto& co : current_collision_objects)
+  {
+    auto geo = co->collisionGeometry();
+    auto* shape_base_ptr = dynamic_cast<coal::ShapeBase*>(geo.get());
+    if (shape_base_ptr != nullptr)
+    {
+      // Create a cast hull shape from the original shape
+      auto cast_shape = std::make_shared<CastHullShape>(std::static_pointer_cast<coal::ShapeBase>(geo), identity_tf);
+
+      // Create a new collision object with the cast shape
+      auto cast_co = std::make_shared<CoalCollisionObjectWrapper>(cast_shape, co->getTransform());
+      cast_co->setShapeIndex(co->getShapeIndex());
+      cast_co->setContactDistanceThreshold(co->getContactDistanceThreshold());
+      cast_co->setUserData(cast_cow.get());
+
+      // Store everything
+      new_collision_geometries.push_back(cast_shape);
+      new_collision_objects.push_back(cast_co);
+      new_collision_objects_raw.push_back(cast_co.get());
+    }
+    else
+    {
+      // If we can't convert to a cast shape, just use the original
+      new_collision_geometries.push_back(geo);
+      new_collision_objects.push_back(co);
+      new_collision_objects_raw.push_back(co.get());
+    }
+  }
+
+  // Replace the collision objects in the cast_cow with the cast versions
+  cast_cow->getCollisionObjects() = new_collision_objects;
+  cast_cow->getCollisionObjectsRaw() = new_collision_objects_raw;
+
+  return cast_cow;
 }
 
 #pragma GCC diagnostic push

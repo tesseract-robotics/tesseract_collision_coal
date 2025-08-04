@@ -1,9 +1,9 @@
 /**
- * @file coal_discrete_managers.h
+ * @file coal_cast_managers.h
  * @brief Tesseract Coal contact checker implementation.
  *
- * @author Roelof Oomen, Levi Armstrong
- * @date Dec 18, 2017
+ * @author Roelof Oomen
+ * @date Aug 04, 2025
  * @version TODO
  * @bug No known bugs
  *
@@ -39,38 +39,38 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef TESSERACT_COLLISION_COAL_DISCRETE_MANAGERS_H
-#define TESSERACT_COLLISION_COAL_DISCRETE_MANAGERS_H
+#ifndef TESSERACT_COLLISION_COAL_CAST_MANAGERS_H
+#define TESSERACT_COLLISION_COAL_CAST_MANAGERS_H
 
 #include <tesseract_common/macros.h>
 TESSERACT_COMMON_IGNORE_WARNINGS_PUSH
 #include <coal/broadphase/broadphase_collision_manager.h>
 TESSERACT_COMMON_IGNORE_WARNINGS_POP
 
-#include <tesseract_collision/core/discrete_contact_manager.h>
+#include <tesseract_collision/core/continuous_contact_manager.h>
 #include <tesseract_collision/coal/coal_utils.h>
 
 namespace tesseract_collision::tesseract_collision_coal
 {
-/** @brief A Coal implementation of the discrete contact manager */
-class CoalDiscreteBVHManager : public DiscreteContactManager
+/** @brief A Coal implementation of the continuous contact manager */
+class CoalCastBVHManager : public ContinuousContactManager
 {
 public:
-  using Ptr = std::shared_ptr<CoalDiscreteBVHManager>;
-  using ConstPtr = std::shared_ptr<const CoalDiscreteBVHManager>;
-  using UPtr = std::unique_ptr<CoalDiscreteBVHManager>;
-  using ConstUPtr = std::unique_ptr<const CoalDiscreteBVHManager>;
+  using Ptr = std::shared_ptr<CoalCastBVHManager>;
+  using ConstPtr = std::shared_ptr<const CoalCastBVHManager>;
+  using UPtr = std::unique_ptr<CoalCastBVHManager>;
+  using ConstUPtr = std::unique_ptr<const CoalCastBVHManager>;
 
-  CoalDiscreteBVHManager(std::string name = "CoalDiscreteBVHManager");
-  ~CoalDiscreteBVHManager() override = default;
-  CoalDiscreteBVHManager(const CoalDiscreteBVHManager&) = delete;
-  CoalDiscreteBVHManager& operator=(const CoalDiscreteBVHManager&) = delete;
-  CoalDiscreteBVHManager(CoalDiscreteBVHManager&&) = delete;
-  CoalDiscreteBVHManager& operator=(CoalDiscreteBVHManager&&) = delete;
+  CoalCastBVHManager(std::string name = "CoalCastBVHManager");
+  ~CoalCastBVHManager() override = default;
+  CoalCastBVHManager(const CoalCastBVHManager&) = delete;
+  CoalCastBVHManager& operator=(const CoalCastBVHManager&) = delete;
+  CoalCastBVHManager(CoalCastBVHManager&&) = delete;
+  CoalCastBVHManager& operator=(CoalCastBVHManager&&) = delete;
 
   std::string getName() const override final;
 
-  DiscreteContactManager::UPtr clone() const override final;
+  ContinuousContactManager::UPtr clone() const override final;
 
   bool addCollisionObject(const std::string& name,
                           const int& mask_id,
@@ -87,6 +87,8 @@ public:
 
   bool removeCollisionObject(const std::string& name) override final;
 
+  void removeObjects(const std::vector<CollisionObjectPtr>& objects);
+
   bool enableCollisionObject(const std::string& name) override final;
 
   bool disableCollisionObject(const std::string& name) override final;
@@ -99,6 +101,17 @@ public:
                                     const tesseract_common::VectorIsometry3d& poses) override final;
 
   void setCollisionObjectsTransform(const tesseract_common::TransformMap& transforms) override final;
+
+  void setCollisionObjectsTransform(const std::string& name,
+                                    const Eigen::Isometry3d& pose1,
+                                    const Eigen::Isometry3d& pose2) override final;
+
+  void setCollisionObjectsTransform(const std::vector<std::string>& names,
+                                    const tesseract_common::VectorIsometry3d& pose1,
+                                    const tesseract_common::VectorIsometry3d& pose2) override final;
+
+  void setCollisionObjectsTransform(const tesseract_common::TransformMap& pose1,
+                                    const tesseract_common::TransformMap& pose2) override final;
 
   const std::vector<std::string>& getCollisionObjects() const override final;
 
@@ -116,11 +129,11 @@ public:
 
   void setDefaultCollisionMargin(double default_collision_margin) override final;
 
+  void incrementCollisionMargin(double increment) override final;
+
   void setCollisionMarginPair(const std::string& name1,
                               const std::string& name2,
                               double collision_margin) override final;
-
-  void incrementCollisionMargin(double increment) override final;
 
   void
   setContactAllowedValidator(std::shared_ptr<const tesseract_common::ContactAllowedValidator> validator) override final;
@@ -130,8 +143,8 @@ public:
   void contactTest(ContactResultMap& collisions, const ContactRequest& request) override final;
 
   /**
-   * @brief Add a fcl collision object to the manager
-   * @param cow The tesseract fcl collision object
+   * @brief Add a Coal collision object to the manager
+   * @param cow The tesseract Coal collision object
    */
   void addCollisionObject(const COW::Ptr& cow);
 
@@ -144,10 +157,11 @@ private:
   /** @brief Broad-phase Collision Manager for active collision objects */
   std::unique_ptr<coal::BroadPhaseCollisionManager> dynamic_manager_;
 
-  Link2COW link2cow_;               /**< @brief A map of all (static and active) collision objects being managed */
-  std::vector<std::string> active_; /**< @brief A list of the active collision objects */
-  std::vector<std::string> collision_objects_; /**< @brief A list of the collision objects */
-  CollisionMarginData collision_margin_data_;  /**< @brief The contact distance threshold */
+  Link2COW link2cow_;                          /** @brief A map of all collision objects being managed */
+  Link2COW link2castcow_;                      /** @brief A map of cast collision objects being managed. */
+  std::vector<std::string> active_;            /** @brief A list of the active collision objects */
+  std::vector<std::string> collision_objects_; /** @brief A list of the collision objects */
+  CollisionMarginData collision_margin_data_;  /** @brief The contact distance threshold */
   std::shared_ptr<const tesseract_common::ContactAllowedValidator> validator_; /**< @brief The is allowed collision
                                                                                   function */
   std::size_t fcl_co_count_{ 0 }; /**< @brief The number fcl collision objects */
@@ -163,4 +177,5 @@ private:
 };
 
 }  // namespace tesseract_collision::tesseract_collision_coal
-#endif  // TESSERACT_COLLISION_COAL_DISCRETE_MANAGERS_H
+
+#endif  // TESSERACT_COLLISION_COAL_CAST_MANAGERS_H

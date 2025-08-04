@@ -79,7 +79,7 @@ void runContactManagersFactoryTest(const std::filesystem::path& config_path)
     EXPECT_TRUE(cm != nullptr);
   }
 
-  EXPECT_EQ(continuous_plugins.size(), 2);
+  EXPECT_EQ(continuous_plugins.size(), 3);
   for (auto cm_it = continuous_plugins.begin(); cm_it != continuous_plugins.end(); ++cm_it)
   {
     auto name = cm_it->first.as<std::string>();
@@ -139,7 +139,7 @@ TEST(TesseractContactManagersFactoryUnit, LoadStringPluginTest)  // NOLINT
                             search_libraries:
                               - tesseract_collision_bullet_factories
                               - tesseract_collision_fcl_factories
-                              - tesseract_collision_coal_factories
+                              - tesseract_collision_coal_coal_factories
                             discrete_plugins:
                               default: BulletDiscreteBVHManager
                               plugins:
@@ -157,7 +157,9 @@ TEST(TesseractContactManagersFactoryUnit, LoadStringPluginTest)  // NOLINT
                                 BulletCastBVHManager:
                                   class: BulletCastBVHManagerFactory
                                 BulletCastSimpleManager:
-                                  class: BulletCastSimpleManagerFactory)";
+                                  class: BulletCastSimpleManagerFactory
+                                CoalCastBVHManager:
+                                  class: CoalCastBVHManagerFactory)";
 
   tesseract_common::GeneralResourceLocator locator;
   ContactManagersPluginFactory factory(config, locator);
@@ -198,7 +200,7 @@ TEST(TesseractContactManagersFactoryUnit, LoadStringPluginTest)  // NOLINT
     EXPECT_TRUE(cm != nullptr);
   }
 
-  EXPECT_EQ(continuous_plugins.size(), 2);
+  EXPECT_EQ(continuous_plugins.size(), 3);
   for (auto cm_it = continuous_plugins.begin(); cm_it != continuous_plugins.end(); ++cm_it)
   {
     auto name = cm_it->first.as<std::string>();
@@ -214,7 +216,7 @@ TEST(TesseractContactManagersFactoryUnit, PluginFactorAPIUnit)  // NOLINT
   EXPECT_FALSE(factory.getSearchPaths().empty());
   EXPECT_EQ(factory.getSearchPaths().size(), 1);
   EXPECT_FALSE(factory.getSearchLibraries().empty());
-  EXPECT_EQ(factory.getSearchLibraries().size(), 3);
+  EXPECT_EQ(factory.getSearchLibraries().size(), 2);
   EXPECT_EQ(factory.getDiscreteContactManagerPlugins().size(), 0);
   EXPECT_EQ(factory.getContinuousContactManagerPlugins().size(), 0);
   EXPECT_ANY_THROW(factory.getDefaultDiscreteContactManagerPlugin());    // NOLINT
@@ -224,11 +226,11 @@ TEST(TesseractContactManagersFactoryUnit, PluginFactorAPIUnit)  // NOLINT
 
   factory.addSearchPath("/usr/local/lib");
   EXPECT_EQ(factory.getSearchPaths().size(), 2);
-  EXPECT_EQ(factory.getSearchLibraries().size(), 3);
+  EXPECT_EQ(factory.getSearchLibraries().size(), 2);
 
   factory.addSearchLibrary("tesseract_collision");
   EXPECT_EQ(factory.getSearchPaths().size(), 2);
-  EXPECT_EQ(factory.getSearchLibraries().size(), 4);
+  EXPECT_EQ(factory.getSearchLibraries().size(), 3);
 
   {
     tesseract_common::PluginInfoMap map = factory.getDiscreteContactManagerPlugins();
@@ -316,7 +318,7 @@ TEST(TesseractContactManagersFactoryUnit, LoadOnlyDiscretePluginTest)  // NOLINT
                             search_libraries:
                               - tesseract_collision_bullet_factories
                               - tesseract_collision_fcl_factories
-                              - tesseract_collision_coal_factories
+                              - tesseract_collision_coal_coal_factories
                             discrete_plugins:
                               default: BulletDiscreteBVHManager
                               plugins:
@@ -376,14 +378,16 @@ TEST(TesseractContactManagersFactoryUnit, LoadOnlyContinuousPluginTest)  // NOLI
                             search_libraries:
                               - tesseract_collision_bullet_factories
                               - tesseract_collision_fcl_factories
-                              - tesseract_collision_coal_factories
+                              - tesseract_collision_coal_coal_factories
                             continuous_plugins:
                               default: BulletCastBVHManager
                               plugins:
                                 BulletCastBVHManager:
                                   class: BulletCastBVHManagerFactory
                                 BulletCastSimpleManager:
-                                  class: BulletCastSimpleManagerFactory)";
+                                  class: BulletCastSimpleManagerFactory
+                                CoalCastBVHManager:
+                                  class: CoalCastBVHManagerFactory)";
 
   tesseract_common::GeneralResourceLocator locator;
   ContactManagersPluginFactory factory(config, locator);
@@ -414,7 +418,7 @@ TEST(TesseractContactManagersFactoryUnit, LoadOnlyContinuousPluginTest)  // NOLI
     }
   }
 
-  EXPECT_EQ(continuous_plugins.size(), 2);
+  EXPECT_EQ(continuous_plugins.size(), 3);
   for (auto cm_it = continuous_plugins.begin(); cm_it != continuous_plugins.end(); ++cm_it)
   {
     auto name = cm_it->first.as<std::string>();

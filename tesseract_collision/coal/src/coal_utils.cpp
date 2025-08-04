@@ -1,8 +1,8 @@
 /**
- * @file fcl_utils.cpp
- * @brief Tesseract ROS FCL Utility Functions.
+ * @file coal_utils.cpp
+ * @brief Tesseract Coal Utility Functions.
  *
- * @author Levi Armstrong
+ * @author Roelof Oomen, Levi Armstrong
  * @date Dec 18, 2017
  * @version TODO
  * @bug No known bugs

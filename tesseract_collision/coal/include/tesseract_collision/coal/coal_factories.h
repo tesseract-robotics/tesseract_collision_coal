@@ -2,7 +2,7 @@
  * @file coal_factories.h
  * @brief Factories for loading Coal contact managers as plugins
  *
- * @author Levi Armstrong
+ * @author Roelof Oomen, Levi Armstrong
  * @date October 25, 2021
  * @version TODO
  * @bug No known bugs
@@ -36,6 +36,13 @@ class CoalDiscreteBVHManagerFactory : public DiscreteContactManagerFactory
 public:
   std::unique_ptr<DiscreteContactManager> create(const std::string& name,
                                                  const YAML::Node& config) const override final;
+};
+
+class CoalCastBVHManagerFactory : public ContinuousContactManagerFactory
+{
+public:
+  std::unique_ptr<ContinuousContactManager> create(const std::string& name,
+                                                   const YAML::Node& config) const override final;
 };
 
 PLUGIN_ANCHOR_DECL(CoalFactoriesAnchor)

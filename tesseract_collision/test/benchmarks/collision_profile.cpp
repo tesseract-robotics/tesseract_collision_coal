@@ -8,6 +8,7 @@ TESSERACT_COMMON_IGNORE_WARNINGS_POP
 #include <tesseract_collision/bullet/bullet_discrete_bvh_manager.h>
 #include <tesseract_collision/bullet/bullet_cast_simple_manager.h>
 #include <tesseract_collision/bullet/bullet_cast_bvh_manager.h>
+#include <tesseract_collision/coal/coal_cast_managers.h>
 #include <tesseract_collision/bullet/convex_hull_utils.h>
 #include <tesseract_collision/fcl/fcl_discrete_managers.h>
 #include <tesseract_collision/coal/coal_discrete_managers.h>
@@ -223,10 +224,11 @@ void runContinuousProfile(bool use_single_link, bool use_convex_mesh, double con
 {
   auto bt_simple_checker = std::make_shared<tesseract_collision_bullet::BulletCastSimpleManager>();
   auto bt_bvh_checker = std::make_shared<tesseract_collision_bullet::BulletCastBVHManager>();
+  auto coal_bvh_checker = std::make_shared<tesseract_collision_coal::CoalCastBVHManager>();
 
   std::vector<Eigen::Isometry3d> poses = getTransforms(50);
-  std::vector<ContinuousContactManager::Ptr> checkers = { bt_simple_checker, bt_bvh_checker };
-  std::vector<std::string> checker_names = { "BtCastSimple", "BtCastBVH"};
+  std::vector<ContinuousContactManager::Ptr> checkers = { bt_simple_checker, bt_bvh_checker, coal_bvh_checker };
+  std::vector<std::string> checker_names = { "BtCastSimple", "BtCastBVH", "CoalCastBVH" };
   std::vector<long> checker_contacts = { 0, 0, 0 };
 
   Eigen::Isometry3d delta_pose;

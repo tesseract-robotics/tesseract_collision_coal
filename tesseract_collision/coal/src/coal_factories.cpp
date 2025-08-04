@@ -2,7 +2,7 @@
  * @file coal_factories.cpp
  * @brief Factories for loading fcl contact managers as plugins
  *
- * @author Levi Armstrong
+ * @author Roelof Oomen, Levi Armstrong
  * @date October 25, 2021
  * @version TODO
  * @bug No known bugs
@@ -26,6 +26,7 @@
 
 #include <tesseract_collision/coal/coal_factories.h>
 #include <tesseract_collision/coal/coal_discrete_managers.h>
+#include <tesseract_collision/coal/coal_cast_managers.h>
 #include <tesseract_collision/core/discrete_contact_manager.h>
 
 namespace tesseract_collision::tesseract_collision_coal
@@ -36,6 +37,12 @@ CoalDiscreteBVHManagerFactory::create(const std::string& name, const YAML::Node&
   return std::make_unique<CoalDiscreteBVHManager>(name);
 }
 
+std::unique_ptr<tesseract_collision::ContinuousContactManager>
+CoalCastBVHManagerFactory::create(const std::string& name, const YAML::Node& /*config*/) const
+{
+  return std::make_unique<CoalCastBVHManager>(name);
+}
+
 PLUGIN_ANCHOR_IMPL(CoalFactoriesAnchor)  // LCOV_EXCL_LINE
 
 }  // namespace tesseract_collision::tesseract_collision_coal
@@ -43,3 +50,6 @@ PLUGIN_ANCHOR_IMPL(CoalFactoriesAnchor)  // LCOV_EXCL_LINE
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 TESSERACT_ADD_DISCRETE_MANAGER_PLUGIN(tesseract_collision::tesseract_collision_coal::CoalDiscreteBVHManagerFactory,
                                       CoalDiscreteBVHManagerFactory)
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
+TESSERACT_ADD_CONTINUOUS_MANAGER_PLUGIN(tesseract_collision::tesseract_collision_coal::CoalCastBVHManagerFactory,
+                                        CoalCastBVHManagerFactory);

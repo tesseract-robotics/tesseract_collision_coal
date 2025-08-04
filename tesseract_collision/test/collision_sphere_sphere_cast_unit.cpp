@@ -6,6 +6,7 @@ TESSERACT_COMMON_IGNORE_WARNINGS_POP
 #include <tesseract_collision/test_suite/collision_sphere_sphere_cast_unit.hpp>
 #include <tesseract_collision/bullet/bullet_cast_simple_manager.h>
 #include <tesseract_collision/bullet/bullet_cast_bvh_manager.h>
+#include <tesseract_collision/coal/coal_cast_managers.h>
 
 using namespace tesseract_collision;
 
@@ -30,6 +31,18 @@ TEST(TesseractCollisionUnit, BulletContinuousBVHCollisionSphereSphereUnit)  // N
 TEST(TesseractCollisionUnit, BulletContinuousBVHCollisionSphereSphereConvexHullUnit)  // NOLINT
 {
   tesseract_collision_bullet::BulletCastBVHManager checker;
+  test_suite::runTest(checker, true);
+}
+
+TEST(TesseractCollisionUnit, CoalContinuousBVHCollisionSphereSphereUnit)  // NOLINT
+{
+  tesseract_collision_coal::CoalCastBVHManager checker;
+  test_suite::runTest(checker, false);
+}
+
+TEST(TesseractCollisionUnit, CoalContinuousBVHCollisionSphereSphereConvexHullUnit)  // NOLINT
+{
+  tesseract_collision_coal::CoalCastBVHManager checker;
   test_suite::runTest(checker, true);
 }
 

@@ -48,7 +48,7 @@ TEST(TesseractContactManagersFactoryUnit, StaticLoadPlugin)  // NOLINT
                             search_libraries:
                               - tesseract_collision_bullet_factories_not_there
                               - tesseract_collision_fcl_factories_not_there
-                              - tesseract_collision_coal_factories_not_there
+                              - tesseract_collision_coal_coal_factories_not_there
                             discrete_plugins:
                               default: BulletDiscreteBVHManager
                               plugins:
@@ -66,7 +66,9 @@ TEST(TesseractContactManagersFactoryUnit, StaticLoadPlugin)  // NOLINT
                                 BulletCastBVHManager:
                                   class: BulletCastBVHManagerFactory
                                 BulletCastSimpleManager:
-                                  class: BulletCastSimpleManagerFactory)";
+                                  class: BulletCastSimpleManagerFactory
+                                CoalCastBVHManager:
+                                  class: CoalCastBVHManagerFactory)";
 
   tesseract_common::GeneralResourceLocator locator;
   ContactManagersPluginFactory factory(config, locator);

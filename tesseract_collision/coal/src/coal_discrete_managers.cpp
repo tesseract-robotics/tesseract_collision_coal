@@ -1,8 +1,8 @@
 /**
  * @file coal_discrete_managers.cpp
- * @brief Tesseract ROS Coal contact checker implementation.
+ * @brief Tesseract Coal contact checker implementation.
  *
- * @author Levi Armstrong
+ * @author Roelof Oomen, Levi Armstrong
  * @date Dec 18, 2017
  * @version TODO
  * @bug No known bugs

@@ -8,9 +8,12 @@ find_package(tesseract_geometry)
 # Create target for Coal implementation
 add_library(
   ${PROJECT_NAME}_coal
+  src/coal_cast_managers.cpp
+  src/coal_casthullshape_utility.cpp
+  src/coal_casthullshape.cpp
+  src/coal_collision_object_wrapper.cpp
   src/coal_discrete_managers.cpp
-  src/coal_utils.cpp
-  src/coal_collision_object_wrapper.cpp)
+  src/coal_utils.cpp)
 target_link_libraries(
   ${PROJECT_NAME}_coal
   PUBLIC Eigen3::Eigen

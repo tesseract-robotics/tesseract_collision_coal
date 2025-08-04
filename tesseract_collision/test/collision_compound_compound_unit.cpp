@@ -8,6 +8,7 @@ TESSERACT_COMMON_IGNORE_WARNINGS_POP
 #include <tesseract_collision/bullet/bullet_discrete_bvh_manager.h>
 #include <tesseract_collision/bullet/bullet_cast_simple_manager.h>
 #include <tesseract_collision/bullet/bullet_cast_bvh_manager.h>
+#include <tesseract_collision/coal/coal_cast_managers.h>
 #include <tesseract_collision/fcl/fcl_discrete_managers.h>
 #include <tesseract_collision/coal/coal_discrete_managers.h>
 
@@ -46,6 +47,12 @@ TEST(TesseractCollisionUnit, BulletContinuousSimpleCollisionCompoundCompoundUnit
 TEST(TesseractCollisionUnit, BulletContinuousBVHCollisionCompoundCompoundUnit)  // NOLINT
 {
   tesseract_collision_bullet::BulletCastBVHManager checker;
+  test_suite::runTest(checker);
+}
+
+TEST(TesseractCollisionUnit, CoalContinuousBVHCollisionCompoundCompoundUnit)  // NOLINT
+{
+  tesseract_collision_coal::CoalCastBVHManager checker;
   test_suite::runTest(checker);
 }
 
