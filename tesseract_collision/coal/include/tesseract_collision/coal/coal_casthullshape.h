@@ -73,9 +73,6 @@ public:
     computeSweptVertices();
   }
 
-  /// Method needed for distance calculation, but not part of ConvexBase
-  coal::Vec3s supportMapping(const coal::Vec3s& dir, bool* is_vertices_used = nullptr) const;
-
   void computeLocalAABB() override;
 
   // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
@@ -107,13 +104,12 @@ public:
 
   const coal::Transform3s& getCastTransformInverse() const { return castTransformInv_; }
 
+  void computeSweptVertices();
+
 private:
   std::shared_ptr<coal::ShapeBase> shape_;
   coal::Transform3s castTransform_;
   coal::Transform3s castTransformInv_;
-
-  // Pre-computed values
-  std::vector<coal::Vec3s> swept_vertices_;
 
   // Helper methods to extract vertices based on shape type
   std::vector<coal::Vec3s> extractVertices(const coal::ShapeBase* geometry) const;
@@ -123,20 +119,6 @@ private:
   std::vector<coal::Vec3s> extractVerticesFromCone(const coal::Cone* cone, int numPoints = 8) const;
   std::vector<coal::Vec3s> extractVerticesFromCapsule(const coal::Capsule* capsule, int numPoints = 8) const;
   std::vector<coal::Vec3s> extractVerticesFromConvex(const coal::ConvexBase32* convex) const;
-
-  // Helper method to find support vertex for any geometry type
-  coal::Vec3s findSupportVertex(const coal::CollisionGeometry* geometry, const coal::Vec3s& dir) const;
-
-public:
-  // Getter for swept vertices (needed for computeBV)
-  const std::vector<coal::Vec3s>& getSweptVertices() const { return swept_vertices_; }
-
-  // Implementation of public computeSweptVertices
-  void computeSweptVertices();
-
-private:
-  // Support point computation
-  coal::Vec3s computeSupportPoint(const coal::Vec3s& dir) const;
 };
 
 }  // namespace tesseract_collision::tesseract_collision_coal

@@ -45,6 +45,7 @@ TESSERACT_COMMON_IGNORE_WARNINGS_PUSH
 #include <coal/collision.h>
 #include <coal/distance.h>
 #include <console_bridge/console.h>
+#include <algorithm>
 TESSERACT_COMMON_IGNORE_WARNINGS_POP
 
 #include <tesseract_collision/core/types.h>
@@ -60,22 +61,6 @@ TESSERACT_COMMON_IGNORE_WARNINGS_POP
 
 namespace tesseract_collision::tesseract_collision_coal
 {
-
-coal::Vec3s CastHullShape::supportMapping(const coal::Vec3s& dir, bool* is_vertices_used) const
-{
-  // Early exit for zero direction
-  if (dir.norm() < std::numeric_limits<double>::epsilon())
-  {
-    return { 0, 0, 0 };
-  }
-
-  // Regular support computation without optimizations
-  coal::Vec3s result = computeSupportPoint(dir);
-
-  if (is_vertices_used != nullptr)
-    *is_vertices_used = true;
-  return result;
-}
 
 void CastHullShape::computeLocalAABB()
 {
@@ -97,51 +82,57 @@ void CastHullShape::computeLocalAABB()
 
 double CastHullShape::computeVolume() const
 {
-  // Basic volume computation for swept shape
+  // For swept shapes, we need to compute the volume of the convex hull
+  // of the original shape and its transformed position.
+  // This is a complex geometric problem, so we'll use a reasonable approximation.
+
+  // Get the base volume
   double baseVolume = shape_->computeVolume();
 
-  // Compute swept area
-  shape_->computeLocalAABB();
-  // Get the AABB dimensions from ShapeBase members
-  coal::Vec3s min_point = shape_->aabb_center.array() - shape_->aabb_radius;
-  coal::Vec3s max_point = shape_->aabb_center.array() + shape_->aabb_radius;
-  coal::Vec3s dims = max_point - min_point;
-
-  // Get translation vector
+  // Check if transform is identity (no sweeping needed)
   coal::Vec3s translation = castTransform_.getTranslation();
   double translation_length = translation.norm();
 
-  // Calculate simplified swept volume approximation
-  // Just add the base volume and the volume of the swept portion
-  return baseVolume + (dims[0] * dims[1] * translation_length);
+  // Check for rotation component
+  coal::Matrix3s rotation = castTransform_.getRotation();
+  bool has_rotation = !rotation.isIdentity(1e-6);
+
+  // If no transformation, return base volume
+  if (translation_length < 1e-6 && !has_rotation)
+  {
+    return baseVolume;
+  }
+
+  // For approximation, compute the volume using the swept AABB
+  // We need to compute the AABB of the swept shape
+  coal::Transform3s identity = coal::Transform3s::Identity();
+  coal::AABB swept_aabb;
+  coal::computeBV<coal::AABB, CastHullShape>(*this, identity, swept_aabb);
+
+  double sweptVolume = swept_aabb.volume();
+
+  // The swept volume should be at least the base volume
+  return std::max(baseVolume, sweptVolume);
 }
 
-// Implementation of public computeSweptVertices
 void CastHullShape::computeSweptVertices()
 {
   // Extract vertices from the underlying shape
   std::vector<coal::Vec3s> baseVertices = extractVertices(shape_.get());
 
   // Store both start and end positions
-  swept_vertices_.clear();
-  swept_vertices_.reserve(baseVertices.size() * 2);
-
-  // Also update the points member from ConvexBase
   points->clear();
   points->reserve(baseVertices.size() * 2);
 
   // Add vertices at starting position
   for (const auto& vertex : baseVertices)
   {
-    swept_vertices_.push_back(vertex);
     points->push_back(vertex);
   }
-
   // Add vertices at ending position (after transform)
   for (const auto& vertex : baseVertices)
   {
-    coal::Vec3s transformed_vertex = (castTransform_ * vertex).translation();
-    swept_vertices_.push_back(transformed_vertex);
+    coal::Vec3s transformed_vertex = castTransform_.transform(vertex);
     points->push_back(transformed_vertex);
   }
   num_points = points->size();
@@ -250,98 +241,6 @@ std::vector<coal::Vec3s> CastHullShape::extractVerticesFromConvex(const coal::Co
   }
 
   return vertices;
-}
-
-coal::Vec3s CastHullShape::computeSupportPoint(const coal::Vec3s& dir) const
-{
-  // Initialize support points
-  coal::Vec3s supportStart;
-  coal::Vec3s supportEnd;
-  coal::Vec3s supportEndLocal;
-
-  // Variables required by getShapeSupport
-  int hint = 0;  // Used primarily for ConvexBase
-  coal::details::ShapeSupportData support_data;
-
-  // Transform the direction for end support
-  coal::Vec3s transformedDir = castTransformInv_.getRotation() * dir;
-
-  // Try to cast to specific shape types and use getShapeSupport
-  if (const auto* box = dynamic_cast<const coal::Box*>(shape_.get()))
-  {
-    coal::details::getShapeSupport<coal::details::SupportOptions::NoSweptSphere>(
-        box, dir, supportStart, hint, support_data);
-
-    coal::details::getShapeSupport<coal::details::SupportOptions::NoSweptSphere>(
-        box, transformedDir, supportEndLocal, hint, support_data);
-  }
-  else if (const auto* sphere = dynamic_cast<const coal::Sphere*>(shape_.get()))
-  {
-    coal::details::getShapeSupport<coal::details::SupportOptions::NoSweptSphere>(
-        sphere, dir, supportStart, hint, support_data);
-
-    coal::details::getShapeSupport<coal::details::SupportOptions::NoSweptSphere>(
-        sphere, transformedDir, supportEndLocal, hint, support_data);
-  }
-  else if (const auto* cylinder = dynamic_cast<const coal::Cylinder*>(shape_.get()))
-  {
-    coal::details::getShapeSupport<coal::details::SupportOptions::NoSweptSphere>(
-        cylinder, dir, supportStart, hint, support_data);
-
-    coal::details::getShapeSupport<coal::details::SupportOptions::NoSweptSphere>(
-        cylinder, transformedDir, supportEndLocal, hint, support_data);
-  }
-  else if (const auto* cone = dynamic_cast<const coal::Cone*>(shape_.get()))
-  {
-    coal::details::getShapeSupport<coal::details::SupportOptions::NoSweptSphere>(
-        cone, dir, supportStart, hint, support_data);
-
-    coal::details::getShapeSupport<coal::details::SupportOptions::NoSweptSphere>(
-        cone, transformedDir, supportEndLocal, hint, support_data);
-  }
-  else if (const auto* capsule = dynamic_cast<const coal::Capsule*>(shape_.get()))
-  {
-    coal::details::getShapeSupport<coal::details::SupportOptions::NoSweptSphere>(
-        capsule, dir, supportStart, hint, support_data);
-
-    coal::details::getShapeSupport<coal::details::SupportOptions::NoSweptSphere>(
-        capsule, transformedDir, supportEndLocal, hint, support_data);
-  }
-  else if (const auto* convex = dynamic_cast<const coal::ConvexBase32*>(shape_.get()))
-  {
-    coal::details::getShapeSupport<coal::details::SupportOptions::NoSweptSphere>(
-        convex, dir, supportStart, hint, support_data);
-
-    // Reset hint for second call (important for ConvexBase)
-    hint = 0;
-    coal::details::getShapeSupport<coal::details::SupportOptions::NoSweptSphere>(
-        convex, transformedDir, supportEndLocal, hint, support_data);
-  }
-  else
-  {
-    // Fallback to AABB-based support for unknown shape types
-    shape_->computeLocalAABB();
-
-    coal::Vec3s min_point = shape_->aabb_center.array() - shape_->aabb_radius;
-    coal::Vec3s max_point = shape_->aabb_center.array() + shape_->aabb_radius;
-
-    supportStart = { (dir[0] >= 0) ? max_point[0] : min_point[0],
-                     (dir[1] >= 0) ? max_point[1] : min_point[1],
-                     (dir[2] >= 0) ? max_point[2] : min_point[2] };
-
-    supportEndLocal = { (transformedDir[0] >= 0) ? max_point[0] : min_point[0],
-                        (transformedDir[1] >= 0) ? max_point[1] : min_point[1],
-                        (transformedDir[2] >= 0) ? max_point[2] : min_point[2] };
-  }
-
-  // Transform the local end support to global coordinates
-  supportEnd = (castTransform_ * supportEndLocal).translation();
-
-  // Return the point with maximum projection in the direction
-  double dotStart = dir.dot(supportStart);
-  double dotEnd = dir.dot(supportEnd);
-
-  return (dotStart > dotEnd) ? supportStart : supportEnd;
 }
 
 }  // namespace tesseract_collision::tesseract_collision_coal

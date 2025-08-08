@@ -65,5 +65,26 @@ using tesseract_collision::tesseract_collision_coal::CastHullShape;
 template <>
 void computeBV<coal::AABB, CastHullShape>(const CastHullShape& s, const coal::Transform3s& tf, coal::AABB& bv);
 
+namespace details
+{
+
+/// @brief CastHullShape support function.
+template <int _SupportOptions = SupportOptions::NoSweptSphere>
+void getShapeSupport(const CastHullShape* shape,
+                     const Vec3s& dir,
+                     Vec3s& support,
+                     int& hint,
+                     ShapeSupportData& /*unused*/);
+
+template <int _SupportOptions>
+void getShapeSupportSet(const CastHullShape* cast_hull_shape,
+                        SupportSet& support_set,
+                        int& hint,
+                        ShapeSupportData& support_data,
+                        size_t num_sampled_supports,
+                        Scalar tol);
+
+}  // namespace details
+
 }  // namespace coal
 #endif  // TESSERACT_COLLISION_COAL_CASTHULLSHAPE_UTILITY_H
