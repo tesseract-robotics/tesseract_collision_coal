@@ -62,6 +62,16 @@ TESSERACT_COMMON_IGNORE_WARNINGS_POP
 namespace tesseract_collision::tesseract_collision_coal
 {
 
+CastHullShape::CastHullShape(std::shared_ptr<coal::ShapeBase> shape, const coal::Transform3s& castTransform)
+  : shape_(std::move(shape))
+  , castTransform_(castTransform)
+  , castTransformInv_(coal::Transform3s(castTransform).inverse())
+{
+  swept_vertices_ = std::make_shared<std::vector<coal::Vec3s>>();
+  // Compute swept vertices
+  computeSweptVertices();
+}
+
 void CastHullShape::computeLocalAABB()
 {
   // Consistent with Coal pattern, use the external computeBV function
@@ -115,27 +125,43 @@ double CastHullShape::computeVolume() const
   return std::max(baseVolume, sweptVolume);
 }
 
+bool CastHullShape::isEqual(const coal::CollisionGeometry& _other) const
+{
+  const auto* other_ptr = dynamic_cast<const CastHullShape*>(&_other);
+  if (other_ptr == nullptr)
+    return false;
+  const CastHullShape& other = *other_ptr;
+
+  return shape_ == other.shape_ && castTransform_ == other.castTransform_;
+}
+
+void CastHullShape::updateCastTransform(const coal::Transform3s& castTransform)
+{
+  castTransform_ = castTransform;
+  castTransformInv_ = coal::Transform3s(castTransform).inverse();
+  computeSweptVertices();
+}
+
 void CastHullShape::computeSweptVertices()
 {
   // Extract vertices from the underlying shape
   std::vector<coal::Vec3s> baseVertices = extractVertices(shape_.get());
 
   // Store both start and end positions
-  points->clear();
-  points->reserve(baseVertices.size() * 2);
+  swept_vertices_->clear();
+  swept_vertices_->reserve(baseVertices.size() * 2);
 
   // Add vertices at starting position
   for (const auto& vertex : baseVertices)
   {
-    points->push_back(vertex);
+    swept_vertices_->push_back(vertex);
   }
   // Add vertices at ending position (after transform)
   for (const auto& vertex : baseVertices)
   {
     coal::Vec3s transformed_vertex = castTransform_.transform(vertex);
-    points->push_back(transformed_vertex);
+    swept_vertices_->push_back(transformed_vertex);
   }
-  num_points = points->size();
 }
 
 // Extract vertices based on shape type

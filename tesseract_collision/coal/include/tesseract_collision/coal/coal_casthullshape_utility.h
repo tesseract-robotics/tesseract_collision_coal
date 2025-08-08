@@ -69,14 +69,14 @@ namespace details
 {
 
 /// @brief CastHullShape support function.
-template <int _SupportOptions = SupportOptions::NoSweptSphere>
+template <int _SupportOptions = SupportOptions::NoSweptSphere>  // NOLINT(bugprone-reserved-identifier)
 void getShapeSupport(const CastHullShape* shape,
                      const Vec3s& dir,
                      Vec3s& support,
                      int& hint,
                      ShapeSupportData& /*unused*/);
 
-template <int _SupportOptions>
+template <int _SupportOptions>  // NOLINT(bugprone-reserved-identifier)
 void getShapeSupportSet(const CastHullShape* cast_hull_shape,
                         SupportSet& support_set,
                         int& hint,

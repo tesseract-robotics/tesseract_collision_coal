@@ -45,7 +45,6 @@
 #include <tesseract_common/macros.h>
 TESSERACT_COMMON_IGNORE_WARNINGS_PUSH
 #include <memory>
-#include <utility>
 #include <console_bridge/console.h>
 #include <coal/shape/geometric_shapes.h>
 TESSERACT_COMMON_IGNORE_WARNINGS_POP
@@ -57,47 +56,22 @@ TESSERACT_COMMON_IGNORE_WARNINGS_POP
 namespace tesseract_collision::tesseract_collision_coal
 {
 
-class CastHullShape : public coal::ConvexBase32
+class CastHullShape : public coal::ShapeBase
 {
 public:
-  CastHullShape(std::shared_ptr<coal::ShapeBase> shape, const coal::Transform3s& castTransform)
-    : shape_(std::move(shape))
-    , castTransform_(castTransform)
-    , castTransformInv_(coal::Transform3s(castTransform).inverse())
-  {
-    // Make sure points member from ConvexBase is properly initialized
-    if (!points)
-      points = std::make_shared<std::vector<coal::Vec3s>>();
-
-    // Compute swept vertices
-    computeSweptVertices();
-  }
+  CastHullShape(std::shared_ptr<coal::ShapeBase> shape, const coal::Transform3s& castTransform);
 
   void computeLocalAABB() override;
 
   // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
-  coal::ConvexBase32* clone() const override { return new CastHullShape(*this); }
+  coal::ShapeBase* clone() const override { return new CastHullShape(*this); }
 
   double computeVolume() const override;
 
-  bool isEqual(const coal::CollisionGeometry& _other) const override
-  {
-    const auto* other_ptr = dynamic_cast<const CastHullShape*>(&_other);
-    if (other_ptr == nullptr)
-      return false;
-    const CastHullShape& other = *other_ptr;
+  bool isEqual(const coal::CollisionGeometry& _other) const override;
 
-    return shape_ == other.shape_ && castTransform_ == other.castTransform_;
-  }
+  void updateCastTransform(const coal::Transform3s& castTransform);
 
-  void updateCastTransform(const coal::Transform3s& castTransform)
-  {
-    castTransform_ = castTransform;
-    castTransformInv_ = coal::Transform3s(castTransform).inverse();
-    computeSweptVertices();
-  }
-
-  // Add these methods to the CastHullShape class declaration
   const std::shared_ptr<coal::ShapeBase>& getUnderlyingShape() const { return shape_; }
 
   const coal::Transform3s& getCastTransform() const { return castTransform_; }
@@ -110,6 +84,8 @@ private:
   std::shared_ptr<coal::ShapeBase> shape_;
   coal::Transform3s castTransform_;
   coal::Transform3s castTransformInv_;
+  /// @brief An array of the points of the swept polytope.
+  std::shared_ptr<std::vector<coal::Vec3s>> swept_vertices_;
 
   // Helper methods to extract vertices based on shape type
   std::vector<coal::Vec3s> extractVertices(const coal::ShapeBase* geometry) const;

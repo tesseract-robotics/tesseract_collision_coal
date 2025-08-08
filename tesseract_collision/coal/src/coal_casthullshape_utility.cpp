@@ -109,7 +109,7 @@ void computeBV<coal::AABB, CastHullShape>(const CastHullShape& s, const coal::Tr
 namespace details
 {
 
-template <int _SupportOptions>
+template <int _SupportOptions>  // NOLINT(bugprone-reserved-identifier)
 void getShapeSupport(const CastHullShape* cast_hull_shape,
                      const Vec3s& dir,
                      Vec3s& support,
@@ -128,9 +128,8 @@ void getShapeSupport(const CastHullShape* cast_hull_shape,
   // Transform the direction for end support
   coal::Vec3s transformedDir = castTransformInv.getRotation() * dir;
 
-  supportStart = coal::details::getSupport<coal::details::SupportOptions::NoSweptSphere>(shape, dir, hint);
-  supportEndLocal =
-      coal::details::getSupport<coal::details::SupportOptions::NoSweptSphere>(shape, transformedDir, hint);
+  supportStart = coal::details::getSupport<_SupportOptions>(shape, dir, hint);
+  supportEndLocal = coal::details::getSupport<_SupportOptions>(shape, transformedDir, hint);
 
   // Transform the local end support to global coordinates
   supportEnd = castTransform.transform(supportEndLocal);
@@ -142,7 +141,7 @@ void getShapeSupport(const CastHullShape* cast_hull_shape,
   support = (dotStart > dotEnd) ? supportStart : supportEnd;
 }
 
-template <int _SupportOptions>
+template <int _SupportOptions>  // NOLINT(bugprone-reserved-identifier)
 void getShapeSupportSet(const CastHullShape* cast_hull_shape,
                         SupportSet& support_set,
                         int& hint,
@@ -150,7 +149,9 @@ void getShapeSupportSet(const CastHullShape* cast_hull_shape,
                         size_t num_sampled_supports,
                         Scalar tol)
 {
-  // TOODO: To be implemented
+  // TODO: To be implemented: currently only returns the support set of the original shape
+  getShapeSupportSet<_SupportOptions>(
+      cast_hull_shape->getUnderlyingShape().get(), support_set, hint, support_data, num_sampled_supports, tol);
 }
 
 }  // namespace details
