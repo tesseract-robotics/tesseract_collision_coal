@@ -164,8 +164,8 @@ public:
   }
 
   /**
-   * @brief Given fcl collision shape get the index to the links collision shape
-   * @param co fcl collision shape
+   * @brief Given Coal collision shape get the index to the links collision shape
+   * @param co Coal collision shape
    * @return links collision shape index
    */
   static int getShapeIndex(const coal::CollisionObject* co);
@@ -179,7 +179,7 @@ protected:
   std::vector<CollisionGeometryPtr> collision_geometries_;
   std::vector<CollisionObjectPtr> collision_objects_;
   /**
-   * @brief The raw pointer is also stored because FCL accepts vectors for batch process.
+   * @brief The raw pointer is also stored because Coal accepts vectors for batch process.
    * Note: They are updating the API to Shared Pointers but the broadphase has not been updated yet.
    */
   std::vector<CollisionObjectRawPtr> collision_objects_raw_;

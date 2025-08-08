@@ -117,7 +117,7 @@ bool CoalDiscreteBVHManager::removeCollisionObject(const std::string& name)
   if (it != link2cow_.end())
   {
     const std::vector<CollisionObjectPtr>& objects = it->second->getCollisionObjects();
-    fcl_co_count_ -= objects.size();
+    coal_co_count_ -= objects.size();
 
     std::vector<coal::CollisionObject*> static_objs;
     static_manager_->getObjects(static_objs);
@@ -230,7 +230,7 @@ void CoalDiscreteBVHManager::setCollisionObjectsTransform(const std::vector<std:
     }
   }
 
-  // This is because FCL supports batch update which only re-balances the tree once
+  // This is because Coal supports batch update which only re-balances the tree once
   if (!static_update_.empty())
     static_manager_->update(static_update_);
 
@@ -266,7 +266,7 @@ void CoalDiscreteBVHManager::setCollisionObjectsTransform(const tesseract_common
     }
   }
 
-  // This is because FCL supports batch update which only re-balances the tree once
+  // This is because Coal supports batch update which only re-balances the tree once
   if (!static_update_.empty())
     static_manager_->update(static_update_);
 
@@ -371,9 +371,9 @@ void CoalDiscreteBVHManager::contactTest(ContactResultMap& collisions, const Con
 void CoalDiscreteBVHManager::addCollisionObject(const COW::Ptr& cow)
 {
   const std::size_t cnt = cow->getCollisionObjectsRaw().size();
-  fcl_co_count_ += cnt;
-  static_update_.reserve(fcl_co_count_);
-  dynamic_update_.reserve(fcl_co_count_);
+  coal_co_count_ += cnt;
+  static_update_.reserve(coal_co_count_);
+  dynamic_update_.reserve(coal_co_count_);
   link2cow_[cow->getName()] = cow;
   collision_objects_.push_back(cow->getName());
 

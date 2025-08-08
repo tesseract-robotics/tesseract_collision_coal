@@ -119,7 +119,7 @@ bool CoalCastBVHManager::removeCollisionObject(const std::string& name)
   {
     collision_objects_.erase(std::find(collision_objects_.begin(), collision_objects_.end(), name));
     const std::vector<CollisionObjectPtr>& objects = it->second->getCollisionObjects();
-    fcl_co_count_ -= objects.size();
+    coal_co_count_ -= objects.size();
     removeObjects(objects);
     link2cow_.erase(name);
 
@@ -343,7 +343,7 @@ void CoalCastBVHManager::setCollisionObjectsTransform(const tesseract_common::Tr
     }
   }
 
-  // This is because FCL supports batch update which only re-balances the tree once
+  // This is because Coal supports batch update which only re-balances the tree once
   if (!static_update_.empty())
     static_manager_->update(static_update_);
 
@@ -370,7 +370,7 @@ void CoalCastBVHManager::setCollisionObjectsTransform(const std::string& name,
       const auto tf1 = coal::Transform3s(pose1.rotation(), pose1.translation());
       const auto tf2 = coal::Transform3s(pose2.rotation(), pose2.translation());
 
-      // Calculate relative transform directly in FCL format
+      // Calculate relative transform directly in Coal format
       const auto relative_transform = tf1.inverseTimes(tf2);
 
       for (auto& co : cow->getCollisionObjects())
@@ -524,9 +524,9 @@ void CoalCastBVHManager::contactTest(ContactResultMap& collisions, const Contact
 void CoalCastBVHManager::addCollisionObject(const COW::Ptr& cow)
 {
   const std::size_t cnt = cow->getCollisionObjectsRaw().size();
-  fcl_co_count_ += cnt;
-  static_update_.reserve(fcl_co_count_);
-  dynamic_update_.reserve(fcl_co_count_);
+  coal_co_count_ += cnt;
+  static_update_.reserve(coal_co_count_);
+  dynamic_update_.reserve(coal_co_count_);
   link2cow_[cow->getName()] = cow;
   collision_objects_.push_back(cow->getName());
 

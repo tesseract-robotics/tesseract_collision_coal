@@ -274,12 +274,13 @@ CollisionGeometryPtr createShapePrimitiveHelper(const CollisionShapeConstPtr& ge
 
 CollisionGeometryPtr createShapePrimitive(const CollisionShapeConstPtr& geom)
 {
-  // CollisionGeometryPtr shape = FCLCollisionGeometryCache::get(geom);
+  // TODO: Implement cache (see FCLCollisionGeometryCache)
+  // CollisionGeometryPtr shape = CoalCollisionGeometryCache::get(geom);
   // if (shape != nullptr)
   //   return shape;
 
   // shape = createShapePrimitiveHelper(geom);
-  // FCLCollisionGeometryCache::insert(geom, shape);
+  // CoalCollisionGeometryCache::insert(geom, shape);
   return createShapePrimitiveHelper(geom);
 }
 
@@ -330,24 +331,24 @@ bool CollisionCallback::collide(coal::CollisionObject* o1, coal::CollisionObject
 
     for (size_t i = 0; i < col_result.numContacts(); ++i)
     {
-      const coal::Contact& fcl_contact = col_result.getContact(i);
+      const coal::Contact& coal_contact = col_result.getContact(i);
       ContactResult contact;
       contact.link_names[0] = cd1->getName();
       contact.link_names[1] = cd2->getName();
       contact.shape_id[0] = CollisionObjectWrapper::getShapeIndex(o1);
       contact.shape_id[1] = CollisionObjectWrapper::getShapeIndex(o2);
-      contact.subshape_id[0] = static_cast<int>(fcl_contact.b1);
-      contact.subshape_id[1] = static_cast<int>(fcl_contact.b2);
-      contact.nearest_points[0] = fcl_contact.nearest_points[0];
-      contact.nearest_points[1] = fcl_contact.nearest_points[1];
+      contact.subshape_id[0] = static_cast<int>(coal_contact.b1);
+      contact.subshape_id[1] = static_cast<int>(coal_contact.b2);
+      contact.nearest_points[0] = coal_contact.nearest_points[0];
+      contact.nearest_points[1] = coal_contact.nearest_points[1];
       contact.nearest_points_local[0] = tf1.inverse() * contact.nearest_points[0];
       contact.nearest_points_local[1] = tf2.inverse() * contact.nearest_points[1];
       contact.transform[0] = tf1;
       contact.transform[1] = tf2;
       contact.type_id[0] = cd1->getTypeID();
       contact.type_id[1] = cd2->getTypeID();
-      contact.distance = fcl_contact.penetration_depth;
-      contact.normal = fcl_contact.normal;
+      contact.distance = coal_contact.penetration_depth;
+      contact.normal = coal_contact.normal;
 
       const ObjectPairKey pc = tesseract_common::makeOrderedLinkPair(cd1->getName(), cd2->getName());
       const auto it = cdata->res->find(pc);
@@ -379,17 +380,17 @@ bool DistanceCallback::collide(coal::CollisionObject* o1, coal::CollisionObject*
   if (!needs_collision)
     return false;
 
-  coal::DistanceResult fcl_result;
-  coal::DistanceRequest fcl_request(true);
-  fcl_request.enable_signed_distance = cdata->req.calculate_penetration;
-  fcl_request.gjk_variant = coal::GJKVariant::NesterovAcceleration;
-  fcl_request.gjk_convergence_criterion = coal::GJKConvergenceCriterion::DualityGap;
-  fcl_request.gjk_convergence_criterion_type = coal::GJKConvergenceCriterionType::Absolute;
-  fcl_request.gjk_initial_guess = coal::BoundingVolumeGuess;
-  // fcl_request.gjk_tolerance = 1e-5;
-  // fcl_request.epa_tolerance = 1e-5;
-  // fcl_request.collision_distance_threshold // Leave at default (close to 0)
-  const double d = coal::distance(o1, o2, fcl_request, fcl_result);
+  coal::DistanceResult dist_result;
+  coal::DistanceRequest dist_request(true);
+  dist_request.enable_signed_distance = cdata->req.calculate_penetration;
+  dist_request.gjk_variant = coal::GJKVariant::NesterovAcceleration;
+  dist_request.gjk_convergence_criterion = coal::GJKConvergenceCriterion::DualityGap;
+  dist_request.gjk_convergence_criterion_type = coal::GJKConvergenceCriterionType::Absolute;
+  dist_request.gjk_initial_guess = coal::BoundingVolumeGuess;
+  // dist_request.gjk_tolerance = 1e-5;
+  // dist_request.epa_tolerance = 1e-5;
+  // dist_request.collision_distance_threshold // Leave at default (close to 0)
+  const double d = coal::distance(o1, o2, dist_request, dist_result);
 
   if (d < cdata->collision_margin_data.getMaxCollisionMargin())
   {
@@ -401,19 +402,19 @@ bool DistanceCallback::collide(coal::CollisionObject* o1, coal::CollisionObject*
     contact.link_names[1] = cd2->getName();
     contact.shape_id[0] = CollisionObjectWrapper::getShapeIndex(o1);
     contact.shape_id[1] = CollisionObjectWrapper::getShapeIndex(o2);
-    contact.subshape_id[0] = fcl_result.b1;
-    contact.subshape_id[1] = fcl_result.b2;
-    contact.nearest_points[0] = fcl_result.nearest_points[0];
-    contact.nearest_points[1] = fcl_result.nearest_points[1];
+    contact.subshape_id[0] = dist_result.b1;
+    contact.subshape_id[1] = dist_result.b2;
+    contact.nearest_points[0] = dist_result.nearest_points[0];
+    contact.nearest_points[1] = dist_result.nearest_points[1];
     contact.nearest_points_local[0] = tf1.inverse() * contact.nearest_points[0];
     contact.nearest_points_local[1] = tf2.inverse() * contact.nearest_points[1];
     contact.transform[0] = tf1;
     contact.transform[1] = tf2;
     contact.type_id[0] = cd1->getTypeID();
     contact.type_id[1] = cd2->getTypeID();
-    contact.distance = fcl_result.min_distance;
-    contact.normal = (fcl_result.min_distance * (contact.nearest_points[1] - contact.nearest_points[0])).normalized();
-    // contact.normal = fcl_result.normal;
+    contact.distance = dist_result.min_distance;
+    contact.normal = (dist_result.min_distance * (contact.nearest_points[1] - contact.nearest_points[0])).normalized();
+    // contact.normal = dist_result.normal;
 
     const ObjectPairKey pc = tesseract_common::makeOrderedLinkPair(cd1->getName(), cd2->getName());
     const auto it = cdata->res->find(pc);

@@ -1,6 +1,6 @@
 /**
  * @file coal_factories.cpp
- * @brief Factories for loading fcl contact managers as plugins
+ * @brief Factories for loading Coal contact managers as plugins
  *
  * @author Roelof Oomen, Levi Armstrong
  * @date October 25, 2021

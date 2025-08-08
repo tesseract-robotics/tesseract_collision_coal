@@ -23,8 +23,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-#ifndef TESSERACT_COLLISION_COAL_FCL_FACTORIES_H
-#define TESSERACT_COLLISION_COAL_FCL_FACTORIES_H
+#ifndef TESSERACT_COLLISION_COAL_FACTORIES_H
+#define TESSERACT_COLLISION_COAL_FACTORIES_H
 
 #include <tesseract_collision/core/contact_managers_plugin_factory.h>
 #include <boost_plugin_loader/macros.h>
@@ -48,4 +48,4 @@ public:
 PLUGIN_ANCHOR_DECL(CoalFactoriesAnchor)
 
 }  // namespace tesseract_collision::tesseract_collision_coal
-#endif  // TESSERACT_COLLISION_COAL_FCL_FACTORIES_H
+#endif  // TESSERACT_COLLISION_COAL_FACTORIES_H

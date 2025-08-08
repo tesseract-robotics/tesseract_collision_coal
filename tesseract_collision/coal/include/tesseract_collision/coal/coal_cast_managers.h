@@ -164,7 +164,7 @@ private:
   CollisionMarginData collision_margin_data_;  /** @brief The contact distance threshold */
   std::shared_ptr<const tesseract_common::ContactAllowedValidator> validator_; /**< @brief The is allowed collision
                                                                                   function */
-  std::size_t fcl_co_count_{ 0 }; /**< @brief The number fcl collision objects */
+  std::size_t coal_co_count_{ 0 }; /**< @brief The number coal collision objects */
 
   /** @brief This is used to store static collision objects to update */
   std::vector<CollisionObjectRawPtr> static_update_;
