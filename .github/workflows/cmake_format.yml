@@ -8,16 +8,16 @@ on:
   pull_request:
     paths:
       - 'tesseract**'
-      - '.github/workflows/clang_format.yml'
-      - '**clang-format'
+      - '.github/workflows/cmake_format.yml'
+      - '**cmake-format'
   schedule:
     - cron: '0 5 * * *'
 
 jobs:
   cmake_format:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v6
 
       - name: Run CMake Lang Format Check
         run: |
