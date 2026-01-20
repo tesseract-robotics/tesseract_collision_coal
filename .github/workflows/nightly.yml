@@ -17,7 +17,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        distro: [focal, jammy]
+        distro: [jammy, noble]
     container:
       image: ubuntu:${{ matrix.distro }}
       env:
@@ -26,7 +26,7 @@ jobs:
         TZ: Etc/UTC
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           path: target_ws/src
 
@@ -38,10 +38,10 @@ jobs:
           apt install -y liboctomap-dev
 
       - name: Build and Tests
-        uses: tesseract-robotics/colcon-action@v1
+        uses: tesseract-robotics/colcon-action@v14
         with:
           ccache-prefix: ${{ matrix.distro }}
           vcs-file: dependencies.repos
           upstream-args: --cmake-args -DCMAKE_BUILD_TYPE=Release
           target-path: target_ws/src
-          target-args: --cmake-args -DCMAKE_BUILD_TYPE=Debug -DTESSERACT_ENABLE_TESTING=ON
+          target-args: --cmake-args -DCMAKE_BUILD_TYPE=Debug -DTESSERACT_ENABLE_TESTING=ON -DTESSERACT_ENABLE_BENCHMARKING=ON -DTESSERACT_ENABLE_RUN_BENCHMARKING=OFF
