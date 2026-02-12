@@ -4,8 +4,6 @@
  *
  * @author Roelof Oomen
  * @date Aug 04, 2025
- * @version TODO
- * @bug No known bugs
  *
  * @copyright Copyright (c) 2017, Southwest Research Institute
  *
