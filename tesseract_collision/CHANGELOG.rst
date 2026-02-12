@@ -2,6 +2,129 @@
 Changelog for package tesseract_collision
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+0.34.1 (2026-01-30)
+-------------------
+* Move data when adding interpolated data instead of copy
+* Add macro to allow disabling use of thread_local
+* Contributors: Levi Armstrong
+
+0.34.0 (2026-01-28)
+-------------------
+* Use thread_local for link pair key
+* Reduce allocation in ContactResultMap
+* Catch error when substep == num_substeps and add test
+* Cleanup doxygen file headers
+* Remove old console bridge cmake target logic
+* Improve serialization coverage
+* Add doxygen to tesseract collision example
+* Switch to using Cereal for serialization (`#1216 <https://github.com/tesseract-robotics/tesseract/issues/1216>`_)
+* Contributors: Levi Armstrong, Tyler Marr
+
+0.33.1 (2025-11-03)
+-------------------
+
+0.33.0 (2025-10-28)
+-------------------
+* Update due to changes with boost plugin loader package
+* Contributors: Levi Armstrong
+
+0.32.0 (2025-09-10)
+-------------------
+* Use per object max margin for the broadphase and the actual link pair margin for the narrow phase, instead of the overall max margin everywhere (`#1198 <https://github.com/tesseract-robotics/tesseract/issues/1198>`_)
+* Implement a condensed summary for ContactTrajectoryResults (`#1205 <https://github.com/tesseract-robotics/tesseract/issues/1205>`_)
+* Check trajectory return contact location (`#1200 <https://github.com/tesseract-robotics/tesseract/issues/1200>`_)
+* Fix benchmarks (`#1201 <https://github.com/tesseract-robotics/tesseract/issues/1201>`_)
+* Improve memory allocations in createConvexHull
+* Fix double lookups of collision objects
+* Add trajectory link collision representation options
+* tesseract collision yaml extensions (`#1176 <https://github.com/tesseract-robotics/tesseract/issues/1176>`_)
+  Co-authored-by: Samantha Smith <Troyandme04@gmail.com>
+* Contributors: Levi Armstrong, Roelof Oomen, Tyler Marr
+
+0.31.0 (2025-07-05)
+-------------------
+* Fix yaml extensions file name spelling
+* Improve processYamlIncludeDirective peformance
+* Make printouts during convex decomposition optional at compute time
+* Remove PluginLoader and ClassLoader from tesseract_common fwd.h
+* Make sure serialized objects have friend struct tesseract_common::Serialization
+* Contributors: Levi Armstrong, Tyler Marr
+
+0.30.0 (2025-04-23)
+-------------------
+* Add unit tests for trajectory collision logging (`#1146 <https://github.com/tesseract-robotics/tesseract/issues/1146>`_)
+* Add increment and scale to ContactManagerConfig
+* Update to leverage boost_plugin_loader
+* Fix contact manager config serialization
+* Improve tesseract_collision code coverage
+* Improve tesseract_common code coverage (`#1138 <https://github.com/tesseract-robotics/tesseract/issues/1138>`_)
+* Improve codecov CI
+* Fix use of CollisionCheckConfig and remove ContactMangerConfig from this struct
+* Add incrementCollisionMarginData to contact manager interface
+* Add validate method to ContactManagerConfig
+* Contributors: Levi Armstrong, Tyler Marr
+
+0.29.1 (2025-03-26)
+-------------------
+
+0.29.0 (2025-03-20)
+-------------------
+* Fully enable collision shape caching
+* Move tesseract_collision any poly types to types.h
+* Leverage inheritance for AnyPoly (`#1128 <https://github.com/tesseract-robotics/tesseract/issues/1128>`_)
+* Update to leverage std::filesystem
+* Fix clang-tidy-17 errors (`#1122 <https://github.com/tesseract-robotics/tesseract/issues/1122>`_)
+* Fix missing includes causing clang warnings
+* Contributors: Levi Armstrong
+
+0.28.8 (2025-02-01)
+-------------------
+* Add UUID to tesseract_geometry::Geometry and update collision shape cache
+* Fix collision shape caching
+* Contributors: Levi Armstrong
+
+0.28.7 (2025-01-29)
+-------------------
+* Disable collision shape caching in bullet and fcl (`#1116 <https://github.com/tesseract-robotics/tesseract/issues/1116>`_)
+* Contributors: Levi Armstrong
+
+0.28.6 (2025-01-26)
+-------------------
+* Add collision shape caching based on tesseract_geometry::Geometry object
+* Contributors: Levi Armstrong
+
+0.28.5 (2025-01-21)
+-------------------
+
+0.28.4 (2025-01-18)
+-------------------
+
+0.28.3 (2025-01-18)
+-------------------
+
+0.28.2 (2025-01-17)
+-------------------
+
+0.28.1 (2025-01-17)
+-------------------
+* Fix rosinstall so focal has its own so newer versions leverage system depends
+* Contributors: Levi Armstrong
+
+0.28.0 (2025-01-16)
+-------------------
+* Fix cpack build
+* Leverage tesseract_common loadYamlFile and loadYamlString
+* Add ContactAllowedValidator and ContactResultValidator (`#1095 <https://github.com/tesseract-robotics/tesseract/issues/1095>`_)
+* Add installed headers to core component
+* Add yaml include directive support
+* Move getSummary implementation to cpp
+* Get a brief string summary of a contact map (`#1079 <https://github.com/tesseract-robotics/tesseract/issues/1079>`_)
+* Simplify shape_id counter
+* Fix use of compound mesh in FCL
+* Add more serialization for eigen types and collision types
+* Fix typo in unit tests
+* Contributors: Levi Armstrong, Max DeSantis, Roelof Oomen, Tyler Marr
+
 0.27.1 (2024-12-03)
 -------------------
 

@@ -6,9 +6,7 @@
 
 #include <Eigen/Eigen>
 
-namespace tesseract_collision
-{
-namespace test_suite
+namespace tesseract_collision::test_suite
 {
 /**
  * @brief Contains the information necessary to run the benchmarks for discrete collision checking
@@ -21,6 +19,7 @@ struct DiscreteBenchmarkInfo
                         const tesseract_geometry::Geometry::ConstPtr& geom2,
                         const Eigen::Isometry3d& pose2,
                         ContactTestType contact_test_type)
+    : contact_test_type_(contact_test_type)
 
   {
     contact_manager_ = contact_manager->clone();
@@ -28,7 +27,6 @@ struct DiscreteBenchmarkInfo
     geom2_.push_back(geom2->clone());
     obj1_poses.push_back(pose1);
     obj2_poses.push_back(pose2);
-    contact_test_type_ = contact_test_type;
   }
   DiscreteContactManager::Ptr contact_manager_;
   CollisionShapesConst geom1_;
@@ -169,7 +167,6 @@ static void BM_SET_COLLISION_OBJECTS_TRANSFORM_MAP(benchmark::State& state,
   }
 }
 
-}  // namespace test_suite
-}  // namespace tesseract_collision
+}  // namespace tesseract_collision::test_suite
 
 #endif

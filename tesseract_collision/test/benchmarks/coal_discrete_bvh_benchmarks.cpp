@@ -46,7 +46,7 @@ int main(int argc, char** argv)
 
   // Make vector of all shapes to try
   std::vector<tesseract_geometry::GeometryType> geometry_types = {
-    GeometryType::BOX, GeometryType::CONE, GeometryType::SPHERE, GeometryType::CAPSULE, GeometryType::CYLINDER
+    GeometryType::BOX, GeometryType::CYLINDER, GeometryType::CONE, GeometryType::SPHERE, GeometryType::CAPSULE
   };
 
   std::vector<ContactTestType> test_types = {

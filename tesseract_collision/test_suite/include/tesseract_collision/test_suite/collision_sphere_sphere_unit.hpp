@@ -10,8 +10,8 @@ TESSERACT_COMMON_IGNORE_WARNINGS_POP
 #include <tesseract_collision/core/discrete_contact_manager.h>
 #include <tesseract_collision/core/common.h>
 #include <tesseract_geometry/geometries.h>
-#include <tesseract_common/ply_io.h>
 #include <tesseract_common/resource_locator.h>
+#include <tesseract_common/ply_io.h>
 
 namespace tesseract_collision::test_suite
 {

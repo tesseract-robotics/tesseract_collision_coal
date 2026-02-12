@@ -10,8 +10,8 @@ TESSERACT_COMMON_IGNORE_WARNINGS_POP
 #include <tesseract_collision/core/continuous_contact_manager.h>
 #include <tesseract_collision/core/common.h>
 #include <tesseract_geometry/geometries.h>
-#include <tesseract_common/ply_io.h>
 #include <tesseract_common/resource_locator.h>
+#include <tesseract_common/ply_io.h>
 
 namespace tesseract_collision::test_suite
 {
@@ -192,12 +192,10 @@ inline void runTestPrimitive(ContinuousContactManager& checker)
   result.flattenMoveResults(result_vector);
 
   EXPECT_TRUE(!result_vector.empty());
-  if (!result_vector.empty())
-  {
     EXPECT_NEAR(result_vector[0].distance, -0.1, 0.0001);
 
     std::vector<int> idx = { 0, 1, 1 };
-    if (result_vector[0].link_names[0] != "sphere_link")
+  if (result_vector[0].link_names[0] != "sphere_link")
       idx = { 1, 0, -1 };
 
     EXPECT_NEAR(result_vector[0].cc_time[static_cast<size_t>(idx[0])], 0.5, 0.001);
@@ -223,19 +221,15 @@ inline void runTestPrimitive(ContinuousContactManager& checker)
     EXPECT_NEAR(result_vector[0].nearest_points_local[static_cast<size_t>(idx[1])][1], 0.0, 0.001);
     EXPECT_NEAR(result_vector[0].nearest_points_local[static_cast<size_t>(idx[1])][2], 0.25, 0.001);
 
-    EXPECT_TRUE(
-        result_vector[0].transform[static_cast<size_t>(idx[0])].isApprox(location_start["sphere_link"], 0.0001));
-    EXPECT_TRUE(
-        result_vector[0].transform[static_cast<size_t>(idx[1])].isApprox(location_start["sphere1_link"], 0.0001));
-    EXPECT_TRUE(
-        result_vector[0].cc_transform[static_cast<size_t>(idx[0])].isApprox(location_end["sphere_link"], 0.0001));
+  EXPECT_TRUE(result_vector[0].transform[static_cast<size_t>(idx[0])].isApprox(location_start["sphere_link"], 0.0001));
+  EXPECT_TRUE(result_vector[0].transform[static_cast<size_t>(idx[1])].isApprox(location_start["sphere1_link"], 0.0001));
+  EXPECT_TRUE(result_vector[0].cc_transform[static_cast<size_t>(idx[0])].isApprox(location_end["sphere_link"], 0.0001));
     EXPECT_TRUE(
         result_vector[0].cc_transform[static_cast<size_t>(idx[1])].isApprox(location_end["sphere1_link"], 0.0001));
 
     EXPECT_NEAR(result_vector[0].normal[0], idx[2] * 1.0, 0.001);
     EXPECT_NEAR(result_vector[0].normal[1], idx[2] * 0.0, 0.001);
     EXPECT_NEAR(result_vector[0].normal[2], idx[2] * 0.0, 0.001);
-  }
 
   /////////////////////////////////////////////////////////////
   // Test when object is in collision at cc_time 0.333 and 0.5
@@ -269,12 +263,10 @@ inline void runTestPrimitive(ContinuousContactManager& checker)
   result.flattenCopyResults(result_vector);
 
   EXPECT_TRUE(!result_vector.empty());
-  if (!result_vector.empty())
-  {
     EXPECT_NEAR(result_vector[0].distance, -0.1, 0.0001);
 
-    std::vector<int> idx = { 0, 1, 1 };
-    if (result_vector[0].link_names[0] != "sphere_link")
+  idx = { 0, 1, 1 };
+  if (result_vector[0].link_names[0] != "sphere_link")
       idx = { 1, 0, -1 };
 
     EXPECT_NEAR(result_vector[0].cc_time[static_cast<size_t>(idx[0])], 0.3333, 0.001);
@@ -300,19 +292,15 @@ inline void runTestPrimitive(ContinuousContactManager& checker)
     EXPECT_NEAR(result_vector[0].nearest_points_local[static_cast<size_t>(idx[1])][1], 0.0, 0.001);
     EXPECT_NEAR(result_vector[0].nearest_points_local[static_cast<size_t>(idx[1])][2], 0.25, 0.001);
 
-    EXPECT_TRUE(
-        result_vector[0].transform[static_cast<size_t>(idx[0])].isApprox(location_start["sphere_link"], 0.0001));
-    EXPECT_TRUE(
-        result_vector[0].transform[static_cast<size_t>(idx[1])].isApprox(location_start["sphere1_link"], 0.0001));
-    EXPECT_TRUE(
-        result_vector[0].cc_transform[static_cast<size_t>(idx[0])].isApprox(location_end["sphere_link"], 0.0001));
+  EXPECT_TRUE(result_vector[0].transform[static_cast<size_t>(idx[0])].isApprox(location_start["sphere_link"], 0.0001));
+  EXPECT_TRUE(result_vector[0].transform[static_cast<size_t>(idx[1])].isApprox(location_start["sphere1_link"], 0.0001));
+  EXPECT_TRUE(result_vector[0].cc_transform[static_cast<size_t>(idx[0])].isApprox(location_end["sphere_link"], 0.0001));
     EXPECT_TRUE(
         result_vector[0].cc_transform[static_cast<size_t>(idx[1])].isApprox(location_end["sphere1_link"], 0.0001));
 
     EXPECT_NEAR(result_vector[0].normal[0], idx[2] * 1.0, 0.001);
     EXPECT_NEAR(result_vector[0].normal[1], idx[2] * 0.0, 0.001);
     EXPECT_NEAR(result_vector[0].normal[2], idx[2] * 0.0, 0.001);
-  }
 }
 
 inline void runTestConvex(ContinuousContactManager& checker)
@@ -360,12 +348,10 @@ inline void runTestConvex(ContinuousContactManager& checker)
   result.flattenMoveResults(result_vector);
 
   EXPECT_TRUE(!result_vector.empty());
-  if (!result_vector.empty())
-  {
     EXPECT_NEAR(result_vector[0].distance, -0.0754, 0.001);
 
     std::vector<int> idx = { 0, 1, 1 };
-    if (result_vector[0].link_names[0] != "sphere_link")
+  if (result_vector[0].link_names[0] != "sphere_link")
       idx = { 1, 0, -1 };
 
     EXPECT_NEAR(result_vector[0].cc_time[static_cast<size_t>(idx[0])], 0.5, 0.001);
@@ -391,19 +377,15 @@ inline void runTestConvex(ContinuousContactManager& checker)
     EXPECT_NEAR(result_vector[0].nearest_points_local[static_cast<size_t>(idx[1])][1], 0.0, 0.001);
     EXPECT_NEAR(result_vector[0].nearest_points_local[static_cast<size_t>(idx[1])][2], 0.25, 0.001);
 
-    EXPECT_TRUE(
-        result_vector[0].transform[static_cast<size_t>(idx[0])].isApprox(location_start["sphere_link"], 0.0001));
-    EXPECT_TRUE(
-        result_vector[0].transform[static_cast<size_t>(idx[1])].isApprox(location_start["sphere1_link"], 0.0001));
-    EXPECT_TRUE(
-        result_vector[0].cc_transform[static_cast<size_t>(idx[0])].isApprox(location_end["sphere_link"], 0.0001));
+  EXPECT_TRUE(result_vector[0].transform[static_cast<size_t>(idx[0])].isApprox(location_start["sphere_link"], 0.0001));
+  EXPECT_TRUE(result_vector[0].transform[static_cast<size_t>(idx[1])].isApprox(location_start["sphere1_link"], 0.0001));
+  EXPECT_TRUE(result_vector[0].cc_transform[static_cast<size_t>(idx[0])].isApprox(location_end["sphere_link"], 0.0001));
     EXPECT_TRUE(
         result_vector[0].cc_transform[static_cast<size_t>(idx[1])].isApprox(location_end["sphere1_link"], 0.0001));
 
     EXPECT_NEAR(result_vector[0].normal[0], idx[2] * 1.0, 0.001);
     EXPECT_NEAR(result_vector[0].normal[1], idx[2] * 0.0, 0.001);
     EXPECT_NEAR(result_vector[0].normal[2], idx[2] * 0.0, 0.001);
-  }
 
   /////////////////////////////////////////////////////////////
   // Test when object is in collision at cc_time 0.333 and 0.5
@@ -437,12 +419,10 @@ inline void runTestConvex(ContinuousContactManager& checker)
   result.flattenCopyResults(result_vector);
 
   EXPECT_TRUE(!result_vector.empty());
-  if (!result_vector.empty())
-  {
     EXPECT_NEAR(result_vector[0].distance, -0.0754, 0.001);
 
-    std::vector<int> idx = { 0, 1, 1 };
-    if (result_vector[0].link_names[0] != "sphere_link")
+  idx = { 0, 1, 1 };
+  if (result_vector[0].link_names[0] != "sphere_link")
       idx = { 1, 0, -1 };
 
     EXPECT_NEAR(result_vector[0].cc_time[static_cast<size_t>(idx[0])], 0.3848, 0.001);
@@ -468,19 +448,15 @@ inline void runTestConvex(ContinuousContactManager& checker)
     EXPECT_NEAR(result_vector[0].nearest_points_local[static_cast<size_t>(idx[1])][1], 0.0, 0.001);
     EXPECT_NEAR(result_vector[0].nearest_points_local[static_cast<size_t>(idx[1])][2], 0.25, 0.001);
 
-    EXPECT_TRUE(
-        result_vector[0].transform[static_cast<size_t>(idx[0])].isApprox(location_start["sphere_link"], 0.0001));
-    EXPECT_TRUE(
-        result_vector[0].transform[static_cast<size_t>(idx[1])].isApprox(location_start["sphere1_link"], 0.0001));
-    EXPECT_TRUE(
-        result_vector[0].cc_transform[static_cast<size_t>(idx[0])].isApprox(location_end["sphere_link"], 0.0001));
+  EXPECT_TRUE(result_vector[0].transform[static_cast<size_t>(idx[0])].isApprox(location_start["sphere_link"], 0.0001));
+  EXPECT_TRUE(result_vector[0].transform[static_cast<size_t>(idx[1])].isApprox(location_start["sphere1_link"], 0.0001));
+  EXPECT_TRUE(result_vector[0].cc_transform[static_cast<size_t>(idx[0])].isApprox(location_end["sphere_link"], 0.0001));
     EXPECT_TRUE(
         result_vector[0].cc_transform[static_cast<size_t>(idx[1])].isApprox(location_end["sphere1_link"], 0.0001));
 
     EXPECT_NEAR(result_vector[0].normal[0], idx[2] * 1.0, 0.001);
     EXPECT_NEAR(result_vector[0].normal[1], idx[2] * 0.0, 0.001);
     EXPECT_NEAR(result_vector[0].normal[2], idx[2] * 0.0, 0.001);
-  }
 }
 }  // namespace detail
 

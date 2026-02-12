@@ -3,7 +3,7 @@
 
 #include <tesseract_common/macros.h>
 TESSERACT_COMMON_IGNORE_WARNINGS_PUSH
-#include <chrono>
+#include <benchmark/benchmark.h>
 TESSERACT_COMMON_IGNORE_WARNINGS_POP
 
 #include <tesseract_collision/bullet/convex_hull_utils.h>
@@ -13,9 +13,7 @@ TESSERACT_COMMON_IGNORE_WARNINGS_POP
 #include <tesseract_common/ply_io.h>
 #include <tesseract_common/resource_locator.h>
 
-namespace tesseract_collision
-{
-namespace test_suite
+namespace tesseract_collision::test_suite
 {
 /** @brief Benchmark that checks collisions between a lot of objects. In this case it is a grid of spheres - each as its
  * own link*/
@@ -208,7 +206,6 @@ static void BM_LARGE_DATASET_SINGLELINK(benchmark::State& state,
   }
 }
 
-}  // namespace test_suite
-}  // namespace tesseract_collision
+}  // namespace tesseract_collision::test_suite
 
 #endif

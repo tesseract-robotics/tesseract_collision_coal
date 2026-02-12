@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <package format="2">
   <name>tesseract_collision_coal</name>
-  <version>0.27.1</version>
+  <version>0.34.1</version>
   <description>The tesseract_collision Coal package</description>
   <maintainer email="levi.armstrong@gmail.com">Levi Armstrong</maintainer>
   <license>Apache 2.0</license>
@@ -10,11 +10,13 @@
   <!-- Following recommendations of REP 136 -->
   <buildtool_depend>cmake</buildtool_depend>
 
+  <build_depend>ros_industrial_cmake_boilerplate</build_depend>
+
   <depend>tesseract_geometry</depend>
   <depend>tesseract_common</depend>
   <depend>tesseract_collision</depend>
-  <build_depend>ros_industrial_cmake_boilerplate</build_depend>
-
+  <depend>boost_plugin_loader</depend>
+ 
   <build_depend>eigen</build_depend>
   <build_export_depend>eigen</build_export_depend>
 
@@ -26,6 +28,7 @@
   <depend>coal</depend>
   <depend>libconsole-bridge-dev</depend>
   <depend>tesseract_support</depend>
+  <depend>cereal</depend>
 
   <build_depend>libboost-system-dev</build_depend>
   <build_export_depend>libboost-system-dev</build_export_depend>

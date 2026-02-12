@@ -8,7 +8,7 @@
 
 Platform             | CI Status
 ---------------------|:---------
-Linux (Focal)        | [![Build Status](https://github.com/tesseract-robotics/tesseract/actions/workflows/ubuntu.yml/badge.svg)](https://github.com/tesseract-robotics/tesseract/actions/workflows/ubuntu.yml)
+Linux                | [![Build Status](https://github.com/tesseract-robotics/tesseract/actions/workflows/ubuntu.yml/badge.svg)](https://github.com/tesseract-robotics/tesseract/actions/workflows/ubuntu.yml)
 Windows              | [![Build Status](https://github.com/tesseract-robotics/tesseract/actions/workflows/windows.yml/badge.svg)](https://github.com/tesseract-robotics/tesseract/actions/workflows/windows.yml)
 Lint  (Clang-Format) | [![Build Status](https://github.com/tesseract-robotics/tesseract/actions/workflows/clang_format.yml/badge.svg)](https://github.com/tesseract-robotics/tesseract/actions/workflows/clang_format.yml)
 Lint  (CMake-Format) | [![Build Status](https://github.com/tesseract-robotics/tesseract/actions/workflows/cmake_format.yml/badge.svg)](https://github.com/tesseract-robotics/tesseract/actions/workflows/cmake_format.yml)
@@ -25,8 +25,8 @@ Lint  (CodeCov)      | [![Build Status](https://github.com/tesseract-robotics/te
 The planning framework (Tesseract) was designed to be light weight, limiting the number of dependencies, mainly only using standard libraries like, eigen, boost, orocos and to the packages below. The core packages are ROS agnostic and have full python support.
 
 ## Dependencies
-[![ros_industrial_cmake_boilerplate](https://img.shields.io/badge/ros_industrial_cmake_boilerplate-0.6.0-brightgreen)](https://github.com/ros-industrial/ros_industrial_cmake_boilerplate/tree/0.5.3)  
-[![opw_kinematics](https://img.shields.io/badge/opw_kinematics-0.5.0-brightgreen)](https://github.com/Jmeyer1292/opw_kinematics/tree/0.5.0)
+[![ros_industrial_cmake_boilerplate](https://img.shields.io/badge/ros_industrial_cmake_boilerplate-0.7.3-brightgreen)](https://github.com/ros-industrial/ros_industrial_cmake_boilerplate/tree/0.7.3)  
+[![opw_kinematics](https://img.shields.io/badge/opw_kinematics-0.5.2-brightgreen)](https://github.com/Jmeyer1292/opw_kinematics/tree/0.5.2)
 
 ## Tesseract Setup Wizard and Visualization Tools
 
@@ -74,7 +74,7 @@ python3 -m pip install --user  tesseract_robotics tesseract_robotics_viewer
 ## Documentation
 
 * [Wiki](https://tesseract-docs.readthedocs.io)
-* [Doxygen](https://tesseract-robotics.github.io/tesseract_docs/tesseract/)
+* [Doxygen](https://tesseract-robotics.github.io/tesseract/)
 * [Benchmark](https://tesseract-robotics.github.io/tesseract_docs/tesseract/dev/bench/)
 
 ## Evolution
@@ -85,6 +85,26 @@ How to create:
 
 * Create Video: `gource -1280x720 -seconds-per-day 0.2 --auto-skip-seconds 0.2 --disable-bloom -background d0d3d4 --hide filenames,mouse,progress -o - | ffmpeg -y -r 60 -f image2pipe -vcodec ppm -i - -vcodec libx264 -preset ultrafast -pix_fmt yuv420p -crf 1 -threads 0 -bf 0 gource.mp4`
 * Create Gif: `ffmpeg -i gource.mp4 -r 10 -vf "scale=800:-1,split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse" tesseract_evolution.gif`
+
+## Docker Development Container
+
+It common to leverage docker to develop for different distributions of Ubuntu, so a docker compose file has been provided to simplify this process for Tesseract development.
+
+Initial setup, you must create directories for the different distributions to save Qt Creator configs so they persist.
+
+``` bash
+mkdir ~/.config/QtProjectDocker
+mkdir ~/.config/QtProjectDocker/focal
+mkdir ~/.config/QtProjectDocker/noetic
+mkdir ~/.config/QtProjectDocker/jammy
+```
+
+Now you can start the development docker. Replace focal with what ubuntu distro you want to develope with.
+
+``` bash
+cd <path to tesseract repo>/docker
+USER_ID=$(id -u) GROUP_ID=$(id -g) UBUNTU_TAG=focal docker compose -f docker-compose-dev.yaml up --build --remove-orphans
+```
 
 ## TODO's
 
@@ -107,6 +127,10 @@ NOTE: Install TaskFlow from [ROS-Industrial PPA](https://launchpad.net/~ros-indu
 ### Building with Clang-Tidy Enabled
 
 Must pass the -DTESSERACT_ENABLE_CLANG_TIDY=ON to cmake when building. This is automatically enabled if cmake argument -DTESSERACT_ENABLE_TESTING_ALL=ON is passed.
+
+Clang-Tidy Versions Tested:
+- clang-tidy-12
+- clang-tidy-17 with libomp-17-dev
 
 ### Building Tesseract Tests
 
@@ -135,6 +159,12 @@ NOTE: Must be a clean build when generating a code coverage report. Also must bu
 
 .. NOTE: You can replace **LCOV** above with **GCOV** or **GCOVR**.
 
+## Building Benchmarks
+
+Tesseract's Google benchmarks can be built by building with the flag `DTESSERACT_ENABLE_BENCHMARKING=ON`.
+
+To run the benchmarks at compile time and save the results to a json file in the build directory, add the flag `-DTESSERACT_ENABLE_RUN_BENCHMARKING=ON`
+
 ## Create Debian Package (Linux) or NuGet Package (Windows)
 
 The following process will generate a Debian or NuGet package leveraging cmake and cpack based on the OS.
@@ -161,35 +191,7 @@ Tesseract currently leverages Compiler Warnigs, Clang Tidy and Code Coverage. Al
   - Wno-sign-compare
   - Wnon-virtual-dtor
 - Clang Tidy
-  - clang-analyzer-*
-  - bugprone-*
-  - cppcoreguidelines-avoid-goto
-  - cppcoreguidelines-c-copy-assignment-signature
-  - cppcoreguidelines-interfaces-global-init
-  - cppcoreguidelines-narrowing-conversions
-  - cppcoreguidelines-no-malloc
-  - cppcoreguidelines-slicing
-  - cppcoreguidelines-special-member-functions
-  - misc-*,-misc-non-private-member-variables-in-classes
-  - modernize-*,-modernize-use-trailing-return-type,-modernize-use-nodiscard
-  - performance-*
-  - readability-avoid-const-params-in-decls
-  - readability-container-size-empty
-  - readability-delete-null-pointer
-  - readability-deleted-default
-  - readability-else-after-return
-  - readability-function-size
-  - readability-identifier-naming
-  - readability-inconsistent-declaration-parameter-name
-  - readability-misleading-indentation
-  - readability-misplaced-array-index
-  - readability-non-const-parameter
-  - readability-redundant-*
-  - readability-simplify-*
-  - readability-static-*
-  - readability-string-compare
-  - readability-uniqueptr-delete-release
-  - readability-rary-objects
+  - see internal .clang-tidy file for enabled checks
 
 ## Documentation and Tutorials
 Documentation and tutorials for Tesseract are located at https://github.com/tesseract-robotics/tesseract_docs.git

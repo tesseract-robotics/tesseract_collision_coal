@@ -11,37 +11,14 @@ endif()
 
 # All of these are used by all components so to avoid having them in each they are include here
 find_package(Eigen3 REQUIRED)
-find_package(Boost REQUIRED COMPONENTS system program_options serialization)
+find_package(Boost REQUIRED COMPONENTS system program_options)
 find_package(octomap REQUIRED)
 find_package(console_bridge REQUIRED)
 find_package(tesseract_geometry REQUIRED)
 find_package(tesseract_common REQUIRED)
+find_package(boost_plugin_loader REQUIRED)
 find_package(yaml-cpp REQUIRED)
-
-# These targets are necessary for 16.04 builds. Remove when Kinetic support is dropped
-if(NOT TARGET console_bridge::console_bridge)
-  add_library(console_bridge::console_bridge INTERFACE IMPORTED)
-  set_target_properties(console_bridge::console_bridge PROPERTIES INTERFACE_INCLUDE_DIRECTORIES
-                                                                  ${console_bridge_INCLUDE_DIRS})
-  set_target_properties(console_bridge::console_bridge PROPERTIES INTERFACE_LINK_LIBRARIES ${console_bridge_LIBRARIES})
-else()
-  get_target_property(CHECK_INCLUDE_DIRECTORIES console_bridge::console_bridge INTERFACE_INCLUDE_DIRECTORIES)
-  if(NOT ${CHECK_INCLUDE_DIRECTORIES})
-    set_target_properties(console_bridge::console_bridge PROPERTIES INTERFACE_INCLUDE_DIRECTORIES
-                                                                    ${console_bridge_INCLUDE_DIRS})
-  endif()
-endif()
-
-if(NOT TARGET octomap)
-  add_library(octomap INTERFACE IMPORTED)
-  set_target_properties(octomap PROPERTIES INTERFACE_INCLUDE_DIRECTORIES "${OCTOMAP_INCLUDE_DIRS}")
-  set_target_properties(octomap PROPERTIES INTERFACE_LINK_LIBRARIES "${OCTOMAP_LIBRARIES}")
-endif()
-if(NOT TARGET octomath)
-  add_library(octomath INTERFACE IMPORTED)
-  set_target_properties(octomath PROPERTIES INTERFACE_INCLUDE_DIRECTORIES "${OCTOMAP_INCLUDE_DIRS}")
-  set_target_properties(octomath PROPERTIES INTERFACE_LINK_LIBRARIES "${OCTOMAP_LIBRARIES}")
-endif()
+find_package(cereal REQUIRED)
 
 # Load variable for clang tidy args, compiler options and cxx version
 tesseract_variables()
@@ -52,6 +29,8 @@ set(COVERAGE_EXCLUDE
     /opt/*
     ${CMAKE_CURRENT_LIST_DIR}/test/*
     ${CMAKE_CURRENT_LIST_DIR}/include/tesseract_collision/test_suite/*
+    /*/install/*
+    /*/devel/*
     /*/gtest/*
     /*/include/coal/*)
 add_code_coverage_all_targets(EXCLUDE ${COVERAGE_EXCLUDE} ENABLE ${TESSERACT_ENABLE_CODE_COVERAGE})
