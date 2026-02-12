@@ -37,7 +37,7 @@ double CoalCollisionObjectWrapper::getContactDistanceThreshold() const { return 
 void CoalCollisionObjectWrapper::updateAABB()
 {
   computeAABB();
-  aabb.expand(contact_distance_);
+  aabb.expand(contact_distance_ / 2.0);
 }
 
 void CoalCollisionObjectWrapper::setShapeIndex(int index) { shape_index_ = index; }
