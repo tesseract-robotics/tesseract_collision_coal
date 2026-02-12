@@ -22,11 +22,11 @@ TEST(TesseractCollisionUnit, BulletDiscreteBVHCollisionCompoundMeshSphereUnit)  
   test_suite::runTest(checker);
 }
 
-// TEST(TesseractCollisionUnit, FCLDiscreteBVHCollisionCompoundMeshSphereUnit)  // NOLINT
-// {
-//   tesseract_collision_fcl::FCLDiscreteBVHManager checker;
-//   test_suite::runTest(checker);
-// }
+TEST(TesseractCollisionUnit, FCLDiscreteBVHCollisionCompoundMeshSphereUnit)  // NOLINT
+{
+  tesseract_collision_fcl::FCLDiscreteBVHManager checker;
+  test_suite::runTest(checker);
+}
 
 TEST(TesseractCollisionUnit, CoalDiscreteBVHCollisionCompoundMeshSphereUnit)  // NOLINT
 {
