@@ -315,17 +315,13 @@ bool CollisionCallback::collide(coal::CollisionObject* o1, coal::CollisionObject
   coal::CollisionResult col_result;
   coal::CollisionRequest col_request;
   col_request.num_max_contacts = num_contacts;
-  col_request.enable_contact = cdata->req.calculate_penetration;
+  col_request.enable_contact = (cdata->req.calculate_distance || cdata->req.calculate_penetration);
   col_request.gjk_variant = coal::GJKVariant::NesterovAcceleration;
-  col_request.gjk_convergence_criterion = coal::GJKConvergenceCriterion::DualityGap;
-  col_request.gjk_convergence_criterion_type = coal::GJKConvergenceCriterionType::Absolute;
   col_request.gjk_initial_guess = coal::BoundingVolumeGuess;
-  // col_request.gjk_tolerance = 1e-5;
-  // col_request.epa_tolerance = 1e-5;
-  // col_request.break_distance // Leave at default?
-  // col_request.collision_distance_threshold // Leave at default (close to 0)
-  // col_request.distance_upper_bound = // Collision margin + buffer?
   col_request.security_margin = cdata->collision_margin_data.getCollisionMargin(cd1->getName(), cd2->getName());
+  // Stop GJK if distance is larger than the security margin, i.e. no collision (plus a small margin for numerical
+  // stability)
+  col_request.distance_upper_bound = col_request.security_margin + 1e-6;
   coal::collide(o1, o2, col_request, col_result);
 
   if (col_result.isCollision())
@@ -334,6 +330,8 @@ bool CollisionCallback::collide(coal::CollisionObject* o1, coal::CollisionObject
 
     const Eigen::Isometry3d& tf1 = cd1->getCollisionObjectsTransform();
     const Eigen::Isometry3d& tf2 = cd2->getCollisionObjectsTransform();
+    Eigen::Isometry3d tf1_inv = tf1.inverse();
+    Eigen::Isometry3d tf2_inv = tf2.inverse();
 
     for (size_t i = 0; i < col_result.numContacts(); ++i)
     {
@@ -347,8 +345,8 @@ bool CollisionCallback::collide(coal::CollisionObject* o1, coal::CollisionObject
       contact.subshape_id[1] = static_cast<int>(coal_contact.b2);
       contact.nearest_points[0] = coal_contact.nearest_points[0];
       contact.nearest_points[1] = coal_contact.nearest_points[1];
-      contact.nearest_points_local[0] = tf1.inverse() * contact.nearest_points[0];
-      contact.nearest_points_local[1] = tf2.inverse() * contact.nearest_points[1];
+      contact.nearest_points_local[0] = tf1_inv * contact.nearest_points[0];
+      contact.nearest_points_local[1] = tf2_inv * contact.nearest_points[1];
       contact.transform[0] = tf1;
       contact.transform[1] = tf2;
       contact.type_id[0] = cd1->getTypeID();
@@ -385,12 +383,7 @@ bool DistanceCallback::collide(coal::CollisionObject* o1, coal::CollisionObject*
   coal::DistanceRequest dist_request(true);
   dist_request.enable_signed_distance = cdata->req.calculate_penetration;
   dist_request.gjk_variant = coal::GJKVariant::NesterovAcceleration;
-  dist_request.gjk_convergence_criterion = coal::GJKConvergenceCriterion::DualityGap;
-  dist_request.gjk_convergence_criterion_type = coal::GJKConvergenceCriterionType::Absolute;
   dist_request.gjk_initial_guess = coal::BoundingVolumeGuess;
-  // dist_request.gjk_tolerance = 1e-5;
-  // dist_request.epa_tolerance = 1e-5;
-  // dist_request.collision_distance_threshold // Leave at default (close to 0)
   const double d = coal::distance(o1, o2, dist_request, dist_result);
 
   if (d < cdata->collision_margin_data.getMaxCollisionMargin())
@@ -415,7 +408,6 @@ bool DistanceCallback::collide(coal::CollisionObject* o1, coal::CollisionObject*
     contact.type_id[1] = cd2->getTypeID();
     contact.distance = dist_result.min_distance;
     contact.normal = (dist_result.min_distance * (contact.nearest_points[1] - contact.nearest_points[0])).normalized();
-    // contact.normal = dist_result.normal;
 
     TESSERACT_THREAD_LOCAL tesseract_common::LinkNamesPair link_pair;
     tesseract_common::makeOrderedLinkPair(link_pair, cd1->getName(), cd2->getName());
