@@ -400,6 +400,19 @@ inline COW::Ptr makeCastCollisionObject(const COW::Ptr& cow)
   return cast_cow;
 }
 
+/**
+ * @brief This is used to check if a collision check is required between the provided two collision objects
+ * @param cow1 The first collision object
+ * @param cow2 The second collision object
+ * @param validator  The contact allowed validator
+ * @param verbose Indicate if verbose information should be printed to the terminal
+ * @return True if the two collision objects should be checked for collision, otherwise false
+ */
+bool needsCollisionCheck(const CollisionObjectWrapper* cd1,
+                         const CollisionObjectWrapper* cd2,
+                         const std::shared_ptr<const tesseract_common::ContactAllowedValidator>& validator,
+                         bool verbose = false);
+
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wnon-virtual-dtor"
 
