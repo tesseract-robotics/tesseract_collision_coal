@@ -1,6 +1,11 @@
 #ifndef TESSERACT_COLLISION_PRIMATIVES_BENCHMARKS_HPP
 #define TESSERACT_COLLISION_PRIMATIVES_BENCHMARKS_HPP
 
+#include <tesseract_common/macros.h>
+TESSERACT_COMMON_IGNORE_WARNINGS_PUSH
+#include <benchmark/benchmark.h>
+TESSERACT_COMMON_IGNORE_WARNINGS_POP
+
 #include <tesseract_collision/core/discrete_contact_manager.h>
 #include <tesseract_geometry/geometries.h>
 
