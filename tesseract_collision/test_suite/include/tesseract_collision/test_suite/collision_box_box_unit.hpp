@@ -216,8 +216,7 @@ inline void runTestTyped(DiscreteContactManager& checker, ContactTestType test_t
 
     EXPECT_EQ(checker.getCollisionMarginData().getMaxCollisionMargin(), 1.7);
     EXPECT_NEAR(checker.getCollisionMarginData().getCollisionMargin("box_link", "second_box_link"), 0.1, 1e-5);
-    // location["box_link"].translation() = Eigen::Vector3d(1.60, 0, 0);
-    location["box_link"].translation() = Eigen::Vector3d(1.60 + 1e-10, 0, 0);
+    location["box_link"].translation() = Eigen::Vector3d(1.60, 0, 0);
     result.clear();
     result_vector.clear();
 
