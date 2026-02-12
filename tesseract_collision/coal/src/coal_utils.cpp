@@ -330,6 +330,8 @@ bool CollisionCallback::collide(coal::CollisionObject* o1, coal::CollisionObject
 
   if (col_result.isCollision())
   {
+    TESSERACT_THREAD_LOCAL tesseract_common::LinkNamesPair link_pair;
+
     const Eigen::Isometry3d& tf1 = cd1->getCollisionObjectsTransform();
     const Eigen::Isometry3d& tf2 = cd2->getCollisionObjectsTransform();
 
@@ -354,11 +356,11 @@ bool CollisionCallback::collide(coal::CollisionObject* o1, coal::CollisionObject
       contact.distance = coal_contact.penetration_depth;
       contact.normal = coal_contact.normal;
 
-      const ObjectPairKey pc = tesseract_common::makeOrderedLinkPair(cd1->getName(), cd2->getName());
-      const auto it = cdata->res->find(pc);
+      tesseract_common::makeOrderedLinkPair(link_pair, cd1->getName(), cd2->getName());
+      const auto it = cdata->res->find(link_pair);
       const bool found = (it != cdata->res->end() && !it->second.empty());
 
-      processResult(*cdata, contact, pc, found);
+      processResult(*cdata, contact, link_pair, found);
     }
   }
 
@@ -415,11 +417,12 @@ bool DistanceCallback::collide(coal::CollisionObject* o1, coal::CollisionObject*
     contact.normal = (dist_result.min_distance * (contact.nearest_points[1] - contact.nearest_points[0])).normalized();
     // contact.normal = dist_result.normal;
 
-    const ObjectPairKey pc = tesseract_common::makeOrderedLinkPair(cd1->getName(), cd2->getName());
-    const auto it = cdata->res->find(pc);
-    const bool found = (it != cdata->res->end() && !it->second.empty());
+    TESSERACT_THREAD_LOCAL tesseract_common::LinkNamesPair link_pair;
+    tesseract_common::makeOrderedLinkPair(link_pair, cd1->getName(), cd2->getName());
+    const auto it = cdata->res->find(link_pair);
+    bool found = (it != cdata->res->end() && !it->second.empty());
 
-    processResult(*cdata, contact, pc, found);
+    processResult(*cdata, contact, link_pair, found);
   }
 
   return cdata->done;
