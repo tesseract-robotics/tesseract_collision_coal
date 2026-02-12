@@ -565,7 +565,7 @@ void CoalCastBVHManager::onCollisionMarginDataChanged()
   // Update regular collision objects
   for (auto& cow : link2cow_)
   {
-    cow.second->setContactDistanceThreshold(collision_margin_data_.getMaxCollisionMargin() / 2.0);
+    cow.second->setContactDistanceThreshold(collision_margin_data_.getMaxCollisionMargin(cow.second->getName()));
     std::vector<CollisionObjectRawPtr>& co = cow.second->getCollisionObjectsRaw();
     if (cow.second->m_collisionFilterGroup == CollisionFilterGroups::StaticFilter)
     {
@@ -580,7 +580,8 @@ void CoalCastBVHManager::onCollisionMarginDataChanged()
   // Also update cast collision objects
   for (auto& cast_cow : link2castcow_)
   {
-    cast_cow.second->setContactDistanceThreshold(collision_margin_data_.getMaxCollisionMargin() / 2.0);
+    cast_cow.second->setContactDistanceThreshold(
+        collision_margin_data_.getMaxCollisionMargin(cast_cow.second->getName()));
     // Only add to update if this is a dynamic object (static objects use the non-cast version)
     if (cast_cow.second->m_collisionFilterGroup == CollisionFilterGroups::KinematicFilter)
     {
