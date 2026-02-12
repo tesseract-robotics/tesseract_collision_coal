@@ -25,9 +25,6 @@ TEST(TesseractCollisionUnit, BulletDiscreteBVHCollisionBoxCylinderUnit)  // NOLI
 
 TEST(TesseractCollisionUnit, FCLDiscreteBVHCollisionBoxCylinderUnit)
 {
-  // TODO: Currently this fails when using FCL. An issue has been created
-  //       and they are currently addressing the issue.
-
   tesseract_collision_fcl::FCLDiscreteBVHManager checker;
   test_suite::runTest(checker);
 }

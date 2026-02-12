@@ -26,8 +26,7 @@ TEST(TesseractCollisionUnit, BulletDiscreteBVHCollisionCloneUnit)  // NOLINT
 TEST(TesseractCollisionUnit, FCLDiscreteBVHCollisionCloneUnit)  // NOLINT
 {
   tesseract_collision_fcl::FCLDiscreteBVHManager checker;
-  test_suite::runTest(checker, 0.001, 0.001, 0.005);  // TODO: FCL requires a large tolerance because it using GJK
-                                                      // currently
+  test_suite::runTest(checker, 0.001, 0.001, 0.001);
 }
 
 TEST(TesseractCollisionUnit, CoalDiscreteBVHCollisionCloneUnit)  // NOLINT
