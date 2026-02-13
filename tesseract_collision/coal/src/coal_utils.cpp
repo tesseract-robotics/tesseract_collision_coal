@@ -280,7 +280,7 @@ CollisionGeometryPtr createShapePrimitive(const CollisionShapeConstPtr& geom)
 
   shape = createShapePrimitiveHelper(geom);
   CoalCollisionGeometryCache::insert(geom, shape);
-  return createShapePrimitiveHelper(geom);
+  return shape;
 }
 
 inline bool needsCollisionCheck(const CollisionObjectWrapper* cd1,
