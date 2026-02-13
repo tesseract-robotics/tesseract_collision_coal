@@ -411,7 +411,7 @@ void CoalCastBVHManager::setCollisionObjectsTransform(const tesseract_common::Tr
   auto it2 = pose2.begin();
   while (it1 != pose1.end())
   {
-    assert(pose1.find(it1->first) != pose2.end());
+    assert(pose2.find(it1->first) != pose2.end());
     setCollisionObjectsTransform(it1->first, it1->second, it2->second);
     std::advance(it1, 1);
     std::advance(it2, 1);
