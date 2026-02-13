@@ -46,6 +46,7 @@ TESSERACT_COMMON_IGNORE_WARNINGS_PUSH
 #include <coal/shape/convex.h>
 #include <coal/data_types.h>
 #include <coal/octree.h>
+#include <cmath>
 #include <memory>
 #include <stdexcept>
 TESSERACT_COMMON_IGNORE_WARNINGS_POP
@@ -407,7 +408,9 @@ bool DistanceCallback::collide(coal::CollisionObject* o1, coal::CollisionObject*
     contact.type_id[0] = cd1->getTypeID();
     contact.type_id[1] = cd2->getTypeID();
     contact.distance = dist_result.min_distance;
-    contact.normal = (dist_result.min_distance * (contact.nearest_points[1] - contact.nearest_points[0])).normalized();
+    contact.normal =
+        (std::copysign(1.0, dist_result.min_distance) * (contact.nearest_points[1] - contact.nearest_points[0]))
+            .normalized();
 
     TESSERACT_THREAD_LOCAL tesseract_common::LinkNamesPair link_pair;
     tesseract_common::makeOrderedLinkPair(link_pair, cd1->getName(), cd2->getName());
