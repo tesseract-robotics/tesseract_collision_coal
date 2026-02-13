@@ -61,7 +61,7 @@ set(CONTACT_MANAGERS_PLUGINS ${CONTACT_MANAGERS_PLUGINS} "${PROJECT_NAME}_coal_f
 
 # Mark cpp header files for installation
 install(
-  DIRECTORY include/${PROJECT_NAME}
+  DIRECTORY include/
   DESTINATION include
   COMPONENT coal
   FILES_MATCHING
