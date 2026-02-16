@@ -387,7 +387,7 @@ bool DistanceCallback::collide(coal::CollisionObject* o1, coal::CollisionObject*
   dist_request.gjk_initial_guess = coal::BoundingVolumeGuess;
   const double d = coal::distance(o1, o2, dist_request, dist_result);
 
-  if (d < cdata->collision_margin_data.getMaxCollisionMargin())
+  if (d <= cdata->collision_margin_data.getCollisionMargin(cd1->getName(), cd2->getName()))
   {
     const Eigen::Isometry3d& tf1 = cd1->getCollisionObjectsTransform();
     const Eigen::Isometry3d& tf2 = cd2->getCollisionObjectsTransform();
