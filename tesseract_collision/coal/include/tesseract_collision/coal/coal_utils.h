@@ -423,13 +423,6 @@ struct CollisionCallback : coal::CollisionCallBackBase
   virtual ~CollisionCallback() = default;
 };
 
-struct DistanceCallback : coal::CollisionCallBackBase
-{
-  ContactTestData* cdata{};
-  bool collide(coal::CollisionObject* o1, coal::CollisionObject* o2) override;
-  virtual ~DistanceCallback() = default;
-};
-
 #pragma GCC diagnostic pop
 
 }  // namespace tesseract_collision::tesseract_collision_coal

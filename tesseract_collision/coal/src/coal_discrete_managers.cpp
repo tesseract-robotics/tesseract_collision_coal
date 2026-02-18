@@ -338,32 +338,15 @@ void CoalDiscreteBVHManager::contactTest(ContactResultMap& collisions, const Con
 {
   ContactTestData cdata(active_, collision_margin_data_, validator_, request, collisions);
 
-  if (collision_margin_data_.getMaxCollisionMargin() > 0)
-  {
-    DistanceCallback distanceCallback;
-    distanceCallback.cdata = &cdata;
+  CollisionCallback collisionCallback;
+  collisionCallback.cdata = &cdata;
 
-    // TODO: Should the order be flipped?
-    if (!static_manager_->empty())
-      static_manager_->collide(dynamic_manager_.get(), &distanceCallback);
+  // TODO: Should the order be flipped?
+  if (!static_manager_->empty())
+    static_manager_->collide(dynamic_manager_.get(), &collisionCallback);
 
-    // It looks like the self check is as fast as selfDistanceContactTest even though it is N^2
-    if (!cdata.done && !dynamic_manager_->empty())
-      dynamic_manager_->collide(&distanceCallback);
-  }
-  else
-  {
-    CollisionCallback collisionCallback;
-    collisionCallback.cdata = &cdata;
-
-    // TODO: Should the order be flipped?
-    if (!static_manager_->empty())
-      static_manager_->collide(dynamic_manager_.get(), &collisionCallback);
-
-    // It looks like the self check is as fast as selfDistanceContactTest even though it is N^2
-    if (!cdata.done && !dynamic_manager_->empty())
-      dynamic_manager_->collide(&collisionCallback);
-  }
+  if (!cdata.done && !dynamic_manager_->empty())
+    dynamic_manager_->collide(&collisionCallback);
 }
 
 void CoalDiscreteBVHManager::addCollisionObject(const COW::Ptr& cow)
