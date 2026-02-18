@@ -301,9 +301,6 @@ bool CollisionCallback::collide(coal::CollisionObject* o1, coal::CollisionObject
   const auto* cd1 = static_cast<const CollisionObjectWrapper*>(o1->getUserData());
   const auto* cd2 = static_cast<const CollisionObjectWrapper*>(o2->getUserData());
 
-  assert(std::find(cdata->active->begin(), cdata->active->end(), cd1->getName()) != cdata->active->end() ||
-         std::find(cdata->active->begin(), cdata->active->end(), cd2->getName()) != cdata->active->end());
-
   if (!needsCollisionCheck(cd1, cd2, cdata->validator, false))
     return false;
 
@@ -324,97 +321,40 @@ bool CollisionCallback::collide(coal::CollisionObject* o1, coal::CollisionObject
   col_request.distance_upper_bound = col_request.security_margin + 1e-6;
   coal::collide(o1, o2, col_request, col_result);
 
-  if (col_result.isCollision())
-  {
-    TESSERACT_THREAD_LOCAL tesseract_common::LinkNamesPair link_pair;
-
-    const Eigen::Isometry3d& tf1 = cd1->getCollisionObjectsTransform();
-    const Eigen::Isometry3d& tf2 = cd2->getCollisionObjectsTransform();
-    Eigen::Isometry3d tf1_inv = tf1.inverse();
-    Eigen::Isometry3d tf2_inv = tf2.inverse();
-
-    for (size_t i = 0; i < col_result.numContacts(); ++i)
-    {
-      const coal::Contact& coal_contact = col_result.getContact(i);
-      ContactResult contact;
-      contact.link_names[0] = cd1->getName();
-      contact.link_names[1] = cd2->getName();
-      contact.shape_id[0] = CollisionObjectWrapper::getShapeIndex(o1);
-      contact.shape_id[1] = CollisionObjectWrapper::getShapeIndex(o2);
-      contact.subshape_id[0] = static_cast<int>(coal_contact.b1);
-      contact.subshape_id[1] = static_cast<int>(coal_contact.b2);
-      contact.nearest_points[0] = coal_contact.nearest_points[0];
-      contact.nearest_points[1] = coal_contact.nearest_points[1];
-      contact.nearest_points_local[0] = tf1_inv * contact.nearest_points[0];
-      contact.nearest_points_local[1] = tf2_inv * contact.nearest_points[1];
-      contact.transform[0] = tf1;
-      contact.transform[1] = tf2;
-      contact.type_id[0] = cd1->getTypeID();
-      contact.type_id[1] = cd2->getTypeID();
-      contact.distance = coal_contact.penetration_depth;
-      contact.normal = coal_contact.normal;
-
-      tesseract_common::makeOrderedLinkPair(link_pair, cd1->getName(), cd2->getName());
-      const auto it = cdata->res->find(link_pair);
-      const bool found = (it != cdata->res->end() && !it->second.empty());
-
-      processResult(*cdata, contact, link_pair, found);
-    }
-  }
-
-  return cdata->done;
-}
-
-bool DistanceCallback::collide(coal::CollisionObject* o1, coal::CollisionObject* o2)
-{
-  if (cdata->done)
-    return true;
-
-  const auto* cd1 = static_cast<const CollisionObjectWrapper*>(o1->getUserData());
-  const auto* cd2 = static_cast<const CollisionObjectWrapper*>(o2->getUserData());
-
-  assert(std::find(cdata->active->begin(), cdata->active->end(), cd1->getName()) != cdata->active->end() ||
-         std::find(cdata->active->begin(), cdata->active->end(), cd2->getName()) != cdata->active->end());
-
-  if (!needsCollisionCheck(cd1, cd2, cdata->validator, false))
+  if (!col_result.isCollision())
     return false;
 
-  coal::DistanceResult dist_result;
-  coal::DistanceRequest dist_request(true);
-  dist_request.enable_signed_distance = cdata->req.calculate_penetration;
-  dist_request.gjk_variant = coal::GJKVariant::NesterovAcceleration;
-  dist_request.gjk_initial_guess = coal::BoundingVolumeGuess;
-  const double d = coal::distance(o1, o2, dist_request, dist_result);
+  TESSERACT_THREAD_LOCAL tesseract_common::LinkNamesPair link_pair;
+  tesseract_common::makeOrderedLinkPair(link_pair, cd1->getName(), cd2->getName());
 
-  if (d <= cdata->collision_margin_data.getCollisionMargin(cd1->getName(), cd2->getName()))
+  const Eigen::Isometry3d& tf1 = cd1->getCollisionObjectsTransform();
+  const Eigen::Isometry3d& tf2 = cd2->getCollisionObjectsTransform();
+  Eigen::Isometry3d tf1_inv = tf1.inverse();
+  Eigen::Isometry3d tf2_inv = tf2.inverse();
+
+  for (size_t i = 0; i < col_result.numContacts(); ++i)
   {
-    const Eigen::Isometry3d& tf1 = cd1->getCollisionObjectsTransform();
-    const Eigen::Isometry3d& tf2 = cd2->getCollisionObjectsTransform();
-
+    const coal::Contact& coal_contact = col_result.getContact(i);
     ContactResult contact;
     contact.link_names[0] = cd1->getName();
     contact.link_names[1] = cd2->getName();
     contact.shape_id[0] = CollisionObjectWrapper::getShapeIndex(o1);
     contact.shape_id[1] = CollisionObjectWrapper::getShapeIndex(o2);
-    contact.subshape_id[0] = dist_result.b1;
-    contact.subshape_id[1] = dist_result.b2;
-    contact.nearest_points[0] = dist_result.nearest_points[0];
-    contact.nearest_points[1] = dist_result.nearest_points[1];
-    contact.nearest_points_local[0] = tf1.inverse() * contact.nearest_points[0];
-    contact.nearest_points_local[1] = tf2.inverse() * contact.nearest_points[1];
+    contact.subshape_id[0] = static_cast<int>(coal_contact.b1);
+    contact.subshape_id[1] = static_cast<int>(coal_contact.b2);
+    contact.nearest_points[0] = coal_contact.nearest_points[0];
+    contact.nearest_points[1] = coal_contact.nearest_points[1];
+    contact.nearest_points_local[0] = tf1_inv * contact.nearest_points[0];
+    contact.nearest_points_local[1] = tf2_inv * contact.nearest_points[1];
     contact.transform[0] = tf1;
     contact.transform[1] = tf2;
     contact.type_id[0] = cd1->getTypeID();
     contact.type_id[1] = cd2->getTypeID();
-    contact.distance = dist_result.min_distance;
-    contact.normal =
-        (std::copysign(1.0, dist_result.min_distance) * (contact.nearest_points[1] - contact.nearest_points[0]))
-            .normalized();
+    contact.distance = coal_contact.penetration_depth;
+    contact.normal = coal_contact.normal;
 
-    TESSERACT_THREAD_LOCAL tesseract_common::LinkNamesPair link_pair;
-    tesseract_common::makeOrderedLinkPair(link_pair, cd1->getName(), cd2->getName());
     const auto it = cdata->res->find(link_pair);
-    bool found = (it != cdata->res->end() && !it->second.empty());
+    const bool found = (it != cdata->res->end() && !it->second.empty());
 
     processResult(*cdata, contact, link_pair, found);
   }
