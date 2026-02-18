@@ -61,6 +61,9 @@ if(TESSERACT_BUILD_COAL)
   add_subdirectory(coal)
 endif()
 
+# Unit test options
+option(TESSERACT_COLLISION_COAL_ENABLE_COAL_CAST_TESTS "Enable CoalCastBVHManager unit tests" OFF)
+
 # Add compiler definition to core so it can find all plugins produced string( REPLACE ";" ":"
 # CONTACT_MANAGERS_PLUGINS_STRING
 # "${CONTACT_MANAGERS_PLUGINS}")

@@ -110,11 +110,13 @@ TEST(TesseractCollisionUnit, CoalDiscreteBVHContactManagerConfigUnit)  // NOLINT
   test_suite::runTest(checker);
 }
 
+#if defined(TESSERACT_COLLISION_COAL_ENABLE_COAL_CAST_TESTS)
 TEST(TesseractCollisionUnit, CoalCastBVHContactManagerConfigUnit)  // NOLINT
 {
   tesseract_collision_coal::CoalCastBVHManager checker;
   test_suite::runTest(checker);
 }
+#endif
 
 TEST(TesseractCollisionUnit, CombineContactAllowedFnUnit)  // NOLINT
 {

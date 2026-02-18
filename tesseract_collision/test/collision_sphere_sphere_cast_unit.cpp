@@ -34,6 +34,7 @@ TEST(TesseractCollisionUnit, BulletContinuousBVHCollisionSphereSphereConvexHullU
   test_suite::runTest(checker, true);
 }
 
+#if defined(TESSERACT_COLLISION_COAL_ENABLE_COAL_CAST_TESTS)
 TEST(TesseractCollisionUnit, CoalContinuousBVHCollisionSphereSphereUnit)  // NOLINT
 {
   tesseract_collision_coal::CoalCastBVHManager checker;
@@ -45,6 +46,7 @@ TEST(TesseractCollisionUnit, CoalContinuousBVHCollisionSphereSphereConvexHullUni
   tesseract_collision_coal::CoalCastBVHManager checker;
   test_suite::runTest(checker, true);
 }
+#endif
 
 int main(int argc, char** argv)
 {
