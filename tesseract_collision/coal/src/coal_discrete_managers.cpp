@@ -138,6 +138,17 @@ bool CoalDiscreteBVHManager::removeCollisionObject(const std::string& name)
 
     collision_objects_.erase(std::find(collision_objects_.begin(), collision_objects_.end(), name));
     link2cow_.erase(name);
+
+    // Remove cached collision functors that involve the removed object
+    for (auto it_cache = collision_cache.begin(); it_cache != collision_cache.end();)
+    {
+      if (std::any_of(objects.begin(), objects.end(), [&it_cache](const auto& co) {
+            return it_cache->first.first == co.get() || it_cache->first.second == co.get();
+          }))
+        it_cache = collision_cache.erase(it_cache);
+      else
+        ++it_cache;
+    }
     return true;
   }
   return false;
@@ -336,7 +347,7 @@ CoalDiscreteBVHManager::getContactAllowedValidator() const
 
 void CoalDiscreteBVHManager::contactTest(ContactResultMap& collisions, const ContactRequest& request)
 {
-  ContactTestData cdata(active_, collision_margin_data_, validator_, request, collisions);
+  ContactTestDataWrapper cdata(collision_margin_data_, validator_, request, collisions, collision_cache);
 
   CollisionCallback collisionCallback;
   collisionCallback.cdata = &cdata;
@@ -378,6 +389,12 @@ void CoalDiscreteBVHManager::addCollisionObject(const COW::Ptr& cow)
   // This causes a refit on the bvh tree.
   dynamic_manager_->update();
   static_manager_->update();
+
+  // Pre-reserve collision cache to avoid rehashing during contactTest.
+  // Accounts for static-vs-dynamic and dynamic-vs-dynamic (self-check) pairs.
+  const auto& n_static = static_manager_->size();
+  const auto& n_dynamic = dynamic_manager_->size();
+  collision_cache.reserve((n_static * n_dynamic) + (n_dynamic * (n_dynamic - 1) / 2));
 }
 
 void CoalDiscreteBVHManager::onCollisionMarginDataChanged()

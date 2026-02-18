@@ -155,6 +155,9 @@ private:
   /** @brief Broad-phase Collision Manager for active collision objects */
   std::unique_ptr<coal::BroadPhaseCollisionManager> dynamic_manager_;
 
+  /** @brief Cache for collision functors and collision requests */
+  CollisionCacheMap collision_cache;
+
   Link2COW link2cow_;                          /** @brief A map of all collision objects being managed */
   Link2COW link2castcow_;                      /** @brief A map of cast collision objects being managed. */
   std::vector<std::string> active_;            /** @brief A list of the active collision objects */
@@ -162,7 +165,7 @@ private:
   CollisionMarginData collision_margin_data_;  /** @brief The contact distance threshold */
   std::shared_ptr<const tesseract_common::ContactAllowedValidator> validator_; /**< @brief The is allowed collision
                                                                                   function */
-  std::size_t coal_co_count_{ 0 }; /**< @brief The number coal collision objects */
+  std::size_t coal_co_count_{ 0 }; /**< @brief The number of coal collision objects */
 
   /** @brief This is used to store static collision objects to update */
   std::vector<CollisionObjectRawPtr> static_update_;

@@ -156,6 +156,17 @@ void CoalCastBVHManager::removeObjects(const std::vector<CollisionObjectPtr>& ob
     if (dynamic_it != dynamic_objs.end())
       dynamic_manager_->unregisterObject(co.get());
   }
+
+  // Remove cached collision functors that involve the removed objects
+  for (auto it_cache = collision_cache.begin(); it_cache != collision_cache.end();)
+  {
+    if (std::any_of(objects.begin(), objects.end(), [&it_cache](const auto& co) {
+          return it_cache->first.first == co.get() || it_cache->first.second == co.get();
+        }))
+      it_cache = collision_cache.erase(it_cache);
+    else
+      ++it_cache;
+  }
 }
 
 bool CoalCastBVHManager::enableCollisionObject(const std::string& name)
@@ -489,7 +500,7 @@ std::shared_ptr<const tesseract_common::ContactAllowedValidator> CoalCastBVHMana
 
 void CoalCastBVHManager::contactTest(ContactResultMap& collisions, const ContactRequest& request)
 {
-  ContactTestData cdata(active_, collision_margin_data_, validator_, request, collisions);
+  ContactTestDataWrapper cdata(collision_margin_data_, validator_, request, collisions, collision_cache);
 
   CollisionCallback collisionCallback;
   collisionCallback.cdata = &cdata;
@@ -538,6 +549,12 @@ void CoalCastBVHManager::addCollisionObject(const COW::Ptr& cow)
   // This causes a refit on the bvh tree.
   dynamic_manager_->update();
   static_manager_->update();
+
+  // Pre-reserve collision cache to avoid rehashing during contactTest.
+  // Accounts for static-vs-dynamic and dynamic-vs-dynamic (self-check) pairs.
+  const auto& n_static = static_manager_->size();
+  const auto& n_dynamic = dynamic_manager_->size();
+  collision_cache.reserve((n_static * n_dynamic) + (n_dynamic * (n_dynamic - 1) / 2));
 }
 
 void CoalCastBVHManager::onCollisionMarginDataChanged()

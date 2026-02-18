@@ -49,6 +49,7 @@ TESSERACT_COMMON_IGNORE_WARNINGS_PUSH
 #include <cmath>
 #include <memory>
 #include <stdexcept>
+#include <utility>
 TESSERACT_COMMON_IGNORE_WARNINGS_POP
 
 #include <tesseract_collision/coal/coal_utils.h>
@@ -308,18 +309,52 @@ bool CollisionCallback::collide(coal::CollisionObject* o1, coal::CollisionObject
                                                               std::numeric_limits<std::size_t>::max();
   if (cdata->req.type == ContactTestType::FIRST)
     num_contacts = 1;
+  const auto security_margin = cdata->collision_margin_data.getCollisionMargin(cd1->getName(), cd2->getName());
 
+  CollisionObjectPair object_pair = std::make_pair(o1, o2);
+  auto col_request_it = cdata->collision_cache->find(object_pair);
+  if (col_request_it == cdata->collision_cache->end())
+  {
+    // Create a new collision request and functor and cache them
+    coal::CollisionRequest col_request;
+    col_request.gjk_variant = coal::GJKVariant::PolyakAcceleration;
+    col_request.gjk_convergence_criterion = coal::GJKConvergenceCriterion::DualityGap;
+    col_request.gjk_convergence_criterion_type = coal::GJKConvergenceCriterionType::Absolute;
+    // First collision check: use bounding volumes as GJK guess
+    col_request.gjk_initial_guess = coal::BoundingVolumeGuess;
+    col_request.enable_contact = cdata->req.calculate_penetration;
+    col_request.num_max_contacts = num_contacts;
+    col_request.security_margin = security_margin;
+    // Stop GJK if distance is larger than the security margin, i.e. no collision
+    col_request.distance_upper_bound = security_margin + col_request.gjk_tolerance;
+    auto col_functor = coal::ComputeCollision(o1->collisionGeometryPtr(), o2->collisionGeometryPtr());
+    col_request_it =
+        cdata->collision_cache->try_emplace(object_pair, std::move(col_functor), std::move(col_request)).first;
+  }
+  else
+  {
+    // Reuse the cached request, but update the parameters that can change between calls
+    auto& cached_request = col_request_it->second.second;
+    cached_request.enable_contact = cdata->req.calculate_penetration;
+    cached_request.num_max_contacts = num_contacts;
+    cached_request.security_margin = security_margin;
+    cached_request.distance_upper_bound = security_margin + cached_request.gjk_tolerance;
+  }
+
+  // Call the collision functor
   coal::CollisionResult col_result;
-  coal::CollisionRequest col_request;
-  col_request.num_max_contacts = num_contacts;
-  col_request.enable_contact = (cdata->req.calculate_distance || cdata->req.calculate_penetration);
-  col_request.gjk_variant = coal::GJKVariant::NesterovAcceleration;
-  col_request.gjk_initial_guess = coal::BoundingVolumeGuess;
-  col_request.security_margin = cdata->collision_margin_data.getCollisionMargin(cd1->getName(), cd2->getName());
-  // Stop GJK if distance is larger than the security margin, i.e. no collision (plus a small margin for numerical
-  // stability)
-  col_request.distance_upper_bound = col_request.security_margin + 1e-6;
-  coal::collide(o1, o2, col_request, col_result);
+  auto& [functor, cached_request] = col_request_it->second;
+  functor(o1->getTransform(), o2->getTransform(), cached_request, col_result);
+
+  // Cached guesses are only updated if gjk_initial_guess == CachedGuess
+  // As our first collision check uses BoundingVolumeGuess, we have to update manually
+  if (cached_request.gjk_initial_guess != coal::CachedGuess)
+  {
+    // Subsequent collision checks: use cached guess from previous collision check
+    cached_request.gjk_initial_guess = coal::CachedGuess;
+    cached_request.cached_gjk_guess = col_result.cached_gjk_guess;
+    cached_request.cached_support_func_guess = col_result.cached_support_func_guess;
+  }
 
   if (!col_result.isCollision())
     return false;

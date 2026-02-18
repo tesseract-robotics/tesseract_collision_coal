@@ -43,8 +43,12 @@
 #include <tesseract_common/macros.h>
 TESSERACT_COMMON_IGNORE_WARNINGS_PUSH
 #include <memory>
+#include <unordered_map>
+#include <utility>
+#include <boost/functional/hash.hpp>
 #include <console_bridge/console.h>
 #include <coal/broadphase/broadphase_collision_manager.h>
+#include <coal/collision.h>
 TESSERACT_COMMON_IGNORE_WARNINGS_POP
 
 #include <tesseract_collision/core/types.h>
@@ -59,6 +63,20 @@ using CollisionGeometryPtr = std::shared_ptr<coal::CollisionGeometry>;
 using CollisionObjectPtr = std::shared_ptr<CoalCollisionObjectWrapper>;
 using CollisionObjectRawPtr = coal::CollisionObject*;
 using CollisionObjectConstPtr = std::shared_ptr<const coal::CollisionObject>;
+
+/** @brief A pair of collision objects used as map key */
+using CollisionObjectPair = std::pair<coal::CollisionObject*, coal::CollisionObject*>;
+
+/** @brief Hash functor for CollisionObjectPair */
+struct CollisionObjectPairHash
+{
+  std::size_t operator()(const CollisionObjectPair& p) const noexcept { return boost::hash_value(p); }
+};
+
+/** @brief Cache mapping collision object pairs to their precomputed collision functor and request */
+using CollisionCacheMap = std::unordered_map<CollisionObjectPair,
+                                             std::pair<coal::ComputeCollision, coal::CollisionRequest>,
+                                             CollisionObjectPairHash>;
 
 enum CollisionFilterGroups : std::int8_t
 {
@@ -127,11 +145,17 @@ public:
   }
 
   double getContactDistanceThreshold() const { return contact_distance_; }
+
   const Eigen::Isometry3d& getCollisionObjectsTransform() const { return world_pose_; }
+
   const std::vector<CollisionObjectPtr>& getCollisionObjects() const { return collision_objects_; }
+
   std::vector<CollisionObjectPtr>& getCollisionObjects() { return collision_objects_; }
+
   const std::vector<CollisionObjectRawPtr>& getCollisionObjectsRaw() const { return collision_objects_raw_; }
+
   std::vector<CollisionObjectRawPtr>& getCollisionObjectsRaw() { return collision_objects_raw_; }
+
   std::shared_ptr<CollisionObjectWrapper> clone() const
   {
     auto clone_cow = std::make_shared<CollisionObjectWrapper>();
@@ -413,12 +437,28 @@ bool needsCollisionCheck(const CollisionObjectWrapper* cd1,
                          const std::shared_ptr<const tesseract_common::ContactAllowedValidator>& validator,
                          bool verbose = false);
 
+struct ContactTestDataWrapper : ContactTestData
+{
+  ContactTestDataWrapper(CollisionMarginData collision_margin_data,
+                         std::shared_ptr<const tesseract_common::ContactAllowedValidator> validator,
+                         ContactRequest req,
+                         ContactResultMap& res,
+                         CollisionCacheMap& collision_cache)
+    : ContactTestData(std::move(collision_margin_data), std::move(validator), std::move(req), res)
+    , collision_cache(&collision_cache)
+  {
+  }
+
+  CollisionCacheMap* collision_cache;
+};
+
+// Disable warnings about non-virtual destructor for coal::CollisionCallBackBase
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wnon-virtual-dtor"
 
 struct CollisionCallback : coal::CollisionCallBackBase
 {
-  ContactTestData* cdata{};
+  ContactTestDataWrapper* cdata{};
   bool collide(coal::CollisionObject* o1, coal::CollisionObject* o2) override;
   virtual ~CollisionCallback() = default;
 };
