@@ -53,7 +53,6 @@ TESSERACT_COMMON_IGNORE_WARNINGS_POP
 
 namespace tesseract_collision::tesseract_collision_coal
 {
-
 class CastHullShape : public coal::ShapeBase
 {
 public:

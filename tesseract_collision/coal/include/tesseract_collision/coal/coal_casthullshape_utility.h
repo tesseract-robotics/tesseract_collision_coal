@@ -57,7 +57,6 @@ TESSERACT_COMMON_IGNORE_WARNINGS_POP
 
 namespace coal
 {
-
 using tesseract_collision::tesseract_collision_coal::CastHullShape;
 
 template <>
@@ -65,7 +64,6 @@ void computeBV<coal::AABB, CastHullShape>(const CastHullShape& s, const coal::Tr
 
 namespace details
 {
-
 /// @brief CastHullShape support function.
 template <int _SupportOptions = SupportOptions::NoSweptSphere>  // NOLINT(bugprone-reserved-identifier)
 void getShapeSupport(const CastHullShape* shape,

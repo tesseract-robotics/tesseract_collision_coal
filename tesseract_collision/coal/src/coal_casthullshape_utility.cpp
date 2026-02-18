@@ -53,7 +53,6 @@ TESSERACT_COMMON_IGNORE_WARNINGS_POP
 
 namespace coal
 {
-
 template <>
 void computeBV<coal::AABB, CastHullShape>(const CastHullShape& s, const coal::Transform3s& tf, coal::AABB& bv)
 {
@@ -106,7 +105,6 @@ void computeBV<coal::AABB, CastHullShape>(const CastHullShape& s, const coal::Tr
 
 namespace details
 {
-
 template <int _SupportOptions>  // NOLINT(bugprone-reserved-identifier)
 void getShapeSupport(const CastHullShape* cast_hull_shape,
                      const Vec3s& dir,

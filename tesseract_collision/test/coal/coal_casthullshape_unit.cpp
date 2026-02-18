@@ -204,7 +204,7 @@ TEST(CoalCastHullShapeUnit, ComputeVolumeUnit)
     // Swept volume should be larger than original
     EXPECT_GT(cast_hull_translated_volume, box_volume);
     EXPECT_GT(cast_hull_translated_volume, 8.0);
-    
+
     // Should be reasonable (not infinite or negative)
     EXPECT_LT(cast_hull_translated_volume, 100.0);  // Reasonable upper bound
     EXPECT_GT(cast_hull_translated_volume, 0.0);
@@ -237,7 +237,7 @@ TEST(CoalCastHullShapeUnit, ComputeVolumeUnit)
 
     // Swept volume should be larger than original
     EXPECT_GT(cast_hull_sphere_translated_volume, sphere_volume);
-    
+
     // Should be reasonable (not infinite or negative)
     EXPECT_GT(cast_hull_sphere_translated_volume, 0.0);
     EXPECT_LT(cast_hull_sphere_translated_volume, 10.0);  // Reasonable upper bound
@@ -278,7 +278,7 @@ TEST(CoalCastHullShapeUnit, ComputeVolumeUnit)
 
     // Should be larger due to both rotation and translation
     EXPECT_GT(cast_hull_rotated_volume, box_volume);
-    
+
     // Should be reasonable
     EXPECT_GT(cast_hull_rotated_volume, 0.0);
     EXPECT_LT(cast_hull_rotated_volume, 20.0);  // Reasonable upper bound
