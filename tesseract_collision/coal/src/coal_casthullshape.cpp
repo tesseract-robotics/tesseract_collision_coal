@@ -59,7 +59,6 @@ TESSERACT_COMMON_IGNORE_WARNINGS_POP
 
 namespace tesseract_collision::tesseract_collision_coal
 {
-
 CastHullShape::CastHullShape(std::shared_ptr<coal::ShapeBase> shape, const coal::Transform3s& castTransform)
   : shape_(std::move(shape))
   , castTransform_(castTransform)
