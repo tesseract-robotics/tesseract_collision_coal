@@ -29,7 +29,7 @@ jobs:
             env:
               TARGET_CMAKE_ARGS: "-DCMAKE_CXX_COMPILER_LAUNCHER=ccache -DCMAKE_BUILD_TYPE=Debug -DTESSERACT_ENABLE_CODE_COVERAGE=ON -DTESSERACT_WARNINGS_AS_ERRORS=OFF"
     container:
-      image: ghcr.io/tesseract-robotics/tesseract:${{ matrix.distro }}-master
+      image: ghcr.io/tesseract-robotics/tesseract:noble-master
       env:
         CCACHE_DIR: "$GITHUB_WORKSPACE/${{ matrix.job_type }}/.ccache"
         DEBIAN_FRONTEND: noninteractive
@@ -55,6 +55,7 @@ jobs:
       - name: Build and Tests
         uses: tesseract-robotics/colcon-action@v14
         with:
+          before-script: source /opt/tesseract/install/setup.bash
           ccache-prefix: ${{ matrix.distro }}
           vcs-file: dependencies.repos
           run-tests: false

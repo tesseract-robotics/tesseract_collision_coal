@@ -46,6 +46,7 @@ jobs:
       - name: Build and Tests
         uses: tesseract-robotics/colcon-action@v14
         with:
+          before-script: source /opt/tesseract/install/setup.bash
           ccache-prefix: ${{ matrix.distro }}
           vcs-file: dependencies.repos
           upstream-args: --cmake-args -DCMAKE_BUILD_TYPE=Release -DBUILD_PYTHON_INTERFACE=OFF
