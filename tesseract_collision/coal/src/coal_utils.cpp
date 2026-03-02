@@ -143,6 +143,12 @@ struct PolygonTpl : Eigen::Matrix<IndexType_, -1, 1>
   /// @brief Copy constructor
   PolygonTpl(const PolygonTpl& other) : Eigen::Matrix<IndexType_, -1, 1>(other) {}
 
+  /// @brief Move constructor
+  PolygonTpl(PolygonTpl&& other) noexcept : Eigen::Matrix<IndexType_, -1, 1>(std::move(other)) {}
+
+  /// @brief Destructor
+  ~PolygonTpl() = default;
+
   /// @brief Copy constructor from another vertex index type.
   template <typename OtherIndexType>
   PolygonTpl(const PolygonTpl<OtherIndexType>& other)
@@ -154,6 +160,13 @@ struct PolygonTpl : Eigen::Matrix<IndexType_, -1, 1>
   PolygonTpl& operator=(const PolygonTpl& other)
   {
     this->_set(other);
+    return *this;
+  }
+
+  /// @brief Move assignment
+  PolygonTpl& operator=(PolygonTpl&& other) noexcept
+  {
+    this->_set(std::move(other));
     return *this;
   }
 
@@ -448,8 +461,8 @@ void populateContinuousCollisionFields(ContactResult& contact,
       // trajectory. Using the center avoids skew from off-axis components of
       // tessellated mesh support vertices (e.g., a convex mesh vertex at
       // (0.237, -0.077, 0.25) instead of ideal (0.25, 0, 0) for a sphere).
-      Eigen::Vector3d center0 = Eigen::Vector3d(tf_world0.getTranslation());
-      Eigen::Vector3d center1 = Eigen::Vector3d(tf_world1.getTranslation());
+      auto center0 = Eigen::Vector3d(tf_world0.getTranslation());
+      auto center1 = Eigen::Vector3d(tf_world1.getTranslation());
       Eigen::Vector3d center_sweep = center1 - center0;
       double center_sweep_sq = center_sweep.squaredNorm();
 
@@ -485,7 +498,7 @@ void castHullGetSupportFunc(const coal::details::MinkowskiDiff& md,
                             coal::Vec3s& support0,
                             coal::Vec3s& support1,
                             coal::support_func_guess_t& hint,
-                            coal::details::ShapeSupportData data[2])
+                            coal::details::ShapeSupportData* data)
 {
   // Shape0 is the CastHullShape — use the Schulman support function
   const auto* cast_hull0 = static_cast<const CastHullShape*>(md.shapes[0]);
@@ -604,6 +617,42 @@ bool castHullCollide(coal::CollisionObject* o1,
   if (gjk.status != coal::details::GJK::Collision &&
       gjk.status != coal::details::GJK::CollisionWithPenetrationInformation)
   {
+    // Handle near contacts within security margin using GJK closest points.
+    // This matches the behavior expected from the standard Coal collision path,
+    // which reports contacts for separated shapes whose distance is <= margin.
+    if (gjk.hasClosestPoints() && gjk.distance <= request.security_margin)
+    {
+      coal::Vec3ps p1_local, p2_local, normal_local;
+      gjk.getWitnessPointsAndNormal(md, p1_local, p2_local, normal_local);
+
+      const coal::Vec3s p1 = tf0.transform(p1_local.cast<coal::Scalar>());
+      const coal::Vec3s p2 = tf0.transform(p2_local.cast<coal::Scalar>());
+      coal::Vec3s normal = (tf0.getRotation() * normal_local.cast<coal::Scalar>()).eval();
+      if (normal.squaredNorm() > 0)
+        normal.normalize();
+
+      coal::Contact contact;
+      contact.o1 = o1->collisionGeometry().get();
+      contact.o2 = o2->collisionGeometry().get();
+      contact.penetration_depth = static_cast<coal::Scalar>(gjk.distance);
+
+      if (swapped)
+      {
+        contact.nearest_points[0] = p2;
+        contact.nearest_points[1] = p1;
+        contact.normal = -normal;
+      }
+      else
+      {
+        contact.nearest_points[0] = p1;
+        contact.nearest_points[1] = p2;
+        contact.normal = normal;
+      }
+
+      result.addContact(contact);
+      return true;
+    }
+
     const char* status_str = "Unknown";
     switch (gjk.status)
     {
@@ -644,7 +693,7 @@ bool castHullCollide(coal::CollisionObject* o1,
   // unreliable. EPA's expanded polytope gives a more accurate minimum
   // penetration direction, which is critical for correct cc_type classification
   // in populateContinuousCollisionFields.
-  coal::Scalar distance;
+  coal::Scalar distance{ 0 };
   coal::Vec3s p1, p2, normal;
 
   if (request.enable_contact)
@@ -743,8 +792,16 @@ bool CollisionCallback::collide(coal::CollisionObject* o1, coal::CollisionObject
       // Using security_margin as the GJK early-break threshold would cause GJK to
       // return NoCollisionEarlyStopped before the simplex encloses the origin.
       col_request.distance_upper_bound = (std::numeric_limits<coal::Scalar>::max)();
-      // Dummy ComputeCollision functor (not used for CastHullShape, but needed for cache type)
-      auto col_functor = coal::ComputeCollision(o1->collisionGeometryPtr(), o2->collisionGeometryPtr());
+      // Dummy ComputeCollision functor (not used for CastHullShape, but needed for cache type).
+      // Unwrap CastHullShape to the underlying geometry to avoid Coal trying to
+      // dispatch support functions on CastHullShape as if it were the delegated node type.
+      const coal::CollisionGeometry* g1 = o1->collisionGeometry().get();
+      const coal::CollisionGeometry* g2 = o2->collisionGeometry().get();
+      if (const auto* cast_g1 = dynamic_cast<const CastHullShape*>(g1); cast_g1 != nullptr)
+        g1 = cast_g1->getUnderlyingShape().get();
+      if (const auto* cast_g2 = dynamic_cast<const CastHullShape*>(g2); cast_g2 != nullptr)
+        g2 = cast_g2->getUnderlyingShape().get();
+      auto col_functor = coal::ComputeCollision(g1, g2);
       col_request_it =
           cdata->collision_cache->try_emplace(object_pair, std::move(col_functor), std::move(col_request)).first;
     }

@@ -43,12 +43,15 @@
 #include <tesseract_common/macros.h>
 TESSERACT_COMMON_IGNORE_WARNINGS_PUSH
 #include <memory>
+#include <stdexcept>
 #include <unordered_map>
 #include <utility>
 #include <boost/functional/hash.hpp>
 #include <console_bridge/console.h>
 #include <coal/broadphase/broadphase_collision_manager.h>
 #include <coal/collision.h>
+#include <coal/octree.h>
+#include <coal/shape/geometric_shapes.h>
 TESSERACT_COMMON_IGNORE_WARNINGS_POP
 
 #include <tesseract_collision/core/types.h>
@@ -124,7 +127,11 @@ public:
 
   const CollisionShapesConst& getCollisionGeometries() const { return shapes_; }
 
+  CollisionShapesConst& getCollisionGeometries() { return shapes_; }
+
   const tesseract_common::VectorIsometry3d& getCollisionGeometriesTransforms() const { return shape_poses_; }
+
+  tesseract_common::VectorIsometry3d& getCollisionGeometriesTransforms() { return shape_poses_; }
 
   void setCollisionObjectsTransform(const Eigen::Isometry3d& pose)
   {
@@ -307,7 +314,12 @@ inline void updateCollisionObjectFilters(const std::vector<std::string>& active,
 {
   const std::vector<CollisionObjectPtr>& reg_objects = cow->getCollisionObjects();
   const std::vector<CollisionObjectPtr>& cast_objects = cast_cow->getCollisionObjects();
-  // For inactive objects, we want the regular version in the static manager
+  const bool regular_has_non_shape_base =
+      std::any_of(reg_objects.begin(), reg_objects.end(), [](const CollisionObjectPtr& co) {
+        return (dynamic_cast<const coal::ShapeBase*>(co->collisionGeometry().get()) == nullptr);
+      });
+  // For inactive objects, use static manager; for non-ShapeBase geometry
+  // (e.g., octree) keep cast representation to stay on a supported path.
   if (!isLinkActive(active, cow->getName()))
   {
     if (cow->m_collisionFilterGroup != CollisionFilterGroups::StaticFilter)
@@ -317,7 +329,10 @@ inline void updateCollisionObjectFilters(const std::vector<std::string>& active,
       {
         dynamic_manager->unregisterObject(co.get());
       }
-      for (const auto& co : reg_objects)
+      // Use cast representation for static objects that cannot be represented
+      // as ShapeBase (e.g., octree), so narrowphase never sees CastHull-vs-OcTree.
+      const auto& static_objects = regular_has_non_shape_base ? cast_objects : reg_objects;
+      for (const auto& co : static_objects)
       {
         static_manager->registerObject(co.get());
       }
@@ -377,19 +392,30 @@ inline COW::Ptr makeCastCollisionObject(const COW::Ptr& cow)
   // Create the vector of new collision objects
   std::vector<CollisionObjectPtr> new_collision_objects;
   std::vector<CollisionObjectRawPtr> new_collision_objects_raw;
-  std::vector<CollisionGeometryPtr> new_collision_geometries;
 
   // Identity transform for initial state
   coal::Transform3s identity_tf;
   identity_tf.setIdentity();
 
+  const auto link_tf = cast_cow->getCollisionObjectsTransform();
+  const auto current_shapes = cast_cow->getCollisionGeometries();
+  const auto current_shape_poses = cast_cow->getCollisionGeometriesTransforms();
+
   const auto& current_collision_objects = cast_cow->getCollisionObjects();
   new_collision_objects.reserve(current_collision_objects.size());
   new_collision_objects_raw.reserve(current_collision_objects.size());
-  new_collision_geometries.reserve(current_collision_objects.size());
+
+  CollisionShapesConst new_shapes;
+  tesseract_common::VectorIsometry3d new_shape_poses;
+  new_shapes.reserve(current_shapes.size());
+  new_shape_poses.reserve(current_shape_poses.size());
 
   for (const auto& co : current_collision_objects)
   {
+    const auto old_shape_index = static_cast<std::size_t>(co->getShapeIndex());
+    assert(old_shape_index < current_shapes.size());
+    assert(old_shape_index < current_shape_poses.size());
+
     auto geo = co->collisionGeometry();
     auto* shape_base_ptr = dynamic_cast<coal::ShapeBase*>(geo.get());
     if (shape_base_ptr != nullptr)
@@ -399,25 +425,66 @@ inline COW::Ptr makeCastCollisionObject(const COW::Ptr& cow)
 
       // Create a new collision object with the cast shape
       auto cast_co = std::make_shared<CoalCollisionObjectWrapper>(cast_shape, co->getTransform());
-      cast_co->setShapeIndex(co->getShapeIndex());
+      cast_co->setShapeIndex(static_cast<int>(new_shape_poses.size()));
       cast_co->setContactDistanceThreshold(co->getContactDistanceThreshold());
       cast_co->setUserData(cast_cow.get());
 
       // Store everything
-      new_collision_geometries.push_back(cast_shape);
       new_collision_objects.push_back(cast_co);
       new_collision_objects_raw.push_back(cast_co.get());
+      new_shapes.push_back(current_shapes[old_shape_index]);
+      new_shape_poses.push_back(current_shape_poses[old_shape_index]);
     }
     else
     {
-      // If we can't convert to a cast shape, just use the original
-      new_collision_geometries.push_back(geo);
-      new_collision_objects.push_back(co);
-      new_collision_objects_raw.push_back(co.get());
+      if (auto octree_geo = std::dynamic_pointer_cast<coal::OcTree>(geo); octree_geo != nullptr)
+      {
+        // Expand occupied octree cells into castable box sub-shapes.
+        const auto tree = octree_geo->getTree();
+        assert(tree != nullptr);
+        const auto& base_shape_pose = current_shape_poses[old_shape_index];
+
+        for (octomap::OcTree::iterator it = tree->begin(static_cast<unsigned char>(tree->getTreeDepth())),
+                                    end = tree->end();
+             it != end;
+             ++it)
+        {
+          if (!octree_geo->isNodeOccupied(&(*it)))
+            continue;
+
+          const auto size = it.getSize();
+          auto box_shape = std::make_shared<coal::Box>(size, size, size);
+          auto cast_shape = std::make_shared<CastHullShape>(box_shape, identity_tf);
+
+          Eigen::Isometry3d voxel_pose = Eigen::Isometry3d::Identity();
+          voxel_pose.translation() = Eigen::Vector3d(it.getX(), it.getY(), it.getZ());
+
+          const Eigen::Isometry3d shape_pose = base_shape_pose * voxel_pose;
+          const Eigen::Isometry3d world_pose = link_tf * shape_pose;
+
+          auto cast_co = std::make_shared<CoalCollisionObjectWrapper>(
+              cast_shape, coal::Transform3s(world_pose.rotation(), world_pose.translation()));
+          cast_co->setShapeIndex(static_cast<int>(new_shape_poses.size()));
+          cast_co->setContactDistanceThreshold(co->getContactDistanceThreshold());
+          cast_co->setUserData(cast_cow.get());
+
+          new_collision_objects.push_back(cast_co);
+          new_collision_objects_raw.push_back(cast_co.get());
+          new_shapes.push_back(current_shapes[old_shape_index]);
+          new_shape_poses.push_back(shape_pose);
+        }
+      }
+      else
+      {
+        throw std::runtime_error("I can only continuous collision check convex shapes, compound shapes made of "
+                                 "convex shapes, and octree boxes");
+      }
     }
   }
 
   // Replace the collision objects in the cast_cow with the cast versions
+  cast_cow->getCollisionGeometries() = new_shapes;
+  cast_cow->getCollisionGeometriesTransforms() = new_shape_poses;
   cast_cow->getCollisionObjects() = new_collision_objects;
   cast_cow->getCollisionObjectsRaw() = new_collision_objects_raw;
 

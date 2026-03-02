@@ -50,6 +50,14 @@ namespace tesseract_collision::tesseract_collision_coal
 static const CollisionShapesConst EMPTY_COLLISION_SHAPES_CONST;
 static const tesseract_common::VectorIsometry3d EMPTY_COLLISION_SHAPES_TRANSFORMS;
 
+static bool hasNonShapeBaseGeometry(const COW::Ptr& cow)
+{
+  const auto& objects = cow->getCollisionObjects();
+  return std::any_of(objects.begin(), objects.end(), [](const CollisionObjectPtr& co) {
+    return (dynamic_cast<const coal::ShapeBase*>(co->collisionGeometry().get()) == nullptr);
+  });
+}
+
 CoalCastBVHManager::CoalCastBVHManager(std::string name) : name_(std::move(name))
 {
   static_manager_ = std::make_unique<coal::DynamicAABBTreeCollisionManager>();
@@ -61,11 +69,14 @@ std::string CoalCastBVHManager::getName() const { return name_; }
 
 ContinuousContactManager::UPtr CoalCastBVHManager::clone() const
 {
-  auto manager = std::make_unique<CoalCastBVHManager>();
+  auto manager = std::make_unique<CoalCastBVHManager>(name_);
 
   for (const auto& cow : link2cow_)
   {
-    manager->addCollisionObject(cow.second->clone());
+    COW::Ptr new_cow = cow.second->clone();
+    new_cow->setCollisionObjectsTransform(cow.second->getCollisionObjectsTransform());
+    new_cow->setContactDistanceThreshold(collision_margin_data_.getMaxCollisionMargin(new_cow->getName()));
+    manager->addCollisionObject(new_cow);
   }
 
   manager->setActiveCollisionObjects(active_);
@@ -369,7 +380,17 @@ void CoalCastBVHManager::setCollisionObjectsTransform(const std::string& name,
   auto it = link2castcow_.find(name);
   if (it != link2castcow_.end())
   {
+    auto reg_it = link2cow_.find(name);
     COW::Ptr& cow = it->second;
+
+    // Keep regular and cast objects aligned at the start transform
+    cow->setCollisionObjectsTransform(pose1);
+    if (reg_it != link2cow_.end())
+      reg_it->second->setCollisionObjectsTransform(pose1);
+
+    // Match Bullet behavior: do not update cast sweep state/AABB for disabled objects
+    if (!cow->m_enabled)
+      return;
 
     // Convert to coal::Transform3s format
     const auto tf1 = coal::Transform3s(pose1.rotation(), pose1.translation());
@@ -396,7 +417,8 @@ void CoalCastBVHManager::setCollisionObjectsTransform(const std::string& name,
       }
     }
 
-    // Now set the world transform (calls updateAABB which uses the updated aabb_local)
+    // Re-apply world transform so CoalCollisionObjectWrapper::updateAABB uses the
+    // updated CastHullShape local AABB (swept volume).
     cow->setCollisionObjectsTransform(pose1);
 
     // Update Broadphase AABB
@@ -537,8 +559,10 @@ void CoalCastBVHManager::addCollisionObject(const COW::Ptr& cow)
 
   if (cow->m_collisionFilterGroup == CollisionFilterGroups::StaticFilter)
   {
-    // If static add to static manager
-    const std::vector<CollisionObjectPtr>& objects = cow->getCollisionObjects();
+    // If static add to static manager. For non-ShapeBase geometries (e.g., octree),
+    // keep using the cast representation to avoid CastHull-vs-OcTree unsupported pairs.
+    const std::vector<CollisionObjectPtr>& objects =
+        hasNonShapeBaseGeometry(cow) ? cast_cow->getCollisionObjects() : cow->getCollisionObjects();
     for (const auto& co : objects)
       static_manager_->registerObject(co.get());
   }
@@ -576,7 +600,9 @@ void CoalCastBVHManager::onCollisionMarginDataChanged()
     cow.second->setContactDistanceThreshold(collision_margin_data_.getMaxCollisionMargin(cow.second->getName()));
     if (cow.second->m_collisionFilterGroup == CollisionFilterGroups::StaticFilter)
     {
-      std::vector<CollisionObjectRawPtr>& co = cow.second->getCollisionObjectsRaw();
+      std::vector<CollisionObjectRawPtr>& co = hasNonShapeBaseGeometry(cow.second)
+                                             ? link2castcow_[cow.second->getName()]->getCollisionObjectsRaw()
+                                             : cow.second->getCollisionObjectsRaw();
       static_update_.insert(static_update_.end(), co.begin(), co.end());
     }
   }
