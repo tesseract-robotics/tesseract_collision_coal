@@ -562,9 +562,14 @@ bool castHullCollide(coal::CollisionObject* o1,
     tf1 = o1->getTransform();
   }
 
-  // Set up MinkowskiDiff with standard transform initialization
+  // Set up MinkowskiDiff with WithSweptSphere so that md.swept_sphere_radius
+  // is set to 0 for both shapes. Our custom castHullGetSupportFunc already
+  // uses WithSweptSphere mode internally, so primitive shapes like Sphere
+  // already include their radius in the support point. Using NoSweptSphere
+  // here would store the sphere's radius in md.swept_sphere_radius, causing
+  // GJK to inflate by it a second time — double-counting the radius.
   coal::details::MinkowskiDiff md;
-  md.set<coal::details::SupportOptions::NoSweptSphere>(shape0, shape1, tf0, tf1);
+  md.set<coal::details::SupportOptions::WithSweptSphere>(shape0, shape1, tf0, tf1);
 
   // Replace the support function with our custom CastHullShape support
   md.getSupportFunc = castHullGetSupportFunc;
