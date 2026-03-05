@@ -39,11 +39,10 @@
 
 #include <tesseract_common/macros.h>
 TESSERACT_COMMON_IGNORE_WARNINGS_PUSH
-#include <coal/broadphase/broadphase_collision_manager.h>
+#include <coal/narrowphase/support_functions.h>
 TESSERACT_COMMON_IGNORE_WARNINGS_POP
 
 #include <tesseract_collision/coal/coal_casthullshape.h>
-#include <tesseract_collision/coal/coal_casthullshape_utility.h>
 
 namespace tesseract_collision::tesseract_collision_coal
 {
@@ -55,11 +54,31 @@ CastHullShape::CastHullShape(std::shared_ptr<coal::ShapeBase> shape, const coal:
 
 void CastHullShape::computeLocalAABB()
 {
-  coal::Transform3s tf = coal::Transform3s::Identity();
-  coal::AABB aabb;
-  coal::computeBV<coal::AABB, CastHullShape>(*this, tf, aabb);
+  int hint = 0;
+  coal::details::ShapeSupportData data;
 
-  aabb_local = aabb;
+  for (int i = 0; i < 3; ++i)
+  {
+    coal::Vec3s dir = coal::Vec3s::Zero();
+    coal::Vec3s s;
+
+    dir[i] = 1;
+    computeShapeSupport(dir, s, hint, data);
+    aabb_local.max_[i] = s[i];
+
+    dir[i] = -1;
+    computeShapeSupport(dir, s, hint, data);
+    aabb_local.min_[i] = s[i];
+  }
+
+  // Pad by CastHullShape's own swept-sphere radius (zero by default).
+  // Note: the underlying shape's intrinsic radius (Sphere, Capsule, etc.) is
+  // already included in the support points via WithSweptSphere mode in
+  // computeShapeSupport, so no double-counting occurs here.
+  const coal::Scalar r = getSweptSphereRadius();
+  aabb_local.min_ -= coal::Vec3s::Constant(r);
+  aabb_local.max_ += coal::Vec3s::Constant(r);
+
   aabb_center = aabb_local.center();
   aabb_radius = (aabb_local.min_ - aabb_center).norm();
 }
@@ -80,9 +99,24 @@ double CastHullShape::computeVolume() const
   if (translation_length < 1e-6 && !has_rotation)
     return baseVolume;
 
-  coal::Transform3s identity = coal::Transform3s::Identity();
+  // Compute a conservative AABB via the support function and use its volume
+  int hint = 0;
+  coal::details::ShapeSupportData data;
   coal::AABB swept_aabb;
-  coal::computeBV<coal::AABB, CastHullShape>(*this, identity, swept_aabb);
+
+  for (int i = 0; i < 3; ++i)
+  {
+    coal::Vec3s dir = coal::Vec3s::Zero();
+    coal::Vec3s s;
+
+    dir[i] = 1;
+    computeShapeSupport(dir, s, hint, data);
+    swept_aabb.max_[i] = s[i];
+
+    dir[i] = -1;
+    computeShapeSupport(dir, s, hint, data);
+    swept_aabb.min_[i] = s[i];
+  }
 
   return std::max(baseVolume, swept_aabb.volume());
 }
@@ -101,6 +135,32 @@ void CastHullShape::updateCastTransform(const coal::Transform3s& castTransform)
   castTransform_ = castTransform;
   castTransformInv_ = coal::Transform3s(castTransform).inverse();
   computeLocalAABB();
+}
+
+void CastHullShape::computeShapeSupport(const coal::Vec3s& dir,
+                                         coal::Vec3s& support,
+                                         int& hint,
+                                         coal::details::ShapeSupportData& /*data*/) const
+{
+  // Support at pose 0 (shape in its local frame, identity transform).
+  // Use WithSweptSphere so that shapes with intrinsic radii (Sphere, Capsule)
+  // include that radius in the support point — necessary for correct swept-hull
+  // geometry and matching the behavior of the former castHullGetSupportFunc.
+  const coal::Vec3s s0 =
+      coal::details::getSupport<coal::details::SupportOptions::WithSweptSphere>(shape_.get(), dir, hint);
+
+  // Support at pose 1 (shape at castTransform_).
+  // Rotate the query direction into the local frame of pose 1, compute support,
+  // then transform the result back to the local frame of pose 0.
+  const coal::Vec3s dir_local1 = castTransformInv_.getRotation() * dir;
+  const coal::Vec3s s1_local =
+      coal::details::getSupport<coal::details::SupportOptions::WithSweptSphere>(shape_.get(), dir_local1, hint);
+  const coal::Vec3s s1 = castTransform_.transform(s1_local);
+
+  // Return the support of the convex hull of both poses (Schulman et al. 2013).
+  // When projections are equal, favour pose 1 — matching Bullet's
+  // btCastHullShape::localGetSupportingVertex (strict ">").
+  support = (dir.dot(s0) > dir.dot(s1)) ? s0 : s1;
 }
 
 }  // namespace tesseract_collision::tesseract_collision_coal

@@ -1,4 +1,4 @@
 - git:
     local-name: coal
-    uri: https://github.com/coal-library/coal.git
-    version: devel
+    uri: https://github.com/rjoomen/coal.git
+    version: copilot/review-custom-cast-shape-support

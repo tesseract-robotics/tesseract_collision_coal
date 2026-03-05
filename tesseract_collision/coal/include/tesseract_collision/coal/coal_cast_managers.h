@@ -155,11 +155,8 @@ private:
   /** @brief Broad-phase Collision Manager for active collision objects */
   std::unique_ptr<coal::BroadPhaseCollisionManager> dynamic_manager_;
 
-  /** @brief Cache for collision functors and collision requests (non-CastHullShape pairs) */
+  /** @brief Cache for collision functors and collision requests */
   CollisionCacheMap collision_cache;
-
-  /** @brief Lightweight cache for CastHullShape pairs (CollisionRequest only, no ComputeCollision) */
-  CastCollisionCacheMap cast_collision_cache;
 
   Link2COW link2cow_;                          /** @brief A map of all collision objects being managed */
   Link2COW link2castcow_;                      /** @brief A map of cast collision objects being managed. */

@@ -81,16 +81,6 @@ using CollisionCacheMap = std::unordered_map<CollisionObjectPair,
                                              std::pair<coal::ComputeCollision, coal::CollisionRequest>,
                                              CollisionObjectPairHash>;
 
-/** @brief Lightweight cache for CastHullShape pairs — stores only the CollisionRequest (for GJK warm-starting).
- *
- * CastHullShape uses a custom narrowphase (castHullCollide) and does NOT use coal::ComputeCollision.
- * Creating a ComputeCollision for CastHullShape is unsafe because CastHullShape::getNodeType()
- * delegates to the underlying shape, causing coal's constructor to resolve a type-specific solver
- * that may static_cast the geometry to the wrong type (undefined behavior).
- */
-using CastCollisionCacheMap =
-    std::unordered_map<CollisionObjectPair, coal::CollisionRequest, CollisionObjectPairHash>;
-
 enum CollisionFilterGroups : std::int8_t
 {
   DefaultFilter = 1,
@@ -531,9 +521,8 @@ struct ContactTestDataWrapper : ContactTestData
                          std::shared_ptr<const tesseract_common::ContactAllowedValidator> validator,
                          ContactRequest req,
                          ContactResultMap& res,
-                         CollisionCacheMap& collision_cache,
-                         CastCollisionCacheMap* cast_collision_cache = nullptr)
-    : collision_cache(&collision_cache), cast_collision_cache(cast_collision_cache)
+                         CollisionCacheMap& collision_cache)
+    : collision_cache(&collision_cache)
   {
     this->collision_margin_data = std::move(collision_margin_data);
     this->validator = std::move(validator);
@@ -542,7 +531,6 @@ struct ContactTestDataWrapper : ContactTestData
   }
 
   CollisionCacheMap* collision_cache;
-  CastCollisionCacheMap* cast_collision_cache;
 };
 
 // Disable warnings about non-virtual destructor for coal::CollisionCallBackBase

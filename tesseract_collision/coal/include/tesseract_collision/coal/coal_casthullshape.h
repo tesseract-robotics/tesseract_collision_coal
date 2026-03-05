@@ -48,8 +48,8 @@
 #include <tesseract_common/macros.h>
 TESSERACT_COMMON_IGNORE_WARNINGS_PUSH
 #include <memory>
-#include <console_bridge/console.h>
 #include <coal/shape/geometric_shapes.h>
+#include <coal/narrowphase/support_data.h>
 TESSERACT_COMMON_IGNORE_WARNINGS_POP
 
 #include <tesseract_collision/core/types.h>
@@ -82,17 +82,16 @@ public:
 
   void updateCastTransform(const coal::Transform3s& castTransform);
 
+  void computeShapeSupport(const coal::Vec3s& dir,
+                           coal::Vec3s& support,
+                           int& hint,
+                           coal::details::ShapeSupportData& data) const override;
+
   const std::shared_ptr<coal::ShapeBase>& getUnderlyingShape() const { return shape_; }
 
   const coal::Transform3s& getCastTransform() const { return castTransform_; }
 
   const coal::Transform3s& getCastTransformInverse() const { return castTransformInv_; }
-
-  /// @brief Delegate to the underlying shape's node type so that Coal's
-  /// ComputeCollision constructor can find a valid function-matrix entry.
-  /// The functor is never actually called for CastHullShape (the custom
-  /// Schulman GJK path is used instead), but the constructor still does the lookup.
-  coal::NODE_TYPE getNodeType() const override { return shape_->getNodeType(); }
 
 private:
   std::shared_ptr<coal::ShapeBase> shape_;

@@ -40,47 +40,6 @@
 #ifndef TESSERACT_COLLISION_COAL_CASTHULLSHAPE_UTILITY_H
 #define TESSERACT_COLLISION_COAL_CASTHULLSHAPE_UTILITY_H
 
-#include <tesseract_common/macros.h>
-TESSERACT_COMMON_IGNORE_WARNINGS_PUSH
-#include <coal/shape/geometric_shapes_utility.h>
-#include <coal/broadphase/broadphase_collision_manager.h>
-#include <coal/collision.h>
-#include <coal/distance.h>
-#include <console_bridge/console.h>
-TESSERACT_COMMON_IGNORE_WARNINGS_POP
-
-#include <tesseract_collision/core/types.h>
-#include <tesseract_collision/core/common.h>
-#include <tesseract_collision/coal/coal_collision_object_wrapper.h>
-
 #include <tesseract_collision/coal/coal_casthullshape.h>
 
-namespace coal
-{
-using tesseract_collision::tesseract_collision_coal::CastHullShape;
-
-template <>
-void computeBV<coal::AABB, CastHullShape>(const CastHullShape& s, const coal::Transform3s& tf, coal::AABB& bv);
-
-namespace details
-{
-/// @brief CastHullShape support function.
-template <int _SupportOptions = SupportOptions::NoSweptSphere>  // NOLINT(bugprone-reserved-identifier)
-void getShapeSupport(const CastHullShape* shape,
-                     const Vec3s& dir,
-                     Vec3s& support,
-                     int& hint,
-                     ShapeSupportData& /*unused*/);
-
-template <int _SupportOptions>  // NOLINT(bugprone-reserved-identifier)
-void getShapeSupportSet(const CastHullShape* cast_hull_shape,
-                        SupportSet& support_set,
-                        int& hint,
-                        ShapeSupportData& support_data,
-                        size_t num_sampled_supports,
-                        Scalar tol);
-
-}  // namespace details
-
-}  // namespace coal
 #endif  // TESSERACT_COLLISION_COAL_CASTHULLSHAPE_UTILITY_H
