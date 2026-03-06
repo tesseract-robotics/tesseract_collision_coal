@@ -51,7 +51,6 @@ CastHullShape::CastHullShape(std::shared_ptr<coal::ShapeBase> shape, const coal:
   , castTransform_(castTransform)
   , castTransformInv_(coal::Transform3s(castTransform).inverse())
 {
-  computeLocalAABB();
 }
 
 void CastHullShape::computeLocalAABB()
