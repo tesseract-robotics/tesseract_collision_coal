@@ -529,6 +529,12 @@ bool CollisionCallback::collide(coal::CollisionObject* o1, coal::CollisionObject
     col_request.enable_contact = cdata->req.calculate_penetration;
     col_request.num_max_contacts = num_contacts;
     col_request.security_margin = security_margin;
+    // Report contacts only when the distance is clearly below the security margin
+    // (by more than gjk_tolerance).  Coal's default collision_distance_threshold is
+    // Eigen::dummy_precision (~1e-12), which causes false positives when the
+    // floating-point gap is only an ULP below security_margin (e.g. 1.60 in
+    // double is slightly less than 1.6, giving a gap of ~0.1 - 2e-16).
+    col_request.collision_distance_threshold = -col_request.gjk_tolerance;
     auto col_functor = coal::ComputeCollision(o1->collisionGeometryPtr(), o2->collisionGeometryPtr());
     col_request_it =
         cdata->collision_cache->try_emplace(object_pair, std::move(col_functor), std::move(col_request)).first;
