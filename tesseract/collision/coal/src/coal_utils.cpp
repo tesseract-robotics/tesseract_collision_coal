@@ -359,7 +359,7 @@ void GetAverageSupport(const coal::ShapeBase* shape,
   }
 }
 
-inline bool needsCollisionCheck(const CollisionObjectWrapper* cd1,
+bool needsCollisionCheck(const CollisionObjectWrapper* cd1,
                                 const CollisionObjectWrapper* cd2,
                                 const std::shared_ptr<const tesseract::common::ContactAllowedValidator>& validator,
                                 bool verbose)

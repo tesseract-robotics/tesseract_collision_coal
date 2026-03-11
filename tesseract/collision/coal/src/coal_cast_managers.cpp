@@ -69,6 +69,9 @@ std::string CoalCastBVHManager::getName() const { return name_; }
 
 ContinuousContactManager::UPtr CoalCastBVHManager::clone() const
 {
+  // Note: addCollisionObject creates fresh CastHullShapes with identity cast
+  // transforms, so any active sweep state (set via setCollisionObjectsTransform
+  // with pose1/pose2) is not preserved. This matches Bullet's clone behavior.
   auto manager = std::make_unique<CoalCastBVHManager>(name_);
 
   for (const auto& cow : link2cow_)
@@ -544,7 +547,10 @@ void CoalCastBVHManager::contactTest(ContactResultMap& collisions, const Contact
   CollisionCallback collisionCallback;
   collisionCallback.cdata = &cdata;
 
-  // TODO: Should the order be flipped?
+  // Check static-vs-dynamic first (typically the larger pair set), then
+  // dynamic-vs-dynamic (self-check). Order is not significant for correctness
+  // but checking static-vs-dynamic first allows early exit via FIRST mode
+  // before the self-check.
   if (!static_manager_->empty())
     static_manager_->collide(dynamic_manager_.get(), &collisionCallback);
 

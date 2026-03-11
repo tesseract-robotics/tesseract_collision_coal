@@ -354,7 +354,10 @@ void CoalDiscreteBVHManager::contactTest(ContactResultMap& collisions, const Con
   CollisionCallback collisionCallback;
   collisionCallback.cdata = &cdata;
 
-  // TODO: Should the order be flipped?
+  // Check static-vs-dynamic first (typically the larger pair set), then
+  // dynamic-vs-dynamic (self-check). Order is not significant for correctness
+  // but checking static-vs-dynamic first allows early exit via FIRST mode
+  // before the self-check.
   if (!static_manager_->empty())
     static_manager_->collide(dynamic_manager_.get(), &collisionCallback);
 

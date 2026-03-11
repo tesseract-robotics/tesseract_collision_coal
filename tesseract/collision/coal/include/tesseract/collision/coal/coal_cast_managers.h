@@ -50,7 +50,19 @@ TESSERACT_COMMON_IGNORE_WARNINGS_POP
 
 namespace tesseract::collision::tesseract_collision_coal
 {
-/** @brief A Coal implementation of the continuous contact manager */
+/**
+ * @brief A Coal implementation of the continuous contact manager.
+ *
+ * Maintains two parallel maps: link2cow_ (regular collision objects used as
+ * static targets) and link2castcow_ (CastHullShape-wrapped objects for swept
+ * collision). Active/kinematic links register their cast COW in the dynamic
+ * broadphase manager; inactive/static links register their regular COW in the
+ * static broadphase manager.
+ *
+ * Exception: non-ShapeBase geometries (e.g., octree) always use the cast
+ * representation (expanded into box sub-shapes) in the broadphase, even when
+ * static, to avoid unsupported CastHull-vs-OcTree narrowphase pairs.
+ */
 class CoalCastBVHManager : public ContinuousContactManager
 {
 public:
