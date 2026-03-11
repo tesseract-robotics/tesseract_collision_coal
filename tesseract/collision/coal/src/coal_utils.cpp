@@ -547,17 +547,26 @@ bool CollisionCallback::collide(coal::CollisionObject* o1, coal::CollisionObject
     cached_request.security_margin = security_margin;
     cached_request.distance_upper_bound =
         is_cast_hull ? (std::numeric_limits<coal::Scalar>::max)() : security_margin + cached_request.gjk_tolerance;
+    // CastHullShape geometry changes between contactTest calls (via
+    // updateCastTransform), so a cached GJK guess from a previous
+    // configuration is unreliable and can cause EPA to converge to a
+    // different contact point.  Always restart from BoundingVolumeGuess.
+    if (is_cast_hull)
+      cached_request.gjk_initial_guess = coal::BoundingVolumeGuess;
   }
 
   auto& [functor, cached_request] = col_request_it->second;
   functor(o1->getTransform(), o2->getTransform(), cached_request, col_result);
 
-  if (cached_request.gjk_initial_guess != coal::CachedGuess)
-  {
+  // For non-cast shapes, cache the GJK guess for subsequent calls —
+  // transforms change incrementally so the guess stays warm.
+  // For cast shapes, the guess is not reused (BoundingVolumeGuess is forced
+  // above) but we still store it so the transition to CachedGuess happens
+  // correctly if a shape ever stops being cast.
+  if (!is_cast_hull)
     cached_request.gjk_initial_guess = coal::CachedGuess;
-    cached_request.cached_gjk_guess = col_result.cached_gjk_guess;
-    cached_request.cached_support_func_guess = col_result.cached_support_func_guess;
-  }
+  cached_request.cached_gjk_guess = col_result.cached_gjk_guess;
+  cached_request.cached_support_func_guess = col_result.cached_support_func_guess;
 
   if (!col_result.isCollision())
     return false;
