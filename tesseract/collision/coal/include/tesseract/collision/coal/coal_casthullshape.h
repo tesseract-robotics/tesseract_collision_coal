@@ -97,6 +97,13 @@ private:
   std::shared_ptr<coal::ShapeBase> shape_;
   coal::Transform3s castTransform_;
   coal::Transform3s castTransformInv_;
+
+  /// Separate support function vertex hints for pose 0 and pose 1.
+  /// Each getSupport call uses hill-climbing from the hint, so sharing a single
+  /// hint between the two poses (which query different directions) would cause
+  /// each to corrupt the other's warm-start.
+  mutable int hint0_{ 0 };
+  mutable int hint1_{ 0 };
 };
 
 }  // namespace tesseract::collision::tesseract_collision_coal

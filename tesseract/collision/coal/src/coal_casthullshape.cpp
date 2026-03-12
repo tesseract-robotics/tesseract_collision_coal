@@ -135,27 +135,33 @@ void CastHullShape::updateCastTransform(const coal::Transform3s& castTransform)
 {
   castTransform_ = castTransform;
   castTransformInv_ = coal::Transform3s(castTransform).inverse();
+  // Reset pose-1 hint: the new cast transform changes the direction mapping
+  // for pose 1, so the previous vertex hint may no longer be relevant.
+  // Pose-0 hint stays valid (same shape, same local frame).
+  hint1_ = 0;
   computeLocalAABB();
 }
 
 void CastHullShape::computeShapeSupport(const coal::Vec3s& dir,
                                         coal::Vec3s& support,
-                                        int& hint,
+                                        int& /*hint*/,
                                         coal::details::ShapeSupportData& /*data*/) const
 {
   // Support at pose 0 (shape in its local frame, identity transform).
   // Use WithSweptSphere so that shapes with intrinsic radii (Sphere, Capsule)
   // include that radius in the support point — necessary for correct swept-hull
   // geometry and matching the behavior of the former castHullGetSupportFunc.
+  // Each pose gets its own vertex hint so the two hill-climbing searches
+  // warm-start independently.
   const coal::Vec3s s0 =
-      coal::details::getSupport<coal::details::SupportOptions::WithSweptSphere>(shape_.get(), dir, hint);
+      coal::details::getSupport<coal::details::SupportOptions::WithSweptSphere>(shape_.get(), dir, hint0_);
 
   // Support at pose 1 (shape at castTransform_).
   // Rotate the query direction into the local frame of pose 1, compute support,
   // then transform the result back to the local frame of pose 0.
   const coal::Vec3s dir_local1 = castTransformInv_.getRotation() * dir;
   const coal::Vec3s s1_local =
-      coal::details::getSupport<coal::details::SupportOptions::WithSweptSphere>(shape_.get(), dir_local1, hint);
+      coal::details::getSupport<coal::details::SupportOptions::WithSweptSphere>(shape_.get(), dir_local1, hint1_);
   const coal::Vec3s s1 = castTransform_.transform(s1_local);
 
   // Return the support of the convex hull of both poses (Schulman et al. 2013).
