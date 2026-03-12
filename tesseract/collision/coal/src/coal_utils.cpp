@@ -562,12 +562,16 @@ bool CollisionCallback::collide(coal::CollisionObject* o1, coal::CollisionObject
     {
       // Recompute the center-to-center guess from current transforms.
       // CastHullShape geometry changes between calls (via updateCastTransform),
-      // so a fresh guess based on the start poses is needed each time.
+      // so a fresh guess based on the start poses is needed each time —
+      // a stale EPA result vector from a previous configuration would point
+      // GJK in the wrong direction on degenerate swept-hull surfaces.
+      // The support function guess (vertex hint) does NOT need resetting:
+      // hill-climbing on a convex surface always finds the global maximum
+      // regardless of starting vertex.
       coal::Vec3s guess = o1->getTransform().getTranslation() - o2->getTransform().getTranslation();
       if (guess.squaredNorm() < 1e-12)
         guess = coal::Vec3s(1, 0, 0);
       cached_request.cached_gjk_guess = guess;
-      cached_request.cached_support_func_guess = coal::support_func_guess_t::Zero();
     }
     else
     {
