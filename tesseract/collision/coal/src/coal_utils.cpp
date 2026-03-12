@@ -558,38 +558,19 @@ bool CollisionCallback::collide(coal::CollisionObject* o1, coal::CollisionObject
     cached_request.enable_contact = cdata->req.calculate_penetration;
     cached_request.num_max_contacts = num_contacts;
     cached_request.security_margin = security_margin;
-    if (is_cast_hull)
-    {
-      // Recompute the center-to-center guess from current transforms.
-      // CastHullShape geometry changes between calls (via updateCastTransform),
-      // so a fresh guess based on the start poses is needed each time —
-      // a stale EPA result vector from a previous configuration would point
-      // GJK in the wrong direction on degenerate swept-hull surfaces.
-      // The support function guess (vertex hint) does NOT need resetting:
-      // hill-climbing on a convex surface always finds the global maximum
-      // regardless of starting vertex.
-      coal::Vec3s guess = o1->getTransform().getTranslation() - o2->getTransform().getTranslation();
-      if (guess.squaredNorm() < 1e-12)
-        guess = coal::Vec3s(1, 0, 0);
-      cached_request.cached_gjk_guess = guess;
-    }
-    else
-    {
+    if (!is_cast_hull)
       cached_request.distance_upper_bound = security_margin + cached_request.gjk_tolerance;
-    }
   }
 
   auto& [functor, cached_request] = col_request_it->second;
   functor(o1->getTransform(), o2->getTransform(), cached_request, col_result);
 
-  // For non-cast shapes, cache the GJK guess for subsequent calls —
-  // transforms change incrementally so the guess stays warm.
-  if (!is_cast_hull)
-  {
-    cached_request.gjk_initial_guess = coal::CachedGuess;
-    cached_request.cached_gjk_guess = col_result.cached_gjk_guess;
-    cached_request.cached_support_func_guess = col_result.cached_support_func_guess;
-  }
+  // Cache the GJK result for subsequent calls — transforms change
+  // incrementally so the guess stays warm.  This matches Bullet's
+  // btGjkPairDetector which caches its separating axis between calls.
+  cached_request.gjk_initial_guess = coal::CachedGuess;
+  cached_request.cached_gjk_guess = col_result.cached_gjk_guess;
+  cached_request.cached_support_func_guess = col_result.cached_support_func_guess;
 
   if (!col_result.isCollision())
     return false;
