@@ -509,11 +509,9 @@ bool CollisionCallback::collide(coal::CollisionObject* o1, coal::CollisionObject
 
   // CastHullShape geometry changes between contactTest calls (via
   // updateCastTransform).  Coal's ComputeCollision functor caches a GJKSolver
-  // whose internal support_func_cached_guess persists across calls.  When
-  // gjk_initial_guess = BoundingVolumeGuess, GJKSolver::set() does NOT reset
-  // this hint from the request — it only reads cached values for CachedGuess
-  // mode.  The stale support hint causes GJK to build a different initial
-  // simplex, leading EPA to converge to a different (incorrect) contact point.
+  // whose internal support_func_cached_guess persists across calls.  Stale
+  // support hints cause GJK to build a different initial simplex, leading EPA
+  // to converge to a different (incorrect) contact point.
   // Fix: erase the cached entry for cast-hull pairs so a fresh ComputeCollision
   // (with a default-initialized GJKSolver) is created each time.
   if (is_cast_hull && col_request_it != cdata->collision_cache->end())
@@ -531,7 +529,19 @@ bool CollisionCallback::collide(coal::CollisionObject* o1, coal::CollisionObject
       // convergence_criterion_type, leaving them at Coal defaults.
       // CastHullShape swept volumes can be much larger than security_margin, so
       // do not limit the GJK early-break distance.
-      col_request.gjk_initial_guess = coal::BoundingVolumeGuess;
+      //
+      // Use CachedGuess with the center-to-center vector instead of
+      // BoundingVolumeGuess.  BoundingVolumeGuess uses AABB centers of the
+      // swept volumes, which are shifted toward the midpoint of each sweep.
+      // This gives a very different initial GJK direction than the actual
+      // shape-center vector, causing EPA to converge to different (incorrect)
+      // contact points on degenerate swept-hull surfaces where the penetration
+      // depth is constant along the sweep axis.
+      col_request.gjk_initial_guess = coal::CachedGuess;
+      coal::Vec3s guess = o1->getTransform().getTranslation() - o2->getTransform().getTranslation();
+      if (guess.squaredNorm() < 1e-12)
+        guess = coal::Vec3s(1, 0, 0);
+      col_request.cached_gjk_guess = guess;
       col_request.distance_upper_bound = (std::numeric_limits<coal::Scalar>::max)();
     }
     else
