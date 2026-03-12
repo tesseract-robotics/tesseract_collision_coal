@@ -507,19 +507,6 @@ bool CollisionCallback::collide(coal::CollisionObject* o1, coal::CollisionObject
   CollisionObjectPair object_pair = std::make_pair(o1, o2);
   auto col_request_it = cdata->collision_cache->find(object_pair);
 
-  // CastHullShape geometry changes between contactTest calls (via
-  // updateCastTransform).  Coal's ComputeCollision functor caches a GJKSolver
-  // whose internal support_func_cached_guess persists across calls.  Stale
-  // support hints cause GJK to build a different initial simplex, leading EPA
-  // to converge to a different (incorrect) contact point.
-  // Fix: erase the cached entry for cast-hull pairs so a fresh ComputeCollision
-  // (with a default-initialized GJKSolver) is created each time.
-  if (is_cast_hull && col_request_it != cdata->collision_cache->end())
-  {
-    cdata->collision_cache->erase(col_request_it);
-    col_request_it = cdata->collision_cache->end();
-  }
-
   if (col_request_it == cdata->collision_cache->end())
   {
     coal::CollisionRequest col_request;
@@ -571,7 +558,21 @@ bool CollisionCallback::collide(coal::CollisionObject* o1, coal::CollisionObject
     cached_request.enable_contact = cdata->req.calculate_penetration;
     cached_request.num_max_contacts = num_contacts;
     cached_request.security_margin = security_margin;
-    cached_request.distance_upper_bound = security_margin + cached_request.gjk_tolerance;
+    if (is_cast_hull)
+    {
+      // Recompute the center-to-center guess from current transforms.
+      // CastHullShape geometry changes between calls (via updateCastTransform),
+      // so a fresh guess based on the start poses is needed each time.
+      coal::Vec3s guess = o1->getTransform().getTranslation() - o2->getTransform().getTranslation();
+      if (guess.squaredNorm() < 1e-12)
+        guess = coal::Vec3s(1, 0, 0);
+      cached_request.cached_gjk_guess = guess;
+      cached_request.cached_support_func_guess = coal::support_func_guess_t::Zero();
+    }
+    else
+    {
+      cached_request.distance_upper_bound = security_margin + cached_request.gjk_tolerance;
+    }
   }
 
   auto& [functor, cached_request] = col_request_it->second;
