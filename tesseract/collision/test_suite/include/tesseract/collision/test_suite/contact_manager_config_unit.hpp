@@ -15,6 +15,35 @@ namespace tesseract::collision::test_suite
 {
 namespace detail
 {
+class AlwaysTrueContactAllowedValidator : public tesseract::common::ContactAllowedValidator
+{
+public:
+  bool operator()(const std::string&, const std::string&) const override { return true; }
+};
+
+template <typename ContactManagerType>
+inline void exerciseMarginAndValidatorApis(ContactManagerType& checker)
+{
+  const auto original_margin_data = checker.getCollisionMarginData();
+  auto original_validator = checker.getContactAllowedValidator();
+
+  auto validator = std::make_shared<AlwaysTrueContactAllowedValidator>();
+  checker.setContactAllowedValidator(validator);
+  EXPECT_TRUE(checker.getContactAllowedValidator() == validator);
+
+  CollisionMarginPairData pair_margin_data;
+  pair_margin_data.setCollisionMargin("sphere_link", "sphere1_link", 0.123);
+  checker.setCollisionMarginPairData(pair_margin_data, CollisionMarginPairOverrideType::REPLACE);
+  EXPECT_NEAR(checker.getCollisionMarginData().getCollisionMargin("sphere_link", "sphere1_link"), 0.123, 1e-5);
+
+  checker.incrementCollisionMargin(0.1);
+  EXPECT_NEAR(checker.getCollisionMarginData().getCollisionMargin("sphere_link", "sphere1_link"), 0.223, 1e-5);
+
+  // Restore state so downstream checks in this shared test remain unchanged.
+  checker.setCollisionMarginData(original_margin_data);
+  checker.setContactAllowedValidator(std::move(original_validator));
+}
+
 inline void addCollisionObjects(DiscreteContactManager& checker)
 {
   ////////////////////////
@@ -133,6 +162,7 @@ inline void runTest(DiscreteContactManager& checker)
   EXPECT_TRUE(tesseract::common::isIdentical<std::string>(active_links, check_active_links, false));
 
   EXPECT_TRUE(checker.getContactAllowedValidator() == nullptr);
+  detail::exerciseMarginAndValidatorApis(checker);
 
   checker.setDefaultCollisionMargin(0.5);
   EXPECT_NEAR(checker.getCollisionMarginData().getMaxCollisionMargin(), 0.5, 1e-5);
@@ -240,6 +270,7 @@ inline void runTest(ContinuousContactManager& checker)
   EXPECT_TRUE(tesseract::common::isIdentical<std::string>(active_links, check_active_links, false));
 
   EXPECT_TRUE(checker.getContactAllowedValidator() == nullptr);
+  detail::exerciseMarginAndValidatorApis(checker);
 
   checker.setDefaultCollisionMargin(0.5);
   EXPECT_NEAR(checker.getCollisionMarginData().getMaxCollisionMargin(), 0.5, 1e-5);

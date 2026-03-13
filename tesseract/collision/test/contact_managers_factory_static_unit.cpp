@@ -24,7 +24,6 @@
 #include <tesseract/common/macros.h>
 TESSERACT_COMMON_IGNORE_WARNINGS_PUSH
 #include <gtest/gtest.h>
-#include <fstream>
 TESSERACT_COMMON_IGNORE_WARNINGS_POP
 
 #include <tesseract/collision/contact_managers_plugin_factory.h>
@@ -32,14 +31,17 @@ TESSERACT_COMMON_IGNORE_WARNINGS_POP
 #include <tesseract/collision/bullet/bullet_factories.h>
 #include <tesseract/common/yaml_utils.h>
 #include <tesseract/common/resource_locator.h>
-#include <boost_plugin_loader/utils.h>
 
 using namespace tesseract::collision;
-
+#include <cstdlib>
 TEST(TesseractContactManagersFactoryUnit, StaticLoadPlugin)  // NOLINT
 {
-  boost_plugin_loader::addSymbolLibraryToSearchLibrariesEnv(
-      tesseract::collision::tesseract::collision::BulletFactoriesAnchor(), "TESSERACT_CONTACT_MANAGERS_PLUGINS");
+  constexpr const char* env_name = "TESSERACT_CONTACT_MANAGERS_PLUGINS";
+  std::string env_value = "tesseract_collision_bullet_factories";
+  const char* existing_env = std::getenv(env_name);
+  if (existing_env != nullptr && existing_env[0] != '\0')
+    env_value = std::string(existing_env) + ":" + env_value;
+  setenv(env_name, env_value.c_str(), 1);
 
   std::string config = R"(contact_manager_plugins:
                             search_paths:
