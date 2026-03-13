@@ -18,10 +18,8 @@ namespace detail
 {
 template <class T>
 inline void addCollisionObjects(T& checker,
-                                tesseract::geometry::OctreeSubType subtype1 =
-                                    tesseract::geometry::OctreeSubType::SPHERE_OUTSIDE,
-                                tesseract::geometry::OctreeSubType subtype2 =
-                                    tesseract::geometry::OctreeSubType::SPHERE_INSIDE)
+                                tesseract::geometry::OctreeSubType subtype1,
+                                tesseract::geometry::OctreeSubType subtype2)
 {
   /////////////////////////////////////////////////////////////////
   // Add Octomap
@@ -76,7 +74,7 @@ inline void addCollisionObjects(T& checker,
 }
 
 inline void runTestOctomap(DiscreteContactManager& checker, ContactTestType test_type,
-                           double expected_distance = -0.0071, double distance_tol = 0.001)
+                           double expected_distance)
 {
   //////////////////////////////////////
   // Test when object is in collision
@@ -107,12 +105,12 @@ inline void runTestOctomap(DiscreteContactManager& checker, ContactTestType test
   EXPECT_TRUE(!result_vector.empty());
   for (const auto& cr : result_vector)
   {
-    EXPECT_NEAR(cr.distance, expected_distance, distance_tol);
+    EXPECT_NEAR(cr.distance, expected_distance, 0.001);
   }
 }
 
 inline void runTestOctomap(ContinuousContactManager& checker, ContactTestType test_type,
-                           double expected_distance = -0.0071, double distance_tol = 0.001)
+                           double expected_distance)
 {
   //////////////////////////////////////
   // Test when object is in collision
@@ -150,57 +148,45 @@ inline void runTestOctomap(ContinuousContactManager& checker, ContactTestType te
   EXPECT_TRUE(!result_vector.empty());
   for (const auto& cr : result_vector)
   {
-    EXPECT_NEAR(cr.distance, expected_distance, distance_tol);
+    EXPECT_NEAR(cr.distance, expected_distance, 0.001);
   }
 }
 }  // namespace detail
 
 inline void runTest(ContinuousContactManager& checker,
-                    tesseract::geometry::OctreeSubType subtype1 =
-                        tesseract::geometry::OctreeSubType::SPHERE_OUTSIDE,
-                    tesseract::geometry::OctreeSubType subtype2 = tesseract::geometry::OctreeSubType::SPHERE_INSIDE)
+                    double expected_distance,
+                    tesseract::geometry::OctreeSubType subtype1,
+                    tesseract::geometry::OctreeSubType subtype2)
 {
   detail::addCollisionObjects<ContinuousContactManager>(checker, subtype1, subtype2);
 
   // Call it again to test adding same object
   detail::addCollisionObjects<ContinuousContactManager>(checker, subtype1, subtype2);
 
-  // BOX octrees at ±1.1 have a 0.2m gap (within 0.25 margin), while SPHERE subtypes produce slight penetration
-  const bool uses_box = (subtype1 == tesseract::geometry::OctreeSubType::BOX ||
-                         subtype2 == tesseract::geometry::OctreeSubType::BOX);
-  const double expected_dist = uses_box ? 0.2 : -0.0071;
-  const double dist_tol = uses_box ? 0.05 : 0.001;
-
-  detail::runTestOctomap(checker, ContactTestType::FIRST, expected_dist, dist_tol);
-  detail::runTestOctomap(checker, ContactTestType::CLOSEST, expected_dist, dist_tol);
-  detail::runTestOctomap(checker, ContactTestType::ALL, expected_dist, dist_tol);
+  detail::runTestOctomap(checker, ContactTestType::FIRST, expected_distance);
+  detail::runTestOctomap(checker, ContactTestType::CLOSEST, expected_distance);
+  detail::runTestOctomap(checker, ContactTestType::ALL, expected_distance);
 
   ContinuousContactManager::Ptr cloned_checker = checker.clone();
-  detail::runTestOctomap(*cloned_checker, ContactTestType::FIRST, expected_dist, dist_tol);
+  detail::runTestOctomap(*cloned_checker, ContactTestType::FIRST, expected_distance);
 }
 
 inline void runTest(DiscreteContactManager& checker,
-                    tesseract::geometry::OctreeSubType subtype1 =
-                        tesseract::geometry::OctreeSubType::SPHERE_OUTSIDE,
-                    tesseract::geometry::OctreeSubType subtype2 = tesseract::geometry::OctreeSubType::SPHERE_INSIDE)
+                    double expected_distance,
+                    tesseract::geometry::OctreeSubType subtype1,
+                    tesseract::geometry::OctreeSubType subtype2)
 {
   detail::addCollisionObjects<DiscreteContactManager>(checker, subtype1, subtype2);
 
   // Call it again to test adding same object
   detail::addCollisionObjects<DiscreteContactManager>(checker, subtype1, subtype2);
 
-  // BOX octrees at ±1.1 have a 0.2m gap (within 0.25 margin), while SPHERE subtypes produce slight penetration
-  const bool uses_box = (subtype1 == tesseract::geometry::OctreeSubType::BOX ||
-                         subtype2 == tesseract::geometry::OctreeSubType::BOX);
-  const double expected_dist = uses_box ? 0.2 : -0.0071;
-  const double dist_tol = uses_box ? 0.05 : 0.001;
-
-  detail::runTestOctomap(checker, ContactTestType::FIRST, expected_dist, dist_tol);
-  detail::runTestOctomap(checker, ContactTestType::CLOSEST, expected_dist, dist_tol);
-  detail::runTestOctomap(checker, ContactTestType::ALL, expected_dist, dist_tol);
+  detail::runTestOctomap(checker, ContactTestType::FIRST, expected_distance);
+  detail::runTestOctomap(checker, ContactTestType::CLOSEST, expected_distance);
+  detail::runTestOctomap(checker, ContactTestType::ALL, expected_distance);
 
   DiscreteContactManager::Ptr cloned_checker = checker.clone();
-  detail::runTestOctomap(*cloned_checker, ContactTestType::FIRST, expected_dist, dist_tol);
+  detail::runTestOctomap(*cloned_checker, ContactTestType::FIRST, expected_distance);
 }
 
 }  // namespace tesseract::collision::test_suite
