@@ -50,6 +50,8 @@ TESSERACT_COMMON_IGNORE_WARNINGS_PUSH
 #include <coal/octree.h>
 #include <algorithm>
 #include <cmath>
+#include <functional>
+#include <limits>
 #include <memory>
 #include <stdexcept>
 #include <utility>
@@ -328,7 +330,7 @@ void GetAverageSupport(const coal::ShapeBase* shape,
   {
     coal::Vec3s ptSum = coal::Vec3s::Zero();
     double ptCount = 0;
-    double maxSupport = -1e10;
+    double maxSupport = std::numeric_limits<double>::lowest();
 
     for (const auto& pt : *convex->points)
     {
@@ -412,8 +414,8 @@ void populateContinuousCollisionFields(ContactResult& contact,
     shape_tf1.translation() = Eigen::Vector3d(tf_world1.getTranslation());
     contact.cc_transform[i] = shape_tf1 * shape_tf0.inverse() * contact.transform[i];
 
-    // Normal pointing from current object toward the other (matching Bullet convention)
-    // COAL contact.normal points from o1 to o2; Bullet's m_normalWorldOnB points from o2 to o1
+    // Normal pointing from current object toward the other (matching Bullet convention).
+    // contact.normal has already been remapped to original (o1, o2) order after pair normalization.
     const coal::Vec3s normal_world = (i == 0) ? coal::Vec3s(contact.normal) : coal::Vec3s(-contact.normal);
 
     // Transform normal into local frames at t=0 and t=1
@@ -508,7 +510,7 @@ bool CollisionCallback::collide(coal::CollisionObject* o1, coal::CollisionObject
   // Normalize pair ordering for consistent cache lookups: Coal's broadphase
   // does not guarantee a stable (o1, o2) ordering across tree rebalances,
   // so always put the smaller pointer first to avoid duplicate cache entries.
-  const bool pair_swapped = (o1 > o2);
+  const bool pair_swapped = std::greater<>{}(o1, o2);
   auto* co1 = pair_swapped ? o2 : o1;
   auto* co2 = pair_swapped ? o1 : o2;
   CollisionObjectPair object_pair = std::make_pair(co1, co2);
@@ -590,6 +592,10 @@ bool CollisionCallback::collide(coal::CollisionObject* o1, coal::CollisionObject
   Eigen::Isometry3d tf1_inv = tf1.inverse();
   Eigen::Isometry3d tf2_inv = tf2.inverse();
 
+  // Coal result fields are in normalized (co1, co2) order; map back to original (o1, o2).
+  const int idx0 = pair_swapped ? 1 : 0;
+  const int idx1 = pair_swapped ? 0 : 1;
+
   for (size_t i = 0; i < col_result.numContacts(); ++i)
   {
     const coal::Contact& coal_contact = col_result.getContact(i);
@@ -598,9 +604,6 @@ bool CollisionCallback::collide(coal::CollisionObject* o1, coal::CollisionObject
     contact.link_names[1] = cd2->getName();
     contact.shape_id[0] = CollisionObjectWrapper::getShapeIndex(o1);
     contact.shape_id[1] = CollisionObjectWrapper::getShapeIndex(o2);
-    // Coal result fields are in normalized (co1, co2) order; map back to original (o1, o2).
-    const int idx0 = pair_swapped ? 1 : 0;
-    const int idx1 = pair_swapped ? 0 : 1;
     contact.subshape_id[0] = static_cast<int>(pair_swapped ? coal_contact.b2 : coal_contact.b1);
     contact.subshape_id[1] = static_cast<int>(pair_swapped ? coal_contact.b1 : coal_contact.b2);
     contact.nearest_points[0] = coal_contact.nearest_points[idx0];

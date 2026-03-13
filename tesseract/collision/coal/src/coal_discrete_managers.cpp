@@ -138,7 +138,9 @@ bool CoalDiscreteBVHManager::removeCollisionObject(const std::string& name)
         dynamic_manager_->unregisterObject(co.get());
     }
 
-    collision_objects_.erase(std::find(collision_objects_.begin(), collision_objects_.end(), name));
+    auto it_obj = std::find(collision_objects_.begin(), collision_objects_.end(), name);
+    if (it_obj != collision_objects_.end())
+      collision_objects_.erase(it_obj);
     link2cow_.erase(name);
 
     // Remove cached collision functors that involve the removed object

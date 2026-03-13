@@ -131,7 +131,9 @@ bool CoalCastBVHManager::removeCollisionObject(const std::string& name)
   auto it = link2cow_.find(name);
   if (it != link2cow_.end())
   {
-    collision_objects_.erase(std::find(collision_objects_.begin(), collision_objects_.end(), name));
+    auto it_obj = std::find(collision_objects_.begin(), collision_objects_.end(), name);
+    if (it_obj != collision_objects_.end())
+      collision_objects_.erase(it_obj);
     const std::vector<CollisionObjectPtr>& objects = it->second->getCollisionObjects();
     coal_co_count_ -= objects.size();
     removeObjects(objects);

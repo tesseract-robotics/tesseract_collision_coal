@@ -102,6 +102,8 @@ private:
   /// Each getSupport call uses hill-climbing from the hint, so sharing a single
   /// hint between the two poses (which query different directions) would cause
   /// each to corrupt the other's warm-start.
+  /// @note Not thread-safe: each thread must use its own CastHullShape instance.
+  /// The collision managers ensure this via per-thread clone().
   mutable int hint0_{ 0 };
   mutable int hint1_{ 0 };
 };

@@ -11,16 +11,14 @@ using namespace tesseract::collision;
 using namespace tesseract::collision::tesseract_collision_coal;
 
 /**
- * @brief Verify that the collision cache normalizes pair order.
+ * @brief Verify that the collision cache produces consistent results across
+ * repeated contactTest calls.
  *
- * Coal's broadphase can deliver the same object pair as (A,B) or (B,A) after
- * tree rebalancing.  The cache must treat both orderings as the same entry so
- * that the warm GJK guess is reused and memory is not wasted on duplicates.
- *
- * This test directly invokes CollisionCallback::collide() with swapped
- * arguments and checks that only a single cache entry is created.
+ * The first call populates the cache; the second reuses it.  This validates
+ * that cached GJK guesses and collision functors produce identical results
+ * when reused.
  */
-TEST(CoalCachePairUnit, SwappedPairReusesCache)  // NOLINT
+TEST(CoalCachePairUnit, RepeatedContactTestReusesCache)  // NOLINT
 {
   // Create two overlapping sphere collision objects via the manager API,
   // then pull out the raw Coal objects to call the callback directly.
@@ -39,7 +37,6 @@ TEST(CoalCachePairUnit, SwappedPairReusesCache)  // NOLINT
 
   // Place spheres so they overlap
   Eigen::Isometry3d pose_a = Eigen::Isometry3d::Identity();
-  pose_a.translation() = Eigen::Vector3d(0, 0, 0);
   Eigen::Isometry3d pose_b = Eigen::Isometry3d::Identity();
   pose_b.translation() = Eigen::Vector3d(0.5, 0, 0);
 
@@ -101,7 +98,6 @@ TEST(CoalCachePairUnit, ReregisteredObjectsGiveConsistentResults)  // NOLINT
   tesseract::common::VectorIsometry3d poses = { Eigen::Isometry3d::Identity() };
 
   Eigen::Isometry3d pose_a = Eigen::Isometry3d::Identity();
-  pose_a.translation() = Eigen::Vector3d(0, 0, 0);
   Eigen::Isometry3d pose_b = Eigen::Isometry3d::Identity();
   pose_b.translation() = Eigen::Vector3d(0.5, 0, 0);
 
@@ -173,7 +169,6 @@ TEST(CoalCachePairUnit, RemoveReaddProducesCorrectResults)  // NOLINT
   checker.setDefaultCollisionMargin(0.0);
 
   Eigen::Isometry3d pose_a = Eigen::Isometry3d::Identity();
-  pose_a.translation() = Eigen::Vector3d(0, 0, 0);
   Eigen::Isometry3d pose_b = Eigen::Isometry3d::Identity();
   pose_b.translation() = Eigen::Vector3d(0.5, 0, 0);
 
