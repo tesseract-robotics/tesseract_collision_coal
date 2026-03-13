@@ -466,7 +466,7 @@ void populateContinuousCollisionFields(ContactResult& contact,
       if (center_sweep_sq < COAL_LENGTH_TOLERANCE * COAL_LENGTH_TOLERANCE)
         contact.cc_time[i] = 0.5;
       else
-        contact.cc_time[i] = center_sweep.dot(pt_world - center0) / center_sweep_sq;
+        contact.cc_time[i] = std::clamp(center_sweep.dot(pt_world - center0) / center_sweep_sq, 0.0, 1.0);
 
       // nearest_points_local: average of the two local support points,
       // transformed to world via shape_tf0, then to link-local coordinates.
@@ -504,7 +504,14 @@ bool CollisionCallback::collide(coal::CollisionObject* o1, coal::CollisionObject
                             (dynamic_cast<const CastHullShape*>(o2->collisionGeometry().get()) != nullptr);
 
   coal::CollisionResult col_result;
-  CollisionObjectPair object_pair = std::make_pair(o1, o2);
+
+  // Normalize pair ordering for consistent cache lookups: Coal's broadphase
+  // does not guarantee a stable (o1, o2) ordering across tree rebalances,
+  // so always put the smaller pointer first to avoid duplicate cache entries.
+  const bool pair_swapped = (o1 > o2);
+  auto* co1 = pair_swapped ? o2 : o1;
+  auto* co2 = pair_swapped ? o1 : o2;
+  CollisionObjectPair object_pair = std::make_pair(co1, co2);
   auto col_request_it = cdata->collision_cache->find(object_pair);
 
   if (col_request_it == cdata->collision_cache->end())
@@ -525,7 +532,7 @@ bool CollisionCallback::collide(coal::CollisionObject* o1, coal::CollisionObject
       // contact points on degenerate swept-hull surfaces where the penetration
       // depth is constant along the sweep axis.
       col_request.gjk_initial_guess = coal::CachedGuess;
-      coal::Vec3s guess = o1->getTransform().getTranslation() - o2->getTransform().getTranslation();
+      coal::Vec3s guess = co1->getTransform().getTranslation() - co2->getTransform().getTranslation();
       if (guess.squaredNorm() < 1e-12)
         guess = coal::Vec3s(1, 0, 0);
       col_request.cached_gjk_guess = guess;
@@ -548,7 +555,7 @@ bool CollisionCallback::collide(coal::CollisionObject* o1, coal::CollisionObject
     // floating-point gap is only an ULP below security_margin (e.g. 1.60 in
     // double is slightly less than 1.6, giving a gap of ~0.1 - 2e-16).
     col_request.collision_distance_threshold = -col_request.gjk_tolerance;
-    auto col_functor = coal::ComputeCollision(o1->collisionGeometryPtr(), o2->collisionGeometryPtr());
+    auto col_functor = coal::ComputeCollision(co1->collisionGeometryPtr(), co2->collisionGeometryPtr());
     col_request_it =
         cdata->collision_cache->try_emplace(object_pair, std::move(col_functor), std::move(col_request)).first;
   }
@@ -563,7 +570,7 @@ bool CollisionCallback::collide(coal::CollisionObject* o1, coal::CollisionObject
   }
 
   auto& [functor, cached_request] = col_request_it->second;
-  functor(o1->getTransform(), o2->getTransform(), cached_request, col_result);
+  functor(co1->getTransform(), co2->getTransform(), cached_request, col_result);
 
   // Cache the GJK result for subsequent calls — transforms change
   // incrementally so the guess stays warm.  This matches Bullet's
@@ -591,10 +598,13 @@ bool CollisionCallback::collide(coal::CollisionObject* o1, coal::CollisionObject
     contact.link_names[1] = cd2->getName();
     contact.shape_id[0] = CollisionObjectWrapper::getShapeIndex(o1);
     contact.shape_id[1] = CollisionObjectWrapper::getShapeIndex(o2);
-    contact.subshape_id[0] = static_cast<int>(coal_contact.b1);
-    contact.subshape_id[1] = static_cast<int>(coal_contact.b2);
-    contact.nearest_points[0] = coal_contact.nearest_points[0];
-    contact.nearest_points[1] = coal_contact.nearest_points[1];
+    // Coal result fields are in normalized (co1, co2) order; map back to original (o1, o2).
+    const int idx0 = pair_swapped ? 1 : 0;
+    const int idx1 = pair_swapped ? 0 : 1;
+    contact.subshape_id[0] = static_cast<int>(pair_swapped ? coal_contact.b2 : coal_contact.b1);
+    contact.subshape_id[1] = static_cast<int>(pair_swapped ? coal_contact.b1 : coal_contact.b2);
+    contact.nearest_points[0] = coal_contact.nearest_points[idx0];
+    contact.nearest_points[1] = coal_contact.nearest_points[idx1];
     contact.nearest_points_local[0] = tf1_inv * contact.nearest_points[0];
     contact.nearest_points_local[1] = tf2_inv * contact.nearest_points[1];
     contact.transform[0] = tf1;
@@ -602,7 +612,7 @@ bool CollisionCallback::collide(coal::CollisionObject* o1, coal::CollisionObject
     contact.type_id[0] = cd1->getTypeID();
     contact.type_id[1] = cd2->getTypeID();
     contact.distance = coal_contact.penetration_depth;
-    contact.normal = coal_contact.normal;
+    contact.normal = pair_swapped ? coal::Vec3s(-coal_contact.normal) : coal_contact.normal;
 
     populateContinuousCollisionFields(contact, o1, o2);
     const auto it = cdata->res->find(link_pair);
