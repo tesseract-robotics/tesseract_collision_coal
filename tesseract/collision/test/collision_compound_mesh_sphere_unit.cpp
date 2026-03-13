@@ -3,7 +3,7 @@ TESSERACT_COMMON_IGNORE_WARNINGS_PUSH
 #include <gtest/gtest.h>
 TESSERACT_COMMON_IGNORE_WARNINGS_POP
 
-#include <tesseract_collision/test_suite/collision_compound_mesh_sphere_unit.hpp>
+#include <tesseract/collision/test_suite/collision_compound_mesh_sphere_unit.hpp>
 #include <tesseract/collision/bullet/bullet_discrete_simple_manager.h>
 #include <tesseract/collision/bullet/bullet_discrete_bvh_manager.h>
 #include <tesseract/collision/fcl/fcl_discrete_managers.h>
