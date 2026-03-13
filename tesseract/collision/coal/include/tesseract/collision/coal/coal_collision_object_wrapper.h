@@ -75,11 +75,31 @@ public:
    */
   int getShapeIndex() const;
 
+  /**
+   * @brief Set the source geometry index used for contact result reporting.
+   *
+   * This may differ from shape_index_ when an input geometry is expanded into
+   * multiple collision proxies (e.g., octree voxels).
+   * @param index The source geometry index in the original link geometry list.
+   */
+  void setSourceShapeIndex(int index);
+
+  /**
+   * @brief Get the source geometry index for contact result reporting.
+   *
+   * Falls back to shape_index_ when an explicit source index has not been set.
+   * @return The source geometry index.
+   */
+  int getSourceShapeIndex() const;
+
 protected:
   double contact_distance_{ 0 }; /**< @brief The contact distance threshold. */
 
   /** @brief The shape index, which is the geometries index in the urdf. */
   int shape_index_{ -1 };
+
+  /** @brief The source geometry index used when reporting contact shape ids. */
+  int source_shape_index_{ -1 };
 };
 
 }  // namespace tesseract::collision::tesseract_collision_coal

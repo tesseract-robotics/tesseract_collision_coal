@@ -658,6 +658,7 @@ CollisionObjectWrapper::CollisionObjectWrapper(std::string name,
           auto co = std::make_shared<CoalCollisionObjectWrapper>(subshape);
           co->setUserData(this);
           co->setShapeIndex(static_cast<int>(i));
+          co->setSourceShapeIndex(static_cast<int>(i));
           co->setTransform(coal::Transform3s(shape_poses_[i].rotation(), shape_poses_[i].translation()));
           co->updateAABB();
           collision_objects_.push_back(co);
@@ -674,6 +675,7 @@ CollisionObjectWrapper::CollisionObjectWrapper(std::string name,
         auto co = std::make_shared<CoalCollisionObjectWrapper>(subshape);
         co->setUserData(this);
         co->setShapeIndex(static_cast<int>(i));
+        co->setSourceShapeIndex(static_cast<int>(i));
         co->setTransform(coal::Transform3s(shape_poses_[i].rotation(), shape_poses_[i].translation()));
         co->updateAABB();
         collision_objects_.push_back(co);
@@ -685,7 +687,7 @@ CollisionObjectWrapper::CollisionObjectWrapper(std::string name,
 
 int CollisionObjectWrapper::getShapeIndex(const coal::CollisionObject* co)
 {
-  return static_cast<const CoalCollisionObjectWrapper*>(co)->getShapeIndex();
+  return static_cast<const CoalCollisionObjectWrapper*>(co)->getSourceShapeIndex();
 }
 
 }  // namespace tesseract::collision::tesseract_collision_coal

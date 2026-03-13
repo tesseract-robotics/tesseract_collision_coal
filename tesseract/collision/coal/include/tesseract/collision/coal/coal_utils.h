@@ -429,6 +429,7 @@ inline COW::Ptr makeCastCollisionObject(const COW::Ptr& cow)
       // Create a new collision object with the cast shape
       auto cast_co = std::make_shared<CoalCollisionObjectWrapper>(cast_shape, co->getTransform());
       cast_co->setShapeIndex(static_cast<int>(new_shape_poses.size()));
+      cast_co->setSourceShapeIndex(static_cast<int>(old_shape_index));
       cast_co->setContactDistanceThreshold(co->getContactDistanceThreshold());
       cast_co->setUserData(cast_cow.get());
 
@@ -476,6 +477,7 @@ inline COW::Ptr makeCastCollisionObject(const COW::Ptr& cow)
           auto cast_co = std::make_shared<CoalCollisionObjectWrapper>(
               cast_shape, coal::Transform3s(world_pose.rotation(), world_pose.translation()));
           cast_co->setShapeIndex(static_cast<int>(new_shape_poses.size()));
+            cast_co->setSourceShapeIndex(static_cast<int>(old_shape_index));
           cast_co->setContactDistanceThreshold(co->getContactDistanceThreshold());
           cast_co->setUserData(cast_cow.get());
 
