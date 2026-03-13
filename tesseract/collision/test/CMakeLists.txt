@@ -78,6 +78,7 @@ add_gtest(${PROJECT_NAME}_compound_mesh_sphere_unit collision_compound_mesh_sphe
 add_gtest(${PROJECT_NAME}_sphere_sphere_cast_unit collision_sphere_sphere_cast_unit.cpp)
 add_gtest(${PROJECT_NAME}_multi_shape_cast_unit collision_multi_shape_cast_unit.cpp)
 add_gtest(${PROJECT_NAME}_octomap_octomap_unit collision_octomap_octomap_unit.cpp)
+add_gtest(${PROJECT_NAME}_octomap_cast_unit collision_octomap_cast_unit.cpp)
 add_gtest(${PROJECT_NAME}_factory_unit contact_managers_factory_unit.cpp)
 add_gtest(${PROJECT_NAME}_core_unit collision_core_unit.cpp)
 add_gtest(${PROJECT_NAME}_config_unit contact_managers_config_unit.cpp)

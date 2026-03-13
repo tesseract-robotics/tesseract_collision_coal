@@ -17,7 +17,11 @@ namespace tesseract::collision::test_suite
 namespace detail
 {
 template <class T>
-inline void addCollisionObjects(T& checker)
+inline void addCollisionObjects(T& checker,
+                                tesseract::geometry::OctreeSubType subtype1 =
+                                    tesseract::geometry::OctreeSubType::SPHERE_OUTSIDE,
+                                tesseract::geometry::OctreeSubType subtype2 =
+                                    tesseract::geometry::OctreeSubType::SPHERE_INSIDE)
 {
   /////////////////////////////////////////////////////////////////
   // Add Octomap
@@ -25,8 +29,7 @@ inline void addCollisionObjects(T& checker)
   tesseract::common::GeneralResourceLocator locator;
   std::string path = locator.locateResource("package://tesseract/support/meshes/box_2m.bt")->getFilePath();
   auto ot = std::make_shared<octomap::OcTree>(path);
-  CollisionShapePtr dense_octomap =
-      std::make_shared<tesseract::geometry::Octree>(ot, tesseract::geometry::OctreeSubType::SPHERE_OUTSIDE);
+  CollisionShapePtr dense_octomap = std::make_shared<tesseract::geometry::Octree>(ot, subtype1);
   Eigen::Isometry3d octomap_pose;
   octomap_pose.setIdentity();
   octomap_pose.translation() = Eigen::Vector3d(1.1, 0, 0);
@@ -42,8 +45,7 @@ inline void addCollisionObjects(T& checker)
   // Add second octomap
   /////////////////////////////////////////////////////////////////
   auto ot_b = std::make_shared<octomap::OcTree>(path);
-  CollisionShapePtr dense_octomap_b =
-      std::make_shared<tesseract::geometry::Octree>(ot_b, tesseract::geometry::OctreeSubType::SPHERE_INSIDE);
+  CollisionShapePtr dense_octomap_b = std::make_shared<tesseract::geometry::Octree>(ot_b, subtype2);
   Eigen::Isometry3d octomap_pose_b;
   octomap_pose_b.setIdentity();
   octomap_pose_b.translation() = Eigen::Vector3d(-1.1, 0, 0);
@@ -151,12 +153,15 @@ inline void runTestOctomap(ContinuousContactManager& checker, ContactTestType te
 }
 }  // namespace detail
 
-inline void runTest(ContinuousContactManager& checker)
+inline void runTest(ContinuousContactManager& checker,
+                    tesseract::geometry::OctreeSubType subtype1 =
+                        tesseract::geometry::OctreeSubType::SPHERE_OUTSIDE,
+                    tesseract::geometry::OctreeSubType subtype2 = tesseract::geometry::OctreeSubType::SPHERE_INSIDE)
 {
-  detail::addCollisionObjects<ContinuousContactManager>(checker);
+  detail::addCollisionObjects<ContinuousContactManager>(checker, subtype1, subtype2);
 
   // Call it again to test adding same object
-  detail::addCollisionObjects<ContinuousContactManager>(checker);
+  detail::addCollisionObjects<ContinuousContactManager>(checker, subtype1, subtype2);
 
   detail::runTestOctomap(checker, ContactTestType::FIRST);
   detail::runTestOctomap(checker, ContactTestType::CLOSEST);
@@ -166,12 +171,15 @@ inline void runTest(ContinuousContactManager& checker)
   detail::runTestOctomap(*cloned_checker, ContactTestType::FIRST);
 }
 
-inline void runTest(DiscreteContactManager& checker)
+inline void runTest(DiscreteContactManager& checker,
+                    tesseract::geometry::OctreeSubType subtype1 =
+                        tesseract::geometry::OctreeSubType::SPHERE_OUTSIDE,
+                    tesseract::geometry::OctreeSubType subtype2 = tesseract::geometry::OctreeSubType::SPHERE_INSIDE)
 {
-  detail::addCollisionObjects<DiscreteContactManager>(checker);
+  detail::addCollisionObjects<DiscreteContactManager>(checker, subtype1, subtype2);
 
   // Call it again to test adding same object
-  detail::addCollisionObjects<DiscreteContactManager>(checker);
+  detail::addCollisionObjects<DiscreteContactManager>(checker, subtype1, subtype2);
 
   detail::runTestOctomap(checker, ContactTestType::FIRST);
   detail::runTestOctomap(checker, ContactTestType::CLOSEST);

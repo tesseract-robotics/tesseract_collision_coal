@@ -35,12 +35,12 @@ TEST(TesseractCollisionUnit, BulletDiscreteBVHCollisionOctomapSphereMeshUnit)  /
 //  // TODO: There appears to be an issue in fcl for octomap::OcTree.
 // }
 
-// TEST(TesseractCollisionUnit, CoalDiscreteBVHCollisionOctomapSphereMeshUnit)
-// {
-//  tesseract_collision_coal::CoalDiscreteBVHManager checker;
-//  test_suite::runTest(checker, tesseract::common::getTempPath() +
-//  "CoalDiscreteBVHCollisionOctomapSphereMeshUnit.ply");
-// }
+TEST(TesseractCollisionUnit, CoalDiscreteBVHCollisionOctomapSphereMeshUnit)  // NOLINT
+{
+  tesseract_collision_coal::CoalDiscreteBVHManager checker;
+  test_suite::runTest(checker,
+                      tesseract::common::getTempPath() + "CoalDiscreteBVHCollisionOctomapSphereMeshUnit.ply");
+}
 
 /** @brief This is to test the shape id and sub-shape id of the contact results. */
 int main(int argc, char** argv)

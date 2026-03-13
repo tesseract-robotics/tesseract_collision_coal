@@ -8,8 +8,12 @@ TESSERACT_COMMON_IGNORE_WARNINGS_POP
 #include <tesseract/collision/bullet/bullet_discrete_bvh_manager.h>
 #include <tesseract/collision/bullet/bullet_cast_simple_manager.h>
 #include <tesseract/collision/bullet/bullet_cast_bvh_manager.h>
+#include <tesseract/collision/coal/coal_discrete_managers.h>
+#include <tesseract/collision/coal/coal_cast_managers.h>
 
 using namespace tesseract::collision;
+
+// ---- Bullet: SPHERE_OUTSIDE vs SPHERE_INSIDE (original subtypes) ----
 
 TEST(TesseractCollisionUnit, BulletDiscreteSimpleCollisionOctomapOctomapUnit)  // NOLINT
 {
@@ -35,7 +39,25 @@ TEST(TesseractCollisionUnit, BulletContinuousBVHCollisionOctomapOctomapUnit)  //
   test_suite::runTest(checker);
 }
 
-// This test the octomap subshape types INSIDE_SPHERE and OUTSIDE_SPHERE (FCL is exclued becaues it is not supprted)
+// ---- Coal: BOX vs BOX (only subtype supported by Coal) ----
+
+TEST(TesseractCollisionUnit, CoalDiscreteBVHCollisionOctomapOctomapUnit)  // NOLINT
+{
+  tesseract_collision_coal::CoalDiscreteBVHManager checker;
+  test_suite::runTest(checker,
+                      tesseract::geometry::OctreeSubType::BOX,
+                      tesseract::geometry::OctreeSubType::BOX);
+}
+
+#if defined(TESSERACT_COLLISION_COAL_ENABLE_COAL_CAST_TESTS)
+TEST(TesseractCollisionUnit, CoalContinuousBVHCollisionOctomapOctomapUnit)  // NOLINT
+{
+  tesseract_collision_coal::CoalCastBVHManager checker;
+  test_suite::runTest(checker,
+                      tesseract::geometry::OctreeSubType::BOX,
+                      tesseract::geometry::OctreeSubType::BOX);
+}
+#endif
 int main(int argc, char** argv)
 {
   testing::InitGoogleTest(&argc, argv);
