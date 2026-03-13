@@ -22,11 +22,29 @@ TEST(TesseractCollisionUnit, BulletCastBVHCompoundMeshShapeIdUsesOriginalGeometr
   test_suite::runTestCompoundMeshCastShapeIdUsesOriginalGeometryIndex(checker);
 }
 
+TEST(TesseractCollisionUnit, BulletCastSimpleCompoundMeshSubshapeIdReportsPrimitiveIdentity)  // NOLINT
+{
+  tesseract::collision::BulletCastSimpleManager checker;
+  test_suite::runTestCompoundMeshCastSubshapeIdReportsPrimitiveIdentity(checker);
+}
+
+TEST(TesseractCollisionUnit, BulletCastBVHCompoundMeshSubshapeIdReportsPrimitiveIdentity)  // NOLINT
+{
+  tesseract::collision::BulletCastBVHManager checker;
+  test_suite::runTestCompoundMeshCastSubshapeIdReportsPrimitiveIdentity(checker);
+}
+
 #if defined(TESSERACT_COLLISION_COAL_ENABLE_COAL_CAST_TESTS)
 TEST(TesseractCollisionUnit, CoalCastBVHCompoundMeshShapeIdUsesOriginalGeometryIndex)  // NOLINT
 {
   tesseract_collision_coal::CoalCastBVHManager checker;
   test_suite::runTestCompoundMeshCastShapeIdUsesOriginalGeometryIndex(checker);
+}
+
+TEST(TesseractCollisionUnit, CoalCastBVHCompoundMeshSubshapeIdReportsPrimitiveIdentity)  // NOLINT
+{
+  tesseract_collision_coal::CoalCastBVHManager checker;
+  test_suite::runTestCompoundMeshCastSubshapeIdReportsPrimitiveIdentity(checker);
 }
 #endif
 

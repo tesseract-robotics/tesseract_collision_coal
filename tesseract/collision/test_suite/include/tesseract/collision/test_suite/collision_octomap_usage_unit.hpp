@@ -191,7 +191,10 @@ inline void runContinuousOctomapTransformOverloadUsageTest(
     const std::size_t static_idx = detail::getLinkIndex(*cr, "octomap2_link");
     EXPECT_TRUE(cr->transform[moving_idx].isApprox(start, 1e-9));
     EXPECT_TRUE(cr->cc_transform[moving_idx].isApprox(end, 1e-9));
+    EXPECT_NE(cr->cc_type[moving_idx], ContinuousCollisionType::CCType_None);
     EXPECT_TRUE(cr->transform[static_idx].isApprox(static_near, 1e-9));
+    EXPECT_NEAR(cr->cc_time[static_idx], -1.0, 1e-9);
+    EXPECT_EQ(cr->cc_type[static_idx], ContinuousCollisionType::CCType_None);
   }
 
   // Rigid map overload on static octree
@@ -221,7 +224,10 @@ inline void runContinuousOctomapTransformOverloadUsageTest(
     const std::size_t static_idx = detail::getLinkIndex(*cr, "octomap2_link");
     EXPECT_TRUE(cr->transform[moving_idx].isApprox(start, 1e-9));
     EXPECT_TRUE(cr->cc_transform[moving_idx].isApprox(end, 1e-9));
+    EXPECT_NE(cr->cc_type[moving_idx], ContinuousCollisionType::CCType_None);
     EXPECT_TRUE(cr->transform[static_idx].isApprox(static_near, 1e-9));
+    EXPECT_NEAR(cr->cc_time[static_idx], -1.0, 1e-9);
+    EXPECT_EQ(cr->cc_type[static_idx], ContinuousCollisionType::CCType_None);
   }
 }
 

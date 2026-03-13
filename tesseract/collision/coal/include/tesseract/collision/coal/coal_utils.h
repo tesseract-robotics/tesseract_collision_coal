@@ -332,6 +332,24 @@ inline void updateCollisionObjectFilters(const std::vector<std::string>& active,
       // Use cast representation for static objects that cannot be represented
       // as ShapeBase (e.g., octree), so narrowphase never sees CastHull-vs-OcTree.
       const auto& static_objects = regular_has_non_shape_base ? cast_objects : reg_objects;
+      if (regular_has_non_shape_base)
+      {
+        coal::Transform3s identity_tf;
+        identity_tf.setIdentity();
+
+        // Clear any stale swept extent before reusing cast-backed objects as
+        // static proxies. Without this, a previously active octree can remain
+        // registered with a swept CastHullShape volume after demotion.
+        for (const auto& co : cast_objects)
+        {
+          auto* cast_shape = dynamic_cast<CastHullShape*>(co->collisionGeometry().get());
+          if (cast_shape != nullptr)
+          {
+            cast_shape->updateCastTransform(identity_tf);
+            co->updateAABB();
+          }
+        }
+      }
       for (const auto& co : static_objects)
       {
         static_manager->registerObject(co.get());
@@ -430,6 +448,7 @@ inline COW::Ptr makeCastCollisionObject(const COW::Ptr& cow)
       auto cast_co = std::make_shared<CoalCollisionObjectWrapper>(cast_shape, co->getTransform());
       cast_co->setShapeIndex(static_cast<int>(new_shape_poses.size()));
       cast_co->setSourceShapeIndex(static_cast<int>(old_shape_index));
+      cast_co->setSourceSubshapeIndex(co->getSourceSubshapeIndex());
       cast_co->setContactDistanceThreshold(co->getContactDistanceThreshold());
       cast_co->setUserData(cast_cow.get());
 
@@ -447,6 +466,7 @@ inline COW::Ptr makeCastCollisionObject(const COW::Ptr& cow)
         const auto tree = octree_geo->getTree();
         assert(tree != nullptr);
         const auto& base_shape_pose = current_shape_poses[old_shape_index];
+        int octree_subshape_index = 0;
 
         // Reuse one box shape per tree depth level (all voxels at the same depth
         // have the same size), matching Bullet's managed_shapes pattern.
@@ -477,7 +497,8 @@ inline COW::Ptr makeCastCollisionObject(const COW::Ptr& cow)
           auto cast_co = std::make_shared<CoalCollisionObjectWrapper>(
               cast_shape, coal::Transform3s(world_pose.rotation(), world_pose.translation()));
           cast_co->setShapeIndex(static_cast<int>(new_shape_poses.size()));
-            cast_co->setSourceShapeIndex(static_cast<int>(old_shape_index));
+          cast_co->setSourceShapeIndex(static_cast<int>(old_shape_index));
+          cast_co->setSourceSubshapeIndex(octree_subshape_index++);
           cast_co->setContactDistanceThreshold(co->getContactDistanceThreshold());
           cast_co->setUserData(cast_cow.get());
 

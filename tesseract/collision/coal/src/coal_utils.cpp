@@ -378,7 +378,9 @@ bool needsCollisionCheck(const CollisionObjectWrapper* cd1,
  * finds the shape's extreme points along the contact normal at t=0 and t=1, then
  * classifies the collision time based on which pose has greater support.
  *
- * For objects that are not CastHullShapes (static objects), the fields are left at their defaults.
+ * Only kinematic objects should receive CCD metadata. Static objects may still be
+ * represented by CastHullShape proxies as a Coal narrowphase workaround (for example,
+ * static octrees expanded to boxes), but they should keep the default CCD fields.
  */
 void populateContinuousCollisionFields(ContactResult& contact,
                                        const coal::CollisionObject* o1,
@@ -389,6 +391,10 @@ void populateContinuousCollisionFields(ContactResult& contact,
 
   for (std::size_t i = 0; i < 2; ++i)
   {
+    const auto* cow = static_cast<const CollisionObjectWrapper*>(objects[i]->getUserData());
+    if (cow == nullptr || cow->m_collisionFilterGroup != CollisionFilterGroups::KinematicFilter)
+      continue;
+
     const auto* cast_shape = dynamic_cast<const CastHullShape*>(objects[i]->collisionGeometry().get());
     if (cast_shape == nullptr)
       continue;
@@ -478,6 +484,16 @@ void populateContinuousCollisionFields(ContactResult& contact,
       contact.nearest_points_local[i] = link_tf_inv * (shape_tf0 * Eigen::Vector3d(avg_pt_local));
     }
   }
+}
+
+int getReportedSubshapeIndex(const coal::CollisionObject* object, int coal_subshape_index)
+{
+  const auto* collision_object = static_cast<const CoalCollisionObjectWrapper*>(object);
+  const int source_subshape_index = collision_object->getSourceSubshapeIndex();
+  if (source_subshape_index >= 0)
+    return source_subshape_index;
+
+  return coal_subshape_index;
 }
 
 bool CollisionCallback::collide(coal::CollisionObject* o1, coal::CollisionObject* o2)
@@ -604,8 +620,8 @@ bool CollisionCallback::collide(coal::CollisionObject* o1, coal::CollisionObject
     contact.link_names[1] = cd2->getName();
     contact.shape_id[0] = CollisionObjectWrapper::getShapeIndex(o1);
     contact.shape_id[1] = CollisionObjectWrapper::getShapeIndex(o2);
-    contact.subshape_id[0] = static_cast<int>(pair_swapped ? coal_contact.b2 : coal_contact.b1);
-    contact.subshape_id[1] = static_cast<int>(pair_swapped ? coal_contact.b1 : coal_contact.b2);
+    contact.subshape_id[0] = getReportedSubshapeIndex(o1, static_cast<int>(pair_swapped ? coal_contact.b2 : coal_contact.b1));
+    contact.subshape_id[1] = getReportedSubshapeIndex(o2, static_cast<int>(pair_swapped ? coal_contact.b1 : coal_contact.b2));
     contact.nearest_points[0] = coal_contact.nearest_points[idx0];
     contact.nearest_points[1] = coal_contact.nearest_points[idx1];
     contact.nearest_points_local[0] = tf1_inv * contact.nearest_points[0];
@@ -649,6 +665,7 @@ CollisionObjectWrapper::CollisionObjectWrapper(std::string name,
     if (shapes_[i]->getType() == tesseract::geometry::GeometryType::COMPOUND_MESH)
     {
       const auto& meshes = std::static_pointer_cast<const tesseract::geometry::CompoundMesh>(shapes_[i])->getMeshes();
+      int subshape_index = 0;
       for (const auto& mesh : meshes)
       {
         const CollisionGeometryPtr subshape = createShapePrimitive(mesh);
@@ -659,6 +676,7 @@ CollisionObjectWrapper::CollisionObjectWrapper(std::string name,
           co->setUserData(this);
           co->setShapeIndex(static_cast<int>(i));
           co->setSourceShapeIndex(static_cast<int>(i));
+          co->setSourceSubshapeIndex(subshape_index++);
           co->setTransform(coal::Transform3s(shape_poses_[i].rotation(), shape_poses_[i].translation()));
           co->updateAABB();
           collision_objects_.push_back(co);

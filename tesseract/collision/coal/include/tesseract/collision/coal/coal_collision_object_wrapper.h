@@ -92,6 +92,24 @@ public:
    */
   int getSourceShapeIndex() const;
 
+  /**
+   * @brief Set the source primitive index used for contact subshape reporting.
+   *
+   * This is used when one input geometry is expanded into multiple collision
+   * proxies and Coal's native contact primitive id no longer refers to the
+   * original geometry primitive identity.
+   * @param index The source primitive index in the original geometry.
+   */
+  void setSourceSubshapeIndex(int index);
+
+  /**
+   * @brief Get the source primitive index for contact subshape reporting.
+   *
+   * Returns -1 when no explicit source primitive mapping exists.
+   * @return The source primitive index or -1.
+   */
+  int getSourceSubshapeIndex() const;
+
 protected:
   double contact_distance_{ 0 }; /**< @brief The contact distance threshold. */
 
@@ -100,6 +118,9 @@ protected:
 
   /** @brief The source geometry index used when reporting contact shape ids. */
   int source_shape_index_{ -1 };
+
+  /** @brief The source primitive index used when reporting contact subshape ids. */
+  int source_subshape_index_{ -1 };
 };
 
 }  // namespace tesseract::collision::tesseract_collision_coal

@@ -58,4 +58,8 @@ int CoalCollisionObjectWrapper::getSourceShapeIndex() const
   return getShapeIndex();
 }
 
+void CoalCollisionObjectWrapper::setSourceSubshapeIndex(int index) { source_subshape_index_ = index; }
+
+int CoalCollisionObjectWrapper::getSourceSubshapeIndex() const { return source_subshape_index_; }
+
 }  // namespace tesseract::collision::tesseract_collision_coal

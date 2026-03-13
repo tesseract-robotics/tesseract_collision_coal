@@ -46,6 +46,66 @@ TEST(TesseractCollisionUnit, BulletCastBVHStaticOctreeCylinderShapeIdUsesOrigina
   test_suite::runTestStaticOctreeCylinderShapeIdUsesOriginalGeometryIndex(checker);
 }
 
+TEST(TesseractCollisionUnit, BulletCastSimpleStaticOctreeSubshapeIdReportsPrimitiveIdentity)  // NOLINT
+{
+  tesseract::collision::BulletCastSimpleManager checker;
+  test_suite::runTestStaticOctreeSubshapeIdReportsPrimitiveIdentity(checker);
+}
+
+TEST(TesseractCollisionUnit, BulletCastBVHStaticOctreeSubshapeIdReportsPrimitiveIdentity)  // NOLINT
+{
+  tesseract::collision::BulletCastBVHManager checker;
+  test_suite::runTestStaticOctreeSubshapeIdReportsPrimitiveIdentity(checker);
+}
+
+TEST(TesseractCollisionUnit, BulletCastSimpleActiveOctreeDemotionClearsSweepState)  // NOLINT
+{
+  tesseract::collision::BulletCastSimpleManager checker;
+  test_suite::runTestActiveOctreeDemotionClearsSweepState(checker);
+}
+
+TEST(TesseractCollisionUnit, BulletCastBVHActiveOctreeDemotionClearsSweepState)  // NOLINT
+{
+  tesseract::collision::BulletCastBVHManager checker;
+  test_suite::runTestActiveOctreeDemotionClearsSweepState(checker);
+}
+
+TEST(TesseractCollisionUnit, BulletCastSimpleActiveOctreeDisabledSweepDoesNotUpdateCastState)  // NOLINT
+{
+  tesseract::collision::BulletCastSimpleManager checker;
+  test_suite::runTestActiveOctreeDisabledSweepDoesNotUpdateCastState(checker);
+}
+
+TEST(TesseractCollisionUnit, BulletCastBVHActiveOctreeDisabledSweepDoesNotUpdateCastState)  // NOLINT
+{
+  tesseract::collision::BulletCastBVHManager checker;
+  test_suite::runTestActiveOctreeDisabledSweepDoesNotUpdateCastState(checker);
+}
+
+TEST(TesseractCollisionUnit, BulletCastSimpleActiveOctreeRoundTripActiveSetTransitions)  // NOLINT
+{
+  tesseract::collision::BulletCastSimpleManager checker;
+  test_suite::runTestActiveOctreeRoundTripActiveSetTransitions(checker);
+}
+
+TEST(TesseractCollisionUnit, BulletCastBVHActiveOctreeRoundTripActiveSetTransitions)  // NOLINT
+{
+  tesseract::collision::BulletCastBVHManager checker;
+  test_suite::runTestActiveOctreeRoundTripActiveSetTransitions(checker);
+}
+
+TEST(TesseractCollisionUnit, BulletCastSimpleActiveOctreeSubshapeIdReportsPrimitiveIdentity)  // NOLINT
+{
+  tesseract::collision::BulletCastSimpleManager checker;
+  test_suite::runTestActiveOctreeSubshapeIdReportsPrimitiveIdentity(checker);
+}
+
+TEST(TesseractCollisionUnit, BulletCastBVHActiveOctreeSubshapeIdReportsPrimitiveIdentity)  // NOLINT
+{
+  tesseract::collision::BulletCastBVHManager checker;
+  test_suite::runTestActiveOctreeSubshapeIdReportsPrimitiveIdentity(checker);
+}
+
 #if defined(TESSERACT_COLLISION_COAL_ENABLE_COAL_CAST_TESTS)
 TEST(TesseractCollisionUnit, CoalCastBVHStaticOctreeCylinderContinuousTransformUpdatesBroadphase)  // NOLINT
 {
@@ -63,6 +123,36 @@ TEST(TesseractCollisionUnit, CoalCastBVHStaticOctreeCylinderShapeIdUsesOriginalG
 {
   tesseract_collision_coal::CoalCastBVHManager checker;
   test_suite::runTestStaticOctreeCylinderShapeIdUsesOriginalGeometryIndex(checker);
+}
+
+TEST(TesseractCollisionUnit, CoalCastBVHStaticOctreeSubshapeIdReportsPrimitiveIdentity)  // NOLINT
+{
+  tesseract_collision_coal::CoalCastBVHManager checker;
+  test_suite::runTestStaticOctreeSubshapeIdReportsPrimitiveIdentity(checker);
+}
+
+TEST(TesseractCollisionUnit, CoalCastBVHActiveOctreeDemotionClearsSweepState)  // NOLINT
+{
+  tesseract_collision_coal::CoalCastBVHManager checker;
+  test_suite::runTestActiveOctreeDemotionClearsSweepState(checker);
+}
+
+TEST(TesseractCollisionUnit, CoalCastBVHActiveOctreeDisabledSweepDoesNotUpdateCastState)  // NOLINT
+{
+  tesseract_collision_coal::CoalCastBVHManager checker;
+  test_suite::runTestActiveOctreeDisabledSweepDoesNotUpdateCastState(checker);
+}
+
+TEST(TesseractCollisionUnit, CoalCastBVHActiveOctreeRoundTripActiveSetTransitions)  // NOLINT
+{
+  tesseract_collision_coal::CoalCastBVHManager checker;
+  test_suite::runTestActiveOctreeRoundTripActiveSetTransitions(checker);
+}
+
+TEST(TesseractCollisionUnit, CoalCastBVHActiveOctreeSubshapeIdReportsPrimitiveIdentity)  // NOLINT
+{
+  tesseract_collision_coal::CoalCastBVHManager checker;
+  test_suite::runTestActiveOctreeSubshapeIdReportsPrimitiveIdentity(checker);
 }
 #endif
 
