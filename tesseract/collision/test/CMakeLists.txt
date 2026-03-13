@@ -83,6 +83,7 @@ add_gtest(${PROJECT_NAME}_core_unit collision_core_unit.cpp)
 add_gtest(${PROJECT_NAME}_config_unit contact_managers_config_unit.cpp)
 
 add_gtest(${PROJECT_NAME}_coal_casthullshape_unit coal/coal_casthullshape_unit.cpp)
+add_gtest(${PROJECT_NAME}_coal_cache_pair_unit coal/coal_cache_pair_unit.cpp)
 
 # add_gtest(${PROJECT_NAME}_factory_static_unit contact_managers_factory_static_unit.cpp)
 # target_link_libraries(${PROJECT_NAME}_factory_static_unit PRIVATE tesseract::collision_bullet)
