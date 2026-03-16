@@ -73,8 +73,9 @@ inline ContactResultVector runClosest(ContinuousContactManager& checker)
   return result_vec;
 }
 
-inline void addDiscreteOctreeAndSphere(DiscreteContactManager& checker,
-                                       tesseract::geometry::OctreeSubType subtype = tesseract::geometry::OctreeSubType::BOX)
+inline void
+addDiscreteOctreeAndSphere(DiscreteContactManager& checker,
+                           tesseract::geometry::OctreeSubType subtype = tesseract::geometry::OctreeSubType::BOX)
 {
   auto ot = loadOctreeBox2m();
 
@@ -91,8 +92,9 @@ inline void addDiscreteOctreeAndSphere(DiscreteContactManager& checker,
   ASSERT_TRUE(checker.addCollisionObject("sphere_link", 0, sphere_shapes, sphere_poses, true));
 }
 
-inline void addContinuousOctreePair(ContinuousContactManager& checker,
-                                    tesseract::geometry::OctreeSubType subtype = tesseract::geometry::OctreeSubType::BOX)
+inline void
+addContinuousOctreePair(ContinuousContactManager& checker,
+                        tesseract::geometry::OctreeSubType subtype = tesseract::geometry::OctreeSubType::BOX)
 {
   auto ot_a = loadOctreeBox2m();
   auto ot_b = loadOctreeBox2m();

@@ -362,9 +362,9 @@ void GetAverageSupport(const coal::ShapeBase* shape,
 }
 
 bool needsCollisionCheck(const CollisionObjectWrapper* cd1,
-                                const CollisionObjectWrapper* cd2,
-                                const std::shared_ptr<const tesseract::common::ContactAllowedValidator>& validator,
-                                bool verbose)
+                         const CollisionObjectWrapper* cd2,
+                         const std::shared_ptr<const tesseract::common::ContactAllowedValidator>& validator,
+                         bool verbose)
 {
   return cd1->m_enabled && cd2->m_enabled && (cd2->m_collisionFilterGroup & cd1->m_collisionFilterMask) &&  // NOLINT
          (cd1->m_collisionFilterGroup & cd2->m_collisionFilterMask) &&                                      // NOLINT
@@ -620,8 +620,10 @@ bool CollisionCallback::collide(coal::CollisionObject* o1, coal::CollisionObject
     contact.link_names[1] = cd2->getName();
     contact.shape_id[0] = CollisionObjectWrapper::getShapeIndex(o1);
     contact.shape_id[1] = CollisionObjectWrapper::getShapeIndex(o2);
-    contact.subshape_id[0] = getReportedSubshapeIndex(o1, static_cast<int>(pair_swapped ? coal_contact.b2 : coal_contact.b1));
-    contact.subshape_id[1] = getReportedSubshapeIndex(o2, static_cast<int>(pair_swapped ? coal_contact.b1 : coal_contact.b2));
+    contact.subshape_id[0] =
+        getReportedSubshapeIndex(o1, static_cast<int>(pair_swapped ? coal_contact.b2 : coal_contact.b1));
+    contact.subshape_id[1] =
+        getReportedSubshapeIndex(o2, static_cast<int>(pair_swapped ? coal_contact.b1 : coal_contact.b2));
     contact.nearest_points[0] = coal_contact.nearest_points[idx0];
     contact.nearest_points[1] = coal_contact.nearest_points[idx1];
     contact.nearest_points_local[0] = tf1_inv * contact.nearest_points[0];

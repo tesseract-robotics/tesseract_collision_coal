@@ -38,8 +38,7 @@ TEST(TesseractCollisionUnit, BulletDiscreteBVHCollisionOctomapSphereMeshUnit)  /
 TEST(TesseractCollisionUnit, CoalDiscreteBVHCollisionOctomapSphereMeshUnit)  // NOLINT
 {
   tesseract_collision_coal::CoalDiscreteBVHManager checker;
-  test_suite::runTest(checker,
-                      tesseract::common::getTempPath() + "CoalDiscreteBVHCollisionOctomapSphereMeshUnit.ply");
+  test_suite::runTest(checker, tesseract::common::getTempPath() + "CoalDiscreteBVHCollisionOctomapSphereMeshUnit.ply");
 }
 
 /** @brief This is to test the shape id and sub-shape id of the contact results. */

@@ -82,8 +82,8 @@ inline void runCompoundMeshShapeIdUsesOriginalGeometryIndex(ContinuousContactMan
       const int compound_shape_id = (cr.link_names[0] == "compound_link") ? cr.shape_id[0] : cr.shape_id[1];
       const int sphere_shape_id = (cr.link_names[0] == "sphere_link") ? cr.shape_id[0] : cr.shape_id[1];
 
-      EXPECT_EQ(compound_shape_id, 0)
-          << "Compound mesh should report original geometry index 0, but got " << compound_shape_id;
+      EXPECT_EQ(compound_shape_id, 0) << "Compound mesh should report original geometry index 0, but got "
+                                      << compound_shape_id;
       EXPECT_EQ(sphere_shape_id, 0) << "Sphere should report original geometry index 0, but got " << sphere_shape_id;
       EXPECT_LT(cr.distance, 0.11) << "Expected contact/penetration for compound mesh cast shape-id scenario";
     }
@@ -140,9 +140,10 @@ inline void runCompoundMeshSubshapeIdReportsPrimitiveIdentity(ContinuousContactM
   }
 
   EXPECT_TRUE(found_pair) << "Expected contact between compound_link and sphere_link";
-  EXPECT_TRUE(found_compound_subshape)
-      << "Compound mesh should report a primitive subshape_id for at least one contact result. "
-      << "If this stays unset, the backend is losing compound child identity on the continuous path.";
+  EXPECT_TRUE(found_compound_subshape) << "Compound mesh should report a primitive subshape_id for at least one "
+                                          "contact result. "
+                                       << "If this stays unset, the backend is losing compound child identity on the "
+                                          "continuous path.";
 }
 }  // namespace detail
 

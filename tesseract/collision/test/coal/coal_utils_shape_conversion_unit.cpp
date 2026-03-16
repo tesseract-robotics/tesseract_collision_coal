@@ -17,10 +17,7 @@ class UnsupportedGeometry final : public tesseract::geometry::Geometry
 public:
   UnsupportedGeometry() : tesseract::geometry::Geometry(tesseract::geometry::GeometryType::UNINITIALIZED) {}
 
-  tesseract::geometry::Geometry::Ptr clone() const override
-  {
-    return std::make_shared<UnsupportedGeometry>();
-  }
+  tesseract::geometry::Geometry::Ptr clone() const override { return std::make_shared<UnsupportedGeometry>(); }
 };
 
 std::shared_ptr<tesseract::geometry::Mesh> makeTriangleMesh()

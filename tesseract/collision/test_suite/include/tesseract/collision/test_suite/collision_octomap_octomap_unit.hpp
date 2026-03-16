@@ -73,8 +73,7 @@ inline void addCollisionObjects(T& checker,
   }
 }
 
-inline void runTestOctomap(DiscreteContactManager& checker, ContactTestType test_type,
-                           double expected_distance)
+inline void runTestOctomap(DiscreteContactManager& checker, ContactTestType test_type, double expected_distance)
 {
   //////////////////////////////////////
   // Test when object is in collision
@@ -109,8 +108,7 @@ inline void runTestOctomap(DiscreteContactManager& checker, ContactTestType test
   }
 }
 
-inline void runTestOctomap(ContinuousContactManager& checker, ContactTestType test_type,
-                           double expected_distance)
+inline void runTestOctomap(ContinuousContactManager& checker, ContactTestType test_type, double expected_distance)
 {
   //////////////////////////////////////
   // Test when object is in collision

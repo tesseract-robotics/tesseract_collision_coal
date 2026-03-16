@@ -11,6 +11,7 @@ TESSERACT_COMMON_IGNORE_WARNINGS_POP
 using namespace tesseract::collision;
 using namespace tesseract::collision::tesseract_collision_coal;
 
+#if defined(TESSERACT_COLLISION_COAL_ENABLE_COAL_CAST_TESTS)
 namespace
 {
 void addStaticBoxAndActiveSphere(CoalCastBVHManager& checker)
@@ -36,7 +37,6 @@ bool hasPair(const ContactResultVector& results, const std::string& a, const std
 }
 }  // namespace
 
-#if defined(TESSERACT_COLLISION_COAL_ENABLE_COAL_CAST_TESTS)
 TEST(CoalCastManagerBranchesUnit, DisabledObjectSweepDoesNotUpdateCastState)  // NOLINT
 {
   CoalCastBVHManager checker;

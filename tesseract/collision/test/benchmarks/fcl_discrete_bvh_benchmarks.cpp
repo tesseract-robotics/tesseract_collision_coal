@@ -14,6 +14,7 @@ using namespace tesseract::geometry;
 // Removes some of the long running tests (greater than 30s). Set to false to run everything.
 static const bool RUN_QUICK = true;
 
+// NOLINTBEGIN(readability-redundant-string-cstr): Jammy-compatible code Noble clang-tidy complains about
 int main(int argc, char** argv)
 {
   const tesseract::collision::FCLDiscreteBVHManager::ConstPtr checker =
@@ -316,3 +317,4 @@ int main(int argc, char** argv)
   benchmark::Initialize(&argc, argv);
   benchmark::RunSpecifiedBenchmarks();
 }
+// NOLINTEND(readability-redundant-string-cstr)

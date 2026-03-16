@@ -11,6 +11,7 @@ using namespace tesseract::collision;
 using namespace test_suite;
 using namespace tesseract::geometry;
 
+// NOLINTBEGIN(readability-redundant-string-cstr): Jammy-compatible code Noble clang-tidy complains about
 int main(int argc, char** argv)
 {
   const tesseract_collision_coal::CoalDiscreteBVHManager::ConstPtr checker =
@@ -300,3 +301,4 @@ int main(int argc, char** argv)
   benchmark::Initialize(&argc, argv);
   benchmark::RunSpecifiedBenchmarks();
 }
+// NOLINTEND(readability-redundant-string-cstr)

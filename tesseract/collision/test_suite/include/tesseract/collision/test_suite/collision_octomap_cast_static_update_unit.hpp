@@ -189,12 +189,12 @@ inline void runStaticOctreeCylinderShapeIdUsesOriginalGeometryIndex(ContinuousCo
     {
       found_pair = true;
       const int octree_shape_id = (cr.link_names[0] == "static_octree") ? cr.shape_id[0] : cr.shape_id[1];
-        const int cylinder_shape_id = (cr.link_names[0] == "active_cylinder") ? cr.shape_id[0] : cr.shape_id[1];
-      EXPECT_EQ(octree_shape_id, 0)
-          << "Static octree should report original geometry index 0, but got " << octree_shape_id;
-        EXPECT_EQ(cylinder_shape_id, 0)
-          << "Active cylinder should report original geometry index 0, but got " << cylinder_shape_id;
-        EXPECT_LT(cr.distance, 0.11) << "Expected contact/penetration for shape-id validation scenario";
+      const int cylinder_shape_id = (cr.link_names[0] == "active_cylinder") ? cr.shape_id[0] : cr.shape_id[1];
+      EXPECT_EQ(octree_shape_id, 0) << "Static octree should report original geometry index 0, but got "
+                                    << octree_shape_id;
+      EXPECT_EQ(cylinder_shape_id, 0) << "Active cylinder should report original geometry index 0, but got "
+                                      << cylinder_shape_id;
+      EXPECT_LT(cr.distance, 0.11) << "Expected contact/penetration for shape-id validation scenario";
     }
   }
 
@@ -245,9 +245,10 @@ inline void runStaticOctreeSubshapeIdReportsPrimitiveIdentity(ContinuousContactM
   }
 
   EXPECT_TRUE(found_pair) << "Expected contact between static_octree and active_cylinder";
-  EXPECT_TRUE(found_octree_subshape)
-      << "Static octree should report a primitive subshape_id for at least one contact result. "
-      << "If this stays unset, the backend is losing octree primitive identity on the continuous path.";
+  EXPECT_TRUE(found_octree_subshape) << "Static octree should report a primitive subshape_id for at least one contact "
+                                        "result. "
+                                     << "If this stays unset, the backend is losing octree primitive identity on the "
+                                        "continuous path.";
 }
 
 inline void runActiveOctreeDemotionClearsSweepState(ContinuousContactManager& checker)
@@ -297,8 +298,8 @@ inline void runActiveOctreeDisabledSweepDoesNotUpdateCastState(ContinuousContact
   ContactResultVector no_sweep_vector;
   no_sweep_result.flattenMoveResults(no_sweep_vector);
 
-  EXPECT_FALSE(hasMovingOctreeProbePair(no_sweep_vector))
-      << "A disabled octree sweep should not update cast state or produce a swept collision volume.";
+  EXPECT_FALSE(hasMovingOctreeProbePair(no_sweep_vector)) << "A disabled octree sweep should not update cast state or "
+                                                             "produce a swept collision volume.";
 
   checker.setCollisionObjectsTransform("moving_octree", start, end);
 
@@ -307,8 +308,8 @@ inline void runActiveOctreeDisabledSweepDoesNotUpdateCastState(ContinuousContact
   ContactResultVector sweep_vector;
   sweep_result.flattenMoveResults(sweep_vector);
 
-  EXPECT_TRUE(hasMovingOctreeProbePair(sweep_vector))
-      << "After an enabled sweep update, the active octree should collide with the probe cylinder.";
+  EXPECT_TRUE(hasMovingOctreeProbePair(sweep_vector)) << "After an enabled sweep update, the active octree should "
+                                                         "collide with the probe cylinder.";
 }
 
 inline void runActiveOctreeRoundTripActiveSetTransitions(ContinuousContactManager& checker)
@@ -325,8 +326,8 @@ inline void runActiveOctreeRoundTripActiveSetTransitions(ContinuousContactManage
   checker.contactTest(first_active_result, ContactRequest(ContactTestType::CLOSEST));
   ContactResultVector first_active_vector;
   first_active_result.flattenMoveResults(first_active_vector);
-  EXPECT_TRUE(hasMovingOctreeProbePair(first_active_vector))
-      << "Active octree should collide with the probe during the initial sweep.";
+  EXPECT_TRUE(hasMovingOctreeProbePair(first_active_vector)) << "Active octree should collide with the probe during "
+                                                                "the initial sweep.";
 
   checker.setActiveCollisionObjects({ "probe_cylinder" });
 
@@ -334,8 +335,8 @@ inline void runActiveOctreeRoundTripActiveSetTransitions(ContinuousContactManage
   checker.contactTest(first_static_result, ContactRequest(ContactTestType::CLOSEST));
   ContactResultVector first_static_vector;
   first_static_result.flattenMoveResults(first_static_vector);
-  EXPECT_FALSE(hasMovingOctreeProbePair(first_static_vector))
-      << "After demotion to static, the octree should not retain swept collision volume.";
+  EXPECT_FALSE(hasMovingOctreeProbePair(first_static_vector)) << "After demotion to static, the octree should not "
+                                                                 "retain swept collision volume.";
 
   checker.setActiveCollisionObjects({ "moving_octree" });
   checker.setCollisionObjectsTransform("moving_octree", start);
@@ -345,8 +346,8 @@ inline void runActiveOctreeRoundTripActiveSetTransitions(ContinuousContactManage
   checker.contactTest(second_active_result, ContactRequest(ContactTestType::CLOSEST));
   ContactResultVector second_active_vector;
   second_active_result.flattenMoveResults(second_active_vector);
-  EXPECT_TRUE(hasMovingOctreeProbePair(second_active_vector))
-      << "Re-activating the octree and applying a new sweep should restore the expected collision.";
+  EXPECT_TRUE(hasMovingOctreeProbePair(second_active_vector)) << "Re-activating the octree and applying a new sweep "
+                                                                 "should restore the expected collision.";
 
   checker.setActiveCollisionObjects({ "probe_cylinder" });
 
@@ -354,8 +355,8 @@ inline void runActiveOctreeRoundTripActiveSetTransitions(ContinuousContactManage
   checker.contactTest(second_static_result, ContactRequest(ContactTestType::CLOSEST));
   ContactResultVector second_static_vector;
   second_static_result.flattenMoveResults(second_static_vector);
-  EXPECT_FALSE(hasMovingOctreeProbePair(second_static_vector))
-      << "A second demotion back to static should also clear any swept extent.";
+  EXPECT_FALSE(hasMovingOctreeProbePair(second_static_vector)) << "A second demotion back to static should also clear "
+                                                                  "any swept extent.";
 }
 
 inline void runActiveOctreeSubshapeIdReportsPrimitiveIdentity(ContinuousContactManager& checker)
@@ -400,9 +401,10 @@ inline void runActiveOctreeSubshapeIdReportsPrimitiveIdentity(ContinuousContactM
   }
 
   EXPECT_TRUE(found_pair) << "Expected contact between moving_octree and probe_cylinder";
-  EXPECT_TRUE(found_octree_subshape)
-      << "Active octree should report a primitive subshape_id for at least one contact result. "
-      << "If this stays unset, the backend is losing octree primitive identity on the continuous path.";
+  EXPECT_TRUE(found_octree_subshape) << "Active octree should report a primitive subshape_id for at least one contact "
+                                        "result. "
+                                     << "If this stays unset, the backend is losing octree primitive identity on the "
+                                        "continuous path.";
 }
 }  // namespace detail
 
