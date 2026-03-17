@@ -395,11 +395,7 @@ void CoalDiscreteBVHManager::addCollisionObject(const COW::Ptr& cow)
 
   // If active links is not empty update filters to replace the active links list
   if (!active_.empty())
-  {
-    if (cow->m_collisionFilterGroup == CollisionFilterGroups::KinematicFilter)
-      active_.push_back(cow->getName());
     updateCollisionObjectFilters(active_, cow, static_manager_, dynamic_manager_);
-  }
 
   // This causes a refit on the bvh tree.
   dynamic_manager_->update();

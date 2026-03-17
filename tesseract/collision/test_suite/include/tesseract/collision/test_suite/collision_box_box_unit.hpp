@@ -109,18 +109,13 @@ inline void addCollisionObjects(DiscreteContactManager& checker, bool use_convex
   EXPECT_TRUE(checker.getCollisionObjects().size() == 4);
   EXPECT_TRUE(checker.hasCollisionObject("remove_box_link"));
 
-  // Verify that active list grew to include the new kinematic object
-  {
-    const auto& active_after_add = checker.getActiveCollisionObjects();
-    EXPECT_EQ(active_after_add.size(), 4);
-    EXPECT_NE(std::find(active_after_add.begin(), active_after_add.end(), "remove_box_link"),
-              active_after_add.end());
-  }
+  // Verify that adding a new object does not automatically add it to active list
+  EXPECT_EQ(checker.getActiveCollisionObjects().size(), 3);
 
   checker.removeCollisionObject("remove_box_link");
   EXPECT_FALSE(checker.hasCollisionObject("remove_box_link"));
 
-  // Verify that active list shrunk and no longer contains the removed object
+  // Verify that active list no longer contains the removed object
   {
     const auto& active_after_remove = checker.getActiveCollisionObjects();
     EXPECT_EQ(active_after_remove.size(), 3);
