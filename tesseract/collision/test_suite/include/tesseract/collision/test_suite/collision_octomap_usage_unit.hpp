@@ -52,6 +52,8 @@ inline std::size_t getLinkIndex(const ContactResult& cr, const std::string& name
   if (cr.link_names[1] == name)
     return 1;
 
+  ADD_FAILURE() << "Link name '" << name << "' not found in contact result (link_names: '" << cr.link_names[0]
+                << "', '" << cr.link_names[1] << "')";
   return 0;
 }
 
@@ -73,9 +75,7 @@ inline ContactResultVector runClosest(ContinuousContactManager& checker)
   return result_vec;
 }
 
-inline void
-addDiscreteOctreeAndSphere(DiscreteContactManager& checker,
-                           tesseract::geometry::OctreeSubType subtype = tesseract::geometry::OctreeSubType::BOX)
+inline void addDiscreteOctreeAndSphere(DiscreteContactManager& checker, tesseract::geometry::OctreeSubType subtype)
 {
   auto ot = loadOctreeBox2m();
 
@@ -92,9 +92,7 @@ addDiscreteOctreeAndSphere(DiscreteContactManager& checker,
   ASSERT_TRUE(checker.addCollisionObject("sphere_link", 0, sphere_shapes, sphere_poses, true));
 }
 
-inline void
-addContinuousOctreePair(ContinuousContactManager& checker,
-                        tesseract::geometry::OctreeSubType subtype = tesseract::geometry::OctreeSubType::BOX)
+inline void addContinuousOctreePair(ContinuousContactManager& checker, tesseract::geometry::OctreeSubType subtype)
 {
   auto ot_a = loadOctreeBox2m();
   auto ot_b = loadOctreeBox2m();
@@ -113,9 +111,8 @@ addContinuousOctreePair(ContinuousContactManager& checker,
 }
 }  // namespace detail
 
-inline void runDiscreteOctomapTransformOverloadUsageTest(
-    DiscreteContactManager& checker,
-    tesseract::geometry::OctreeSubType subtype = tesseract::geometry::OctreeSubType::BOX)
+inline void runDiscreteOctomapTransformOverloadUsageTest(DiscreteContactManager& checker,
+                                                        tesseract::geometry::OctreeSubType subtype)
 {
   detail::addDiscreteOctreeAndSphere(checker, subtype);
 
@@ -150,9 +147,8 @@ inline void runDiscreteOctomapTransformOverloadUsageTest(
   EXPECT_FALSE(detail::hasPair(far_map, "octomap_link", "sphere_link"));
 }
 
-inline void runContinuousOctomapTransformOverloadUsageTest(
-    ContinuousContactManager& checker,
-    tesseract::geometry::OctreeSubType subtype = tesseract::geometry::OctreeSubType::BOX)
+inline void runContinuousOctomapTransformOverloadUsageTest(ContinuousContactManager& checker,
+                                                          tesseract::geometry::OctreeSubType subtype)
 {
   detail::addContinuousOctreePair(checker, subtype);
 

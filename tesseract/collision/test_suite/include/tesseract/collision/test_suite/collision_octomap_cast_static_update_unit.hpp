@@ -16,46 +16,37 @@ namespace tesseract::collision::test_suite
 {
 namespace detail
 {
-inline void addStaticOctreeAndActiveCylinder(ContinuousContactManager& checker)
-{
-  tesseract::common::GeneralResourceLocator locator;
-  std::string path = locator.locateResource("package://tesseract/support/meshes/box_2m.bt")->getFilePath();
-  auto ot = std::make_shared<octomap::OcTree>(path);
-
-  CollisionShapesConst static_shapes;
-  tesseract::common::VectorIsometry3d static_shape_poses;
-  static_shapes.push_back(std::make_shared<tesseract::geometry::Octree>(ot, tesseract::geometry::OctreeSubType::BOX));
-  static_shape_poses.push_back(Eigen::Isometry3d::Identity());
-  checker.addCollisionObject("static_octree", 0, static_shapes, static_shape_poses);
-
-  CollisionShapesConst active_shapes;
-  tesseract::common::VectorIsometry3d active_shape_poses;
-  active_shapes.push_back(std::make_shared<tesseract::geometry::Cylinder>(0.1, 0.5));
-  active_shape_poses.push_back(Eigen::Isometry3d::Identity());
-  checker.addCollisionObject("active_cylinder", 0, active_shapes, active_shape_poses);
-
-  EXPECT_EQ(checker.getCollisionObjects().size(), 2);
-}
-
-inline void addActiveOctreeAndProbeCylinder(ContinuousContactManager& checker)
+inline void addOctreeAndCylinder(ContinuousContactManager& checker,
+                                 const std::string& octree_name,
+                                 const std::string& cylinder_name)
 {
   tesseract::common::GeneralResourceLocator locator;
   std::string path = locator.locateResource("package://tesseract/support/meshes/box_2m.bt")->getFilePath();
   auto ot = std::make_shared<octomap::OcTree>(path);
 
   CollisionShapesConst octree_shapes;
-  tesseract::common::VectorIsometry3d octree_shape_poses;
+  tesseract::common::VectorIsometry3d octree_poses;
   octree_shapes.push_back(std::make_shared<tesseract::geometry::Octree>(ot, tesseract::geometry::OctreeSubType::BOX));
-  octree_shape_poses.push_back(Eigen::Isometry3d::Identity());
-  checker.addCollisionObject("moving_octree", 0, octree_shapes, octree_shape_poses);
+  octree_poses.push_back(Eigen::Isometry3d::Identity());
+  checker.addCollisionObject(octree_name, 0, octree_shapes, octree_poses);
 
   CollisionShapesConst cylinder_shapes;
-  tesseract::common::VectorIsometry3d cylinder_shape_poses;
+  tesseract::common::VectorIsometry3d cylinder_poses;
   cylinder_shapes.push_back(std::make_shared<tesseract::geometry::Cylinder>(0.1, 0.5));
-  cylinder_shape_poses.push_back(Eigen::Isometry3d::Identity());
-  checker.addCollisionObject("probe_cylinder", 0, cylinder_shapes, cylinder_shape_poses);
+  cylinder_poses.push_back(Eigen::Isometry3d::Identity());
+  checker.addCollisionObject(cylinder_name, 0, cylinder_shapes, cylinder_poses);
 
   EXPECT_EQ(checker.getCollisionObjects().size(), 2);
+}
+
+inline void addStaticOctreeAndActiveCylinder(ContinuousContactManager& checker)
+{
+  addOctreeAndCylinder(checker, "static_octree", "active_cylinder");
+}
+
+inline void addActiveOctreeAndProbeCylinder(ContinuousContactManager& checker)
+{
+  addOctreeAndCylinder(checker, "moving_octree", "probe_cylinder");
 }
 
 inline bool hasMovingOctreeProbePair(const ContactResultVector& result_vector)

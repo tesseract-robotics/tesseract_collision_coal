@@ -26,6 +26,8 @@ TESSERACT_COMMON_IGNORE_WARNINGS_PUSH
 #include <gtest/gtest.h>
 TESSERACT_COMMON_IGNORE_WARNINGS_POP
 
+#include <cstdlib>
+
 #include <tesseract/collision/contact_managers_plugin_factory.h>
 #include <tesseract/collision/discrete_contact_manager.h>
 #include <tesseract/collision/bullet/bullet_factories.h>
@@ -33,15 +35,18 @@ TESSERACT_COMMON_IGNORE_WARNINGS_POP
 #include <tesseract/common/resource_locator.h>
 
 using namespace tesseract::collision;
-#include <cstdlib>
+
 TEST(TesseractContactManagersFactoryUnit, StaticLoadPlugin)  // NOLINT
 {
+  // Workaround: setenv is POSIX-only. This replaces the boost_plugin_loader call that is
+  // unavailable while tesseract_collision_coal is developed outside mainline tesseract.
+  // Once merged back, this should revert to addSymbolLibraryToSearchLibrariesEnv().
   constexpr const char* env_name = "TESSERACT_CONTACT_MANAGERS_PLUGINS";
   std::string env_value = "tesseract_collision_bullet_factories";
-  const char* existing_env = std::getenv(env_name);
+  const char* existing_env = std::getenv(env_name);  // NOLINT(concurrency-mt-unsafe)
   if (existing_env != nullptr && existing_env[0] != '\0')
     env_value = std::string(existing_env) + ":" + env_value;
-  setenv(env_name, env_value.c_str(), 1);
+  setenv(env_name, env_value.c_str(), 1);  // NOLINT(concurrency-mt-unsafe)
 
   std::string config = R"(contact_manager_plugins:
                             search_paths:
