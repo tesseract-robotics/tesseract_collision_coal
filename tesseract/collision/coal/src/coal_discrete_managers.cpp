@@ -143,6 +143,10 @@ bool CoalDiscreteBVHManager::removeCollisionObject(const std::string& name)
       collision_objects_.erase(it_obj);
     link2cow_.erase(name);
 
+    auto it_active = std::find(active_.begin(), active_.end(), name);
+    if (it_active != active_.end())
+      active_.erase(it_active);
+
     // Remove cached collision functors that involve the removed object
     for (auto it_cache = collision_cache.begin(); it_cache != collision_cache.end();)
     {
@@ -391,7 +395,11 @@ void CoalDiscreteBVHManager::addCollisionObject(const COW::Ptr& cow)
 
   // If active links is not empty update filters to replace the active links list
   if (!active_.empty())
+  {
+    if (cow->m_collisionFilterGroup == CollisionFilterGroups::KinematicFilter)
+      active_.push_back(cow->getName());
     updateCollisionObjectFilters(active_, cow, static_manager_, dynamic_manager_);
+  }
 
   // This causes a refit on the bvh tree.
   dynamic_manager_->update();

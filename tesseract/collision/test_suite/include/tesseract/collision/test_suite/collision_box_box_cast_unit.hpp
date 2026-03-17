@@ -62,6 +62,13 @@ inline void addCollisionObjects(ContinuousContactManager& checker)
   checker.addCollisionObject("moving_box_link", 0, obj3_shapes, obj3_poses);
 
   /////////////////////////////////////////////
+  // Set active links before add/remove test
+  /////////////////////////////////////////////
+  std::vector<std::string> pre_active_links{ "static_box_link", "moving_box_link", "thin_box_link" };
+  checker.setActiveCollisionObjects(pre_active_links);
+  EXPECT_EQ(checker.getActiveCollisionObjects().size(), 3);
+
+  /////////////////////////////////////////////
   // Add box and remove
   /////////////////////////////////////////////
   CollisionShapePtr remove_box = std::make_shared<tesseract::geometry::Box>(0.1, 1, 1);
@@ -76,8 +83,25 @@ inline void addCollisionObjects(ContinuousContactManager& checker)
   checker.addCollisionObject("remove_box_link", 0, obj4_shapes, obj4_poses);
   EXPECT_TRUE(checker.getCollisionObjects().size() == 4);
   EXPECT_TRUE(checker.hasCollisionObject("remove_box_link"));
+
+  // Verify that active list grew to include the new kinematic object
+  {
+    const auto& active_after_add = checker.getActiveCollisionObjects();
+    EXPECT_EQ(active_after_add.size(), 4);
+    EXPECT_NE(std::find(active_after_add.begin(), active_after_add.end(), "remove_box_link"),
+              active_after_add.end());
+  }
+
   checker.removeCollisionObject("remove_box_link");
   EXPECT_FALSE(checker.hasCollisionObject("remove_box_link"));
+
+  // Verify that active list shrunk and no longer contains the removed object
+  {
+    const auto& active_after_remove = checker.getActiveCollisionObjects();
+    EXPECT_EQ(active_after_remove.size(), 3);
+    EXPECT_EQ(std::find(active_after_remove.begin(), active_after_remove.end(), "remove_box_link"),
+              active_after_remove.end());
+  }
 
   /////////////////////////////////////////////
   // Try functions on a link that does not exist

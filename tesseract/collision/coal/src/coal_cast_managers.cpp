@@ -139,6 +139,10 @@ bool CoalCastBVHManager::removeCollisionObject(const std::string& name)
     removeObjects(objects);
     link2cow_.erase(name);
 
+    auto it_active = std::find(active_.begin(), active_.end(), name);
+    if (it_active != active_.end())
+      active_.erase(it_active);
+
     // Also remove from cast map
     auto it_cast = link2castcow_.find(name);
     if (it_cast != link2castcow_.end())
@@ -593,7 +597,11 @@ void CoalCastBVHManager::addCollisionObject(const COW::Ptr& cow)
 
   /// If active links is not empty update filters to replace the active links list
   if (!active_.empty())
+  {
+    if (cow->m_collisionFilterGroup == CollisionFilterGroups::KinematicFilter)
+      active_.push_back(cow->getName());
     updateCollisionObjectFilters(active_, cow, cast_cow, static_manager_, dynamic_manager_);
+  }
 
   // This causes a refit on the bvh tree.
   dynamic_manager_->update();
