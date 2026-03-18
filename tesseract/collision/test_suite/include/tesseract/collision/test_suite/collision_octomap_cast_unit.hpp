@@ -33,6 +33,10 @@ inline std::string formatOctomapContactResult(const ContactResult& cr)
      << cr.nearest_points[0][2] << ")"
      << "\n  nearest_points[1]: (" << cr.nearest_points[1][0] << ", " << cr.nearest_points[1][1] << ", "
      << cr.nearest_points[1][2] << ")"
+     << "\n  nearest_points_local[0]: (" << cr.nearest_points_local[0][0] << ", "
+     << cr.nearest_points_local[0][1] << ", " << cr.nearest_points_local[0][2] << ")"
+     << "\n  nearest_points_local[1]: (" << cr.nearest_points_local[1][0] << ", "
+     << cr.nearest_points_local[1][1] << ", " << cr.nearest_points_local[1][2] << ")"
      << "\n  cc_time: [" << cr.cc_time[0] << ", " << cr.cc_time[1] << "]"
      << "\n  cc_type: [" << static_cast<int>(cr.cc_type[0]) << ", " << static_cast<int>(cr.cc_type[1]) << "]"
      << "\n  transform[0].t: (" << cr.transform[0].translation()[0] << ", " << cr.transform[0].translation()[1] << ", "
@@ -154,6 +158,48 @@ inline void checkOctomapCastResult(const ContactResult& cr,
   // Normal must be a unit vector.
   EXPECT_NEAR(cr.normal.norm(), 1.0, 1e-3)
       << "Contact normal must be a unit vector";
+
+  // -----------------------------------------------------------------------
+  // distance: the kinematic link ends inside the octree, so the swept hull
+  // genuinely penetrates at least one voxel → distance must be negative.
+  // -----------------------------------------------------------------------
+  EXPECT_LT(cr.distance, 0.0)
+      << "Expected penetration (distance < 0); got " << cr.distance
+      << ". The kinematic shape ends inside the octree, so the swept hull "
+         "must overlap a voxel and distance must be strictly negative.";
+
+  // -----------------------------------------------------------------------
+  // nearest_points_local[ki]: the local-frame contact point for the kinematic
+  // link must be non-trivial (non-zero).  A zero vector means the field was
+  // never populated, which would cause Trajopt to compute a zero-offset
+  // Jacobian and produce incorrect gradients.
+  // -----------------------------------------------------------------------
+  EXPECT_GT(cr.nearest_points_local[ki].norm(), 1e-6)
+      << "nearest_points_local for kinematic link '" << kin_link << "' should be non-zero "
+         "(non-trivial contact point in the link frame). A zero value means the "
+         "field was not set by populateContinuousCollisionFields.";
+
+  // -----------------------------------------------------------------------
+  // CCType_Time1 normal-direction invariant:
+  //
+  // CCType_Time1 is selected when link_sup1 > link_sup0 + tolerance.
+  // For a pure-translational sweep:
+  //   link_sup1 - link_sup0  =  normal_world · sweep_vector
+  // where normal_world is the outward normal FROM the kinematic shape
+  // (i.e. normal_world = contact.normal when ki==0, -contact.normal when ki==1).
+  //
+  // Therefore, if cc_type is CCType_Time1, the outward normal from the
+  // kinematic shape must have a strictly positive component along sweep_dir.
+  // -----------------------------------------------------------------------
+  if (cr.cc_type[ki] == ContinuousCollisionType::CCType_Time1)
+  {
+    const double along_sweep = (ki == 0 ? 1.0 : -1.0) * cr.normal.dot(sweep_dir);
+    EXPECT_GT(along_sweep, 0.001)
+        << "For CCType_Time1, the outward normal from the kinematic shape must "
+        << "have a positive component along sweep_dir "
+        << "(along_sweep = " << along_sweep << "). "
+        << "This is the invariant that selects CCType_Time1 over CCType_Between.";
+  }
 }
 
 /**

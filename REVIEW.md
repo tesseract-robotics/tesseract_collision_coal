@@ -1,7 +1,7 @@
 # Code Review: Coal Continuous Collision Detection Implementation
 
 **Reviewer:** Claude Code
-**Date:** 2026-03-11 (updated 2026-03-18)
+**Date:** 2026-03-11 (updated 2026-03-18, 2026-03-19)
 **Scope:** Coal cast (continuous) collision checking — CastHullShape, cast managers, utilities, and tests
 
 ## Summary
@@ -94,3 +94,41 @@ The comment says "conservative AABB via the support function" which is correct �
 ## Recommendations
 
 1. Consider adding a test for the `clone()` method's behavior with active cast transforms.
+
+---
+
+## Test coverage gaps (2026-03-19 audit)
+
+Audited all cast unit tests against the full `ContactResult` struct fields. Findings below.
+
+### `single_contact_point`
+
+Never set by either Bullet or Coal in cast callbacks (both default to `false`). Only discrete tests branch on it. Not a Trajopt/cast concern.
+
+### `type_id`
+
+Correctly propagated via `cd->getTypeID()` in Coal's callback. Not tested with non-zero values in any cast test — adding a test that registers an object with a non-zero type_id and asserts it is preserved in the contact result would close this gap. Not a suspected root cause of the Trajopt octree regression (Trajopt does not use `type_id` directly in gradient computation).
+
+### `subshape_id`
+
+Already tested via `runStaticOctreeSubshapeIdReportsPrimitiveIdentity` (`subshape_id >= 0` for at least one octree contact). Not a Trajopt gradient concern.
+
+### `nearest_points_local`
+
+**Gap (now addressed):** Not validated in any octree cast test. A zero `nearest_points_local` would cause Trajopt to compute a zero-offset Jacobian for the contact point, producing incorrect gradients. The octree cast tests now assert `nearest_points_local[ki].norm() > 1e-6`. Note: `nearest_points_local` for `CCType_Time1` and `CCType_Time0` was previously left at the zero default and was fixed as part of issue 2 above.
+
+### `normal` direction for `CCType_Time1`
+
+**Gap (now addressed):** Not validated in octree cast tests. The invariant is: if `cc_type == CCType_Time1`, then the outward normal from the kinematic shape must have a strictly positive component along the sweep direction (this is exactly the condition that selects `CCType_Time1` over `CCType_Between`). Formally: `((ki==0 ? 1 : -1) * cr.normal).dot(sweep_dir) > 0`. The octree cast tests now assert this.
+
+### `distance` sign
+
+**Gap (now addressed):** Octree cast tests previously only checked `distance < 0.11` (within margin). Since the kinematic shape ends inside the octree, the swept hull must genuinely penetrate a voxel and `distance` must be negative. The octree cast tests now assert `distance < 0.0`.
+
+### Trajopt octree regression analysis
+
+The investigation did not identify a definitive code-level bug from static analysis alone. Probable candidates:
+
+1. **`nearest_points_local` not set for `CCType_Time1`/`CCType_Time0`** (now fixed, issue 2 above): Trajopt uses `nearest_points_local` for Jacobian offset computation. A zero value produces zero-offset Jacobians, making the gradient independent of the contact point position and potentially reducing gradient magnitude to near zero.
+
+2. **GJK functor cache stale guess**: `CollisionCacheMap` caches GJK support hints keyed by `(co1*, co2*)` pointer pair. Between Trajopt optimization iterations the robot configuration changes but the cache key stays the same. A stale warm-start guess from the previous configuration could cause GJK to converge to a different local minimum, producing an incorrect contact normal and thus an incorrect gradient direction. This is harder to detect via static analysis; a targeted test would be needed.
