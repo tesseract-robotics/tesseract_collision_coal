@@ -477,10 +477,13 @@ void populateContinuousCollisionFields(ContactResult& contact,
     {
       contact.cc_time[i] = 1;
       contact.cc_type[i] = ContinuousCollisionType::CCType_Time1;
-      // pt_local1 is in the shape's local frame at t=1 rotation; map it to
-      // link-local via the t=0 shape transform, matching Bullet's
-      // calculateContinuousData which also uses shape_tf0 for all three cases.
-      contact.nearest_points_local[i] = link_tf_inv * (shape_tf0 * Eigen::Vector3d(pt_local1));
+      // pt_local1 is the support point in the shape's local frame at t=1
+      // rotation.  Map it to world via shape_tf1 (shape at end pose), then
+      // to link-local.  This matches Bullet's calculateContinuousData, which
+      // uses the t=1 shape transform for the CCType_Time1 branch, so that
+      // transform[ki] * nearest_points_local[ki] == nearest_points[ki]
+      // (the actual world-frame contact point).
+      contact.nearest_points_local[i] = link_tf_inv * (shape_tf1 * Eigen::Vector3d(pt_local1));
     }
     else
     {
