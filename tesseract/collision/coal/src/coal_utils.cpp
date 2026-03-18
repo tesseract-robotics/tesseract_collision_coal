@@ -486,19 +486,22 @@ void populateContinuousCollisionFields(ContactResult& contact,
     {
       contact.cc_type[i] = ContinuousCollisionType::CCType_Between;
 
-      // Interpolate cc_time by projecting the contact midpoint onto the LINK
-      // center trajectory (link_center0 → link_center1).  Using the link
-      // center (not the per-shape center) is consistent with the support
-      // comparison above and avoids skew from local offsets under rotation.
-      const Eigen::Vector3d link_center0 = contact.transform[i].translation();
-      const Eigen::Vector3d link_center1 = contact.cc_transform[i].translation();
-      const Eigen::Vector3d link_sweep = link_center1 - link_center0;
-      const double link_sweep_sq = link_sweep.squaredNorm();
+      // Interpolate cc_time by projecting the contact midpoint onto the
+      // per-shape centre trajectory (shape_center0 → shape_center1).
+      // The contact point follows the shape centre, not the link origin, so
+      // using the per-shape centre gives the correct fraction even when the
+      // shape has a non-zero local translation offset within the link.
+      // (The support comparison above uses the link centre to avoid orbital-
+      // motion bias, but that is a separate concern from the time projection.)
+      const Eigen::Vector3d shape_center0 = Eigen::Vector3d(tf_world0.getTranslation());
+      const Eigen::Vector3d shape_center1 = Eigen::Vector3d(tf_world1.getTranslation());
+      const Eigen::Vector3d shape_sweep = shape_center1 - shape_center0;
+      const double shape_sweep_sq = shape_sweep.squaredNorm();
 
-      if (link_sweep_sq < COAL_LENGTH_TOLERANCE * COAL_LENGTH_TOLERANCE)
+      if (shape_sweep_sq < COAL_LENGTH_TOLERANCE * COAL_LENGTH_TOLERANCE)
         contact.cc_time[i] = 0.5;
       else
-        contact.cc_time[i] = std::clamp(link_sweep.dot(pt_world - link_center0) / link_sweep_sq, 0.0, 1.0);
+        contact.cc_time[i] = std::clamp(shape_sweep.dot(pt_world - shape_center0) / shape_sweep_sq, 0.0, 1.0);
 
       // nearest_points_local: average of the two local support points,
       // transformed to world via shape_tf0, then to link-local coordinates.
