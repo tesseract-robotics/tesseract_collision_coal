@@ -676,6 +676,7 @@ CollisionObjectWrapper::CollisionObjectWrapper(std::string name,
                                                tesseract::common::VectorIsometry3d shape_poses)
   : name_(std::move(name)), type_id_(type_id), shapes_(std::move(shapes)), shape_poses_(std::move(shape_poses))
 {
+  // Preconditions guaranteed by createCoalCollisionObject() which validates before construction.
   assert(!shapes_.empty());                       // NOLINT
   assert(!shape_poses_.empty());                  // NOLINT
   assert(!name_.empty());                         // NOLINT

@@ -42,6 +42,7 @@ TESSERACT_COMMON_IGNORE_WARNINGS_POP
 
 #include <tesseract/geometry/geometry.h>
 #include <tesseract/collision/coal/coal_cast_managers.h>
+#include <tesseract/collision/coal/coal_collision_geometry_cache.h>
 #include <tesseract/collision/coal/coal_casthullshape.h>
 #include <tesseract/collision/coal/coal_utils.h>
 
@@ -69,6 +70,8 @@ std::string CoalCastBVHManager::getName() const { return name_; }
 
 ContinuousContactManager::UPtr CoalCastBVHManager::clone() const
 {
+  CoalCollisionGeometryCache::prune();
+
   // Note: addCollisionObject creates fresh CastHullShapes with identity cast
   // transforms, so any active sweep state (set via setCollisionObjectsTransform
   // with pose1/pose2) is not preserved. This matches Bullet's clone behavior.

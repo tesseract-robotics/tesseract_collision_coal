@@ -44,6 +44,7 @@ TESSERACT_COMMON_IGNORE_WARNINGS_POP
 
 #include <unordered_set>
 
+#include <tesseract/collision/coal/coal_collision_geometry_cache.h>
 #include <tesseract/collision/coal/coal_discrete_managers.h>
 
 namespace tesseract::collision::tesseract_collision_coal
@@ -62,6 +63,8 @@ std::string CoalDiscreteBVHManager::getName() const { return name_; }
 
 DiscreteContactManager::UPtr CoalDiscreteBVHManager::clone() const
 {
+  CoalCollisionGeometryCache::prune();
+
   auto manager = std::make_unique<CoalDiscreteBVHManager>();
 
   for (const auto& cow : link2cow_)
