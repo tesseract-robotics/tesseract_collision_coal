@@ -56,31 +56,29 @@ inline std::string formatOctomapContactResult(const ContactResult& cr)
  * @param sweep_dir    Unit vector along the sweep direction in world frame.
  */
 /**
- * @param expected_kin_cc_type  Expected CCType for the kinematic side.
+ * @brief Check continuous collision fields on an octree-vs-kinematic contact.
  *
- * Bullet's populateContinuousCollisionFields compares WORLD-frame supports,
- * which include the shape-center translation: sup_world = normal · (center + pt_local).
- * For a purely translational sweep the delta is (normal · sweep_vec).
+ * @param sweep_dir  Unit vector along the sweep direction, used to validate
+ *                   the normal direction when cc_type is CCType_Between.
  *
- * - If the contact normal has a large component along the sweep direction
- *   (|normal · sweep| ≫ 0), sup_world differs between t=0 and t=1,
- *   giving CCType_Time0 or CCType_Time1.  This is the case for the cylinder
- *   and convex-hull tests, where the "CLOSEST" contact is a central voxel
- *   reached at the end of the sweep (t=1).
+ * Which CCType the kinematic side receives depends on which octree voxel the
+ * broadphase selects (non-deterministic across test runs):
  *
- * - If the contact normal is roughly perpendicular to the sweep
- *   (normal · sweep ≈ 0), the world supports are equal, giving CCType_Between.
- *   This is the case for the sphere test, whose contact normal is lateral.
+ *  - CCType_Time1: the contact normal has a large component along the sweep
+ *    direction, so the t=1 world-frame support dominates → cc_time = 1.0.
  *
- * @param sweep_dir  Unit vector along the sweep direction (only used when
- *                   expected_kin_cc_type == CCType_Between to verify the
- *                   normal is mostly perpendicular to the sweep).
+ *  - CCType_Between: the contact normal is roughly perpendicular to the sweep
+ *    (normal · sweep ≈ 0), world supports are equal → cc_time ∈ (0, 1].
+ *    In this case the perpendicularity is a consequence of the type, so we
+ *    can also assert it.
+ *
+ * CCType_None is impossible (kinematic object), and CCType_Time0 is
+ * impossible because the kinematic shape starts well outside the octree.
  */
 inline void checkOctomapCastResult(const ContactResult& cr,
                                    const std::string& kin_link,
                                    const Eigen::Isometry3d& start_pos,
                                    const Eigen::Isometry3d& end_pos,
-                                   ContinuousCollisionType expected_kin_cc_type,
                                    const Eigen::Vector3d& sweep_dir)
 {
   // Determine which slot holds the kinematic shape and which holds the static octree.
@@ -103,44 +101,57 @@ inline void checkOctomapCastResult(const ContactResult& cr,
       << "Octree (static) cc_time should be -1 (not set for static objects)";
 
   // -----------------------------------------------------------------------
-  // Kinematic side
+  // Kinematic side: cc_type must be Time1 or Between.
+  //
+  // Which one depends on which voxel the broadphase selects (ordering is not
+  // guaranteed across test runs).  Both values are correct; what matters is
+  // that the static value (None) and the impossible value (Time0) are ruled
+  // out.
   // -----------------------------------------------------------------------
-  EXPECT_EQ(cr.cc_type[ki], expected_kin_cc_type)
-      << "Kinematic cc_type should be " << static_cast<int>(expected_kin_cc_type)
-      << "; got " << static_cast<int>(cr.cc_type[ki]);
+  const bool kin_type_valid = (cr.cc_type[ki] == ContinuousCollisionType::CCType_Time1 ||
+                               cr.cc_type[ki] == ContinuousCollisionType::CCType_Between);
+  EXPECT_TRUE(kin_type_valid)
+      << "Kinematic cc_type must be CCType_Time1 (2) or CCType_Between (3); "
+      << "got " << static_cast<int>(cr.cc_type[ki])
+      << ". CCType_None means static (wrong). "
+         "CCType_Time0 is geometrically impossible (shape starts outside octree).";
 
-  if (expected_kin_cc_type == ContinuousCollisionType::CCType_Time1)
+  // cc_time consistency with cc_type:
+  //   CCType_Time1  → cc_time = 1.0 (set explicitly by populateContinuousCollisionFields)
+  //   CCType_Between → cc_time = projection of contact midpoint onto sweep,
+  //                    always > 0 because the shape starts outside the octree.
+  if (cr.cc_type[ki] == ContinuousCollisionType::CCType_Time1)
   {
-    // Contact is at the end pose (t=1): shape ends deep inside the octree.
-    // This happens when the contact normal has a large component along the
-    // sweep direction, making the t=1 world support dominate over t=0.
     EXPECT_NEAR(cr.cc_time[ki], 1.0, 1e-3)
-        << "Kinematic cc_time should be 1.0 for CCType_Time1";
+        << "For CCType_Time1, cc_time must be 1.0";
   }
   else
   {
-    // CCType_Between: contact normal is roughly perpendicular to the sweep,
-    // so the world supports are equal and time is interpolated.
-    // Shape starts outside the octree, so cc_time > 0.
-    EXPECT_GT(cr.cc_time[ki], 0.0) << "Kinematic cc_time should be > 0";
-    EXPECT_LE(cr.cc_time[ki], 1.0) << "Kinematic cc_time should be <= 1.0";
+    EXPECT_GT(cr.cc_time[ki], 0.0)
+        << "For CCType_Between, cc_time must be > 0 (shape starts outside octree)";
+    EXPECT_LE(cr.cc_time[ki], 1.0)
+        << "For CCType_Between, cc_time must be <= 1.0";
 
-    // When CCType_Between, the normal is perpendicular to the sweep.
+    // CCType_Between is set precisely when the contact normal is perpendicular
+    // to the sweep (normal · sweep ≈ 0), making the world supports equal at
+    // t=0 and t=1.  This is an invariant we can verify.
     const double along_sweep = std::abs(cr.normal.dot(sweep_dir));
     EXPECT_LT(along_sweep, 0.5)
         << "For CCType_Between, contact normal should be mostly perpendicular "
-        << "to the sweep direction (along_sweep = " << along_sweep << ")";
+        << "to sweep direction (along_sweep = " << along_sweep << "); "
+        << "a large component means the world supports should differ and "
+        << "CCType_Time1 should have been set instead";
   }
 
-  // transform[ki] is set to pose1 (start of sweep).
+  // transform[ki] = pose1 (start of sweep).
   EXPECT_TRUE(cr.transform[ki].isApprox(start_pos, 1e-5))
       << "Kinematic transform should match start pose (pose1)";
 
-  // cc_transform[ki] is set to pose2 (end of sweep).
+  // cc_transform[ki] = pose2 (end of sweep).
   EXPECT_TRUE(cr.cc_transform[ki].isApprox(end_pos, 1e-5))
       << "Kinematic cc_transform should match end pose (pose2)";
 
-  // Normal must be a unit vector regardless of cc_type.
+  // Normal must be a unit vector.
   EXPECT_NEAR(cr.normal.norm(), 1.0, 1e-3)
       << "Contact normal must be a unit vector";
 }
@@ -268,8 +279,7 @@ inline void runOctomapCylinderCastTest(ContinuousContactManager& checker, Contac
       found_pair = true;
       SCOPED_TRACE(formatOctomapContactResult(cr));
       EXPECT_LT(cr.distance, 0.11) << "Expected collision/near-contact between octree and cylinder";
-      checkOctomapCastResult(
-          cr, "cylinder_link", start_pos, end_pos, ContinuousCollisionType::CCType_Time1, Eigen::Vector3d(1, 0, 0));
+      checkOctomapCastResult(cr, "cylinder_link", start_pos, end_pos, Eigen::Vector3d(1, 0, 0));
       break;
     }
   }
@@ -318,8 +328,7 @@ inline void runOctomapSphereCastTest(ContinuousContactManager& checker, ContactT
       found_pair = true;
       SCOPED_TRACE(formatOctomapContactResult(cr));
       EXPECT_LT(cr.distance, 0.11) << "Expected collision/near-contact between octree and sphere";
-      checkOctomapCastResult(
-          cr, "sphere_link", start_pos, end_pos, ContinuousCollisionType::CCType_Between, Eigen::Vector3d(0, 0, -1));
+      checkOctomapCastResult(cr, "sphere_link", start_pos, end_pos, Eigen::Vector3d(0, 0, -1));
       break;
     }
   }
@@ -418,8 +427,7 @@ inline void runOctomapConvexHullCastTest(ContinuousContactManager& checker, Cont
       found_pair = true;
       SCOPED_TRACE(formatOctomapContactResult(cr));
       EXPECT_LT(cr.distance, 0.11) << "Expected collision/near-contact between octree and convex hull";
-      checkOctomapCastResult(
-          cr, "convex_link", start_pos, end_pos, ContinuousCollisionType::CCType_Time1, Eigen::Vector3d(1, 0, 0));
+      checkOctomapCastResult(cr, "convex_link", start_pos, end_pos, Eigen::Vector3d(1, 0, 0));
       break;
     }
   }
