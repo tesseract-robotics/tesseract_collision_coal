@@ -5,6 +5,9 @@
 TESSERACT_COMMON_IGNORE_WARNINGS_PUSH
 #include <octomap/octomap.h>
 #include <gtest/gtest.h>
+#include <sstream>
+#include <iomanip>
+#include <cmath>
 TESSERACT_COMMON_IGNORE_WARNINGS_POP
 
 #include <tesseract/collision/bullet/convex_hull_utils.h>
@@ -18,6 +21,115 @@ namespace tesseract::collision::test_suite
 {
 namespace detail
 {
+inline std::string formatOctomapContactResult(const ContactResult& cr)
+{
+  std::ostringstream os;
+  os << std::setprecision(6) << std::fixed;
+  os << "Contact result:"
+     << "\n  link_names: [" << cr.link_names[0] << ", " << cr.link_names[1] << "]"
+     << "\n  distance: " << cr.distance
+     << "\n  normal: (" << cr.normal[0] << ", " << cr.normal[1] << ", " << cr.normal[2] << ")"
+     << "\n  nearest_points[0]: (" << cr.nearest_points[0][0] << ", " << cr.nearest_points[0][1] << ", "
+     << cr.nearest_points[0][2] << ")"
+     << "\n  nearest_points[1]: (" << cr.nearest_points[1][0] << ", " << cr.nearest_points[1][1] << ", "
+     << cr.nearest_points[1][2] << ")"
+     << "\n  cc_time: [" << cr.cc_time[0] << ", " << cr.cc_time[1] << "]"
+     << "\n  cc_type: [" << static_cast<int>(cr.cc_type[0]) << ", " << static_cast<int>(cr.cc_type[1]) << "]"
+     << "\n  transform[0].t: (" << cr.transform[0].translation()[0] << ", " << cr.transform[0].translation()[1] << ", "
+     << cr.transform[0].translation()[2] << ")"
+     << "\n  transform[1].t: (" << cr.transform[1].translation()[0] << ", " << cr.transform[1].translation()[1] << ", "
+     << cr.transform[1].translation()[2] << ")"
+     << "\n  cc_transform[0].t: (" << cr.cc_transform[0].translation()[0] << ", "
+     << cr.cc_transform[0].translation()[1] << ", " << cr.cc_transform[0].translation()[2] << ")"
+     << "\n  cc_transform[1].t: (" << cr.cc_transform[1].translation()[0] << ", "
+     << cr.cc_transform[1].translation()[1] << ", " << cr.cc_transform[1].translation()[2] << ")";
+  return os.str();
+}
+
+/**
+ * @brief Check continuous collision fields on an octree-vs-kinematic contact result.
+ *
+ * @param cr           The contact result to validate.
+ * @param kin_link     Name of the kinematic (active) link.
+ * @param start_pos    Pose1 (start of sweep) for the kinematic link.
+ * @param end_pos      Pose2 (end of sweep) for the kinematic link.
+ * @param sweep_dir    Unit vector along the sweep direction in world frame.
+ */
+inline void checkOctomapCastResult(const ContactResult& cr,
+                                   const std::string& kin_link,
+                                   const Eigen::Isometry3d& start_pos,
+                                   const Eigen::Isometry3d& end_pos,
+                                   const Eigen::Vector3d& sweep_dir)
+{
+  // Determine which slot holds the kinematic shape and which holds the static octree.
+  EXPECT_TRUE(cr.link_names[0] == kin_link || cr.link_names[1] == kin_link)
+      << "Expected kinematic link '" << kin_link << "' in contact result, "
+      << "got [" << cr.link_names[0] << ", " << cr.link_names[1] << "]";
+  const std::size_t ki = (cr.link_names[0] == kin_link) ? 0 : 1;
+  const std::size_t si = 1 - ki;
+
+  // -----------------------------------------------------------------------
+  // Static (octree) side
+  // The octree voxels are wrapped in CastHullShape with identity cast, but
+  // they are in StaticFilter.  populateContinuousCollisionFields skips them,
+  // so their CCD fields keep the default values: CCType_None / cc_time = -1.
+  // -----------------------------------------------------------------------
+  EXPECT_EQ(cr.cc_type[si], ContinuousCollisionType::CCType_None)
+      << "Octree (static) cc_type should be CCType_None; "
+      << "got " << static_cast<int>(cr.cc_type[si]);
+  EXPECT_NEAR(cr.cc_time[si], -1.0, 1e-3)
+      << "Octree (static) cc_time should be -1 (not set for static objects)";
+
+  // -----------------------------------------------------------------------
+  // Kinematic side
+  // -----------------------------------------------------------------------
+
+  // The sweep is purely translational, so the underlying shape support along
+  // the contact normal is identical at t=0 and t=1 (sup_local0 == sup_local1).
+  // populateContinuousCollisionFields therefore sets CCType_Between.
+  EXPECT_EQ(cr.cc_type[ki], ContinuousCollisionType::CCType_Between)
+      << "Kinematic cc_type should be CCType_Between (no rotation in sweep); "
+      << "got " << static_cast<int>(cr.cc_type[ki]);
+
+  // The kinematic shape starts outside the octree and ends inside it, so the
+  // contact midpoint is somewhere inside the octree, giving cc_time in [0, 1].
+  // For the given sweeps (shape enters octree at ~50% of the path), the
+  // projected cc_time is always in the upper half [0.4, 1.0].
+  EXPECT_GE(cr.cc_time[ki], 0.4)
+      << "Kinematic cc_time should be >= 0.4 (contact inside the octree, past entry)";
+  EXPECT_LE(cr.cc_time[ki], 1.0)
+      << "Kinematic cc_time should be <= 1.0";
+
+  // transform[ki] is set to pose1 (start of sweep).
+  EXPECT_TRUE(cr.transform[ki].isApprox(start_pos, 1e-5))
+      << "Kinematic transform should match start pose (pose1)";
+
+  // cc_transform[ki] is set to pose2 (end of sweep).
+  EXPECT_TRUE(cr.cc_transform[ki].isApprox(end_pos, 1e-5))
+      << "Kinematic cc_transform should match end pose (pose2)";
+
+  // -----------------------------------------------------------------------
+  // Contact normal direction
+  //
+  // The swept hull is a long thin shape along the sweep axis.  Every octree
+  // voxel (spanning ~0.05 m) lies fully inside the swept hull along that
+  // axis, while the hull's cross-section radius is small (0.1–0.25 m).
+  // EPA therefore finds the minimum penetration depth in the RADIAL direction
+  // (perpendicular to the sweep), not along the sweep axis.  A large
+  // component along sweep_dir would give Trajopt a wrong gradient direction
+  // and is the primary failure mode this test is designed to catch.
+  // -----------------------------------------------------------------------
+  EXPECT_NEAR(cr.normal.norm(), 1.0, 1e-3)
+      << "Contact normal must be a unit vector";
+
+  const double along_sweep = std::abs(cr.normal.dot(sweep_dir));
+  EXPECT_LT(along_sweep, 0.5)
+      << "Contact normal has a large component along the sweep direction ("
+      << along_sweep << "). "
+      << "EPA on swept-hull vs voxel should give a radial (perpendicular) normal. "
+      << "A sweep-aligned normal gives Trajopt an incorrect gradient.";
+}
+
 /**
  * @brief Add a static octree (BOX) and an active cylinder to the cast checker.
  *
@@ -139,8 +251,9 @@ inline void runOctomapCylinderCastTest(ContinuousContactManager& checker, Contac
         (cr.link_names[0] == "cylinder_link" && cr.link_names[1] == "octomap_link"))
     {
       found_pair = true;
-      // The collision should have negative or near-zero distance (penetration or contact)
+      SCOPED_TRACE(formatOctomapContactResult(cr));
       EXPECT_LT(cr.distance, 0.11) << "Expected collision/near-contact between octree and cylinder";
+      checkOctomapCastResult(cr, "cylinder_link", start_pos, end_pos, Eigen::Vector3d(1, 0, 0));
       break;
     }
   }
@@ -187,7 +300,9 @@ inline void runOctomapSphereCastTest(ContinuousContactManager& checker, ContactT
         (cr.link_names[0] == "sphere_link" && cr.link_names[1] == "octomap_link"))
     {
       found_pair = true;
+      SCOPED_TRACE(formatOctomapContactResult(cr));
       EXPECT_LT(cr.distance, 0.11) << "Expected collision/near-contact between octree and sphere";
+      checkOctomapCastResult(cr, "sphere_link", start_pos, end_pos, Eigen::Vector3d(0, 0, -1));
       break;
     }
   }
@@ -284,7 +399,9 @@ inline void runOctomapConvexHullCastTest(ContinuousContactManager& checker, Cont
         (cr.link_names[0] == "convex_link" && cr.link_names[1] == "octomap_link"))
     {
       found_pair = true;
+      SCOPED_TRACE(formatOctomapContactResult(cr));
       EXPECT_LT(cr.distance, 0.11) << "Expected collision/near-contact between octree and convex hull";
+      checkOctomapCastResult(cr, "convex_link", start_pos, end_pos, Eigen::Vector3d(1, 0, 0));
       break;
     }
   }
