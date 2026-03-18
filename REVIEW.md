@@ -59,7 +59,7 @@ The `normal_world · shape_center` term is non-zero for a translation, so Bullet
 
 **Possible fix:** Compute the support comparison at the link-frame level rather than the per-shape frame level (i.e., use the link origin as `center`, not the per-shape world center). This matches Bullet's compound-child treatment and removes the orbital-motion bias while restoring the translational classification. For the common single-shape case this is equivalent to world-frame supports.
 
-**Severity:** Medium — correct behaviour for rotation-dominant motion; semantically incorrect (relative to Bullet) for pure-translational sweeps, with a downstream planner impact if `cc_type` is used for more than display.
+**Status: Fixed.** `populateContinuousCollisionFields` now uses `sup_local + normal · link_center` for both poses. For pure rotation `link_center0 == link_center1` so the result is identical to before; for pure translation `sup_local0 == sup_local1` so `link_sup1 − link_sup0 = normal · link_sweep`, correctly producing `CCType_Time1` or `CCType_Time0`. `nearest_points_local` is now also populated for the `CCType_Time0` and `CCType_Time1` branches (previously left at the zero default). `CCType_Between` projection was also updated to use the link-center trajectory for consistency.
 
 ---
 

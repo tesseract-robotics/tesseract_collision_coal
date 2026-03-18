@@ -440,47 +440,70 @@ void populateContinuousCollisionFields(ContactResult& contact,
     double sup_local1 = 0;
     GetAverageSupport(underlying, normal_local1, sup_local1, pt_local1);
 
-    // Compare LOCAL support values (underlying shape support in each rotated
-    // normal direction) rather than world-frame supports. World-frame supports
-    // include the shape center translation (normal · center), which biases the
-    // comparison when the per-shape cast transform has a translational component
-    // (e.g., multi-shape links with non-identity local offsets under rotation).
-    // Local supports isolate the rotational effect on the shape's support,
-    // matching Bullet's behavior where compound children use link-level rotation.
-    if (sup_local0 - sup_local1 > COAL_SUPPORT_FUNC_TOLERANCE)
+    // Compare world-frame supports at the LINK origin as reference center,
+    // matching Bullet's compound-child treatment:
+    //
+    //   sup_world = sup_local + normal_world · link_center
+    //
+    // Using the link center (not the per-shape world center) avoids orbital-
+    // motion bias: when a multi-shape link rotates, each per-shape center
+    // orbits the link origin, adding a spurious translational term
+    // (normal · link_R * local_offset) to the comparison that differs between
+    // sub-shapes even though the link undergoes the same motion.  Bullet
+    // avoids this by building compound-child cast transforms at link level
+    // (no per-shape translation component); we replicate that here.
+    //
+    // For pure rotation: link_center0 == link_center1, so the dot-product
+    // terms cancel and the comparison reduces to sup_local1 vs sup_local0,
+    // unchanged from before.
+    //
+    // For pure translation: sup_local0 == sup_local1 (same rotation ⇒ same
+    // local normal), so link_sup1 − link_sup0 = normal · link_sweep.
+    // A positive value means the shape's surface advances in the normal
+    // direction over the sweep → CCType_Time1, matching Bullet.
+    const Eigen::Vector3d nw(normal_world);
+    const double link_sup0 = sup_local0 + nw.dot(contact.transform[i].translation());
+    const double link_sup1 = sup_local1 + nw.dot(contact.cc_transform[i].translation());
+
+    const Eigen::Isometry3d link_tf_inv = contact.transform[i].inverse();
+
+    if (link_sup0 - link_sup1 > COAL_SUPPORT_FUNC_TOLERANCE)
     {
       contact.cc_time[i] = 0;
       contact.cc_type[i] = ContinuousCollisionType::CCType_Time0;
+      contact.nearest_points_local[i] = link_tf_inv * (shape_tf0 * Eigen::Vector3d(pt_local0));
     }
-    else if (sup_local1 - sup_local0 > COAL_SUPPORT_FUNC_TOLERANCE)
+    else if (link_sup1 - link_sup0 > COAL_SUPPORT_FUNC_TOLERANCE)
     {
       contact.cc_time[i] = 1;
       contact.cc_type[i] = ContinuousCollisionType::CCType_Time1;
+      // pt_local1 is in the shape's local frame at t=1 rotation; map it to
+      // link-local via the t=0 shape transform, matching Bullet's
+      // calculateContinuousData which also uses shape_tf0 for all three cases.
+      contact.nearest_points_local[i] = link_tf_inv * (shape_tf0 * Eigen::Vector3d(pt_local1));
     }
     else
     {
       contact.cc_type[i] = ContinuousCollisionType::CCType_Between;
 
-      // Interpolate cc_time by projecting the contact point onto the shape's
-      // CENTER trajectory (center0 → center1) rather than the support vertex
-      // trajectory. Using the center avoids skew from off-axis components of
-      // tessellated mesh support vertices (e.g., a convex mesh vertex at
-      // (0.237, -0.077, 0.25) instead of ideal (0.25, 0, 0) for a sphere).
-      auto center0 = Eigen::Vector3d(tf_world0.getTranslation());
-      auto center1 = Eigen::Vector3d(tf_world1.getTranslation());
-      Eigen::Vector3d center_sweep = center1 - center0;
-      double center_sweep_sq = center_sweep.squaredNorm();
+      // Interpolate cc_time by projecting the contact midpoint onto the LINK
+      // center trajectory (link_center0 → link_center1).  Using the link
+      // center (not the per-shape center) is consistent with the support
+      // comparison above and avoids skew from local offsets under rotation.
+      const Eigen::Vector3d link_center0 = contact.transform[i].translation();
+      const Eigen::Vector3d link_center1 = contact.cc_transform[i].translation();
+      const Eigen::Vector3d link_sweep = link_center1 - link_center0;
+      const double link_sweep_sq = link_sweep.squaredNorm();
 
-      if (center_sweep_sq < COAL_LENGTH_TOLERANCE * COAL_LENGTH_TOLERANCE)
+      if (link_sweep_sq < COAL_LENGTH_TOLERANCE * COAL_LENGTH_TOLERANCE)
         contact.cc_time[i] = 0.5;
       else
-        contact.cc_time[i] = std::clamp(center_sweep.dot(pt_world - center0) / center_sweep_sq, 0.0, 1.0);
+        contact.cc_time[i] = std::clamp(link_sweep.dot(pt_world - link_center0) / link_sweep_sq, 0.0, 1.0);
 
       // nearest_points_local: average of the two local support points,
       // transformed to world via shape_tf0, then to link-local coordinates.
       // Matches Bullet's calculateContinuousData: (shape_ptLocal0 + shape_ptLocal1) / 2.0
-      coal::Vec3s avg_pt_local = (pt_local0 + pt_local1) / 2.0;
-      Eigen::Isometry3d link_tf_inv = contact.transform[i].inverse();
+      const coal::Vec3s avg_pt_local = (pt_local0 + pt_local1) / 2.0;
       contact.nearest_points_local[i] = link_tf_inv * (shape_tf0 * Eigen::Vector3d(avg_pt_local));
     }
   }
