@@ -1,7 +1,7 @@
 # Code Review: Coal Continuous Collision Detection Implementation
 
 **Reviewer:** Claude Code
-**Date:** 2026-03-11
+**Date:** 2026-03-11 (updated 2026-03-18)
 **Scope:** Coal cast (continuous) collision checking — CastHullShape, cast managers, utilities, and tests
 
 ## Summary
@@ -14,53 +14,22 @@ Overall quality is **good**. The code is well-structured, thoroughly tested, and
 
 ## Issues Found
 
-### 1. Potential bug: `setCollisionObjectsTransform(pose1, pose2)` with TransformMap assumes aligned iteration order
+### ~~1. Potential bug: `setCollisionObjectsTransform(pose1, pose2)` with TransformMap assumes aligned iteration order~~ ✓ Fixed
 
-**File:** `coal_cast_managers.cpp:459-472`
+The lockstep iteration has been replaced with keyed lookup:
 
 ```cpp
-void CoalCastBVHManager::setCollisionObjectsTransform(const tesseract::common::TransformMap& pose1,
-                                                      const tesseract::common::TransformMap& pose2)
+for (const auto& [name, tf1] : pose1)
 {
-  assert(pose1.size() == pose2.size());
-  auto it1 = pose1.begin();
-  auto it2 = pose2.begin();
-  while (it1 != pose1.end())
-  {
-    assert(pose2.find(it1->first) != pose2.end());
-    setCollisionObjectsTransform(it1->first, it1->second, it2->second);
-    std::advance(it1, 1);
-    std::advance(it2, 1);
-  }
+  auto it2 = pose2.find(name);
+  assert(it2 != pose2.end());
+  setCollisionObjectsTransform(name, tf1, it2->second);
 }
 ```
 
-This iterates `pose1` and `pose2` in lockstep, assuming their iteration order is identical. Since `TransformMap` is a `std::map` (ordered by key), this works **only if both maps have the same keys**. If `pose2` contains different or additional keys, `it2->second` would correspond to the wrong link. The assert checks `pose2.find(it1->first)` but then uses `it2->second` instead of the found iterator.
+### ~~2. `needsCollisionCheck` declared non-inline in header but defined inline in source~~ ✓ Fixed
 
-**Fix:** Use `pose2.find(it1->first)->second` instead of `it2->second`, or look up pose2 by key:
-```cpp
-setCollisionObjectsTransform(it1->first, it1->second, pose2.at(it1->first));
-```
-
-**Severity:** Medium — could silently apply wrong transforms if maps differ. However, the assert catches size mismatches in debug builds, and callers likely always pass matching maps.
-
-### 2. `needsCollisionCheck` declared non-inline in header but defined inline in source
-
-**File:** `coal_utils.h:513` (declaration) and `coal_utils.cpp:362` (definition)
-
-The function is declared as a non-inline free function in the header:
-```cpp
-bool needsCollisionCheck(const CollisionObjectWrapper* cd1, ...);
-```
-
-But defined with `inline` in the source file:
-```cpp
-inline bool needsCollisionCheck(const CollisionObjectWrapper* cd1, ...)
-```
-
-The `inline` on the definition in a `.cpp` file is harmless (just a hint) but misleading — it suggests the function might be defined in a header. This is a minor inconsistency.
-
-**Severity:** Low — no functional impact.
+The spurious `inline` keyword has been removed from the definition in `coal_utils.cpp`; declaration and definition are now consistent.
 
 ### 3. `#pragma GCC diagnostic` for non-virtual destructor
 
@@ -77,30 +46,15 @@ The `CollisionCallback` struct inherits from `coal::CollisionCallBackBase` which
 
 **Severity:** Low — correctly handled, the pragma is just cosmetic since the derived class does declare the virtual destructor.
 
-### 4. Clone doesn't preserve cast transforms
+### ~~4. Clone doesn't preserve cast transforms~~ ✓ Documented
 
-**File:** `coal_cast_managers.cpp:70-87`
+A comment was added to `clone()` explicitly noting that cast transforms are not preserved and that this matches Bullet's behavior:
 
 ```cpp
-ContinuousContactManager::UPtr CoalCastBVHManager::clone() const
-{
-  auto manager = std::make_unique<CoalCastBVHManager>(name_);
-  for (const auto& cow : link2cow_)
-  {
-    COW::Ptr new_cow = cow.second->clone();
-    new_cow->setCollisionObjectsTransform(cow.second->getCollisionObjectsTransform());
-    new_cow->setContactDistanceThreshold(...);
-    manager->addCollisionObject(new_cow);
-  }
-  ...
-}
+// Note: addCollisionObject creates fresh CastHullShapes with identity cast
+// transforms, so any active sweep state (set via setCollisionObjectsTransform
+// with pose1/pose2) is not preserved. This matches Bullet's clone behavior.
 ```
-
-`addCollisionObject` calls `makeCastCollisionObject` which creates new `CastHullShape` wrappers with identity cast transforms. But the original manager's cast COWs may have non-identity cast transforms (set via `setCollisionObjectsTransform(name, pose1, pose2)`). The cloned manager starts with identity cast transforms, losing any active sweep state.
-
-This may be intentional (clone starts "fresh") since Bullet's clone has the same behavior, but it's worth documenting explicitly.
-
-**Severity:** Low — likely intentional, matches Bullet behavior.
 
 ### 5. `computeVolume()` returns AABB volume, not swept hull volume
 
@@ -150,7 +104,7 @@ When collision margins change, the code updates contact distance thresholds and 
 
 ## Recommendations
 
-1. **Fix the TransformMap iteration bug** (Issue #1) — this is the only real correctness concern.
+1. ~~**Fix the TransformMap iteration bug** (Issue #1)~~ ✓ Fixed.
 2. Add a class-level architectural comment on `CoalCastBVHManager` explaining the dual-map (link2cow_/link2castcow_) design and the octree special case.
 3. Consider adding a test for the `clone()` method's behavior with active cast transforms.
-4. The `// TODO: Should the order be flipped?` comments in both managers' `contactTest()` methods should be investigated and resolved.
+4. ~~The `// TODO: Should the order be flipped?` comments in both managers' `contactTest()` methods should be investigated and resolved.~~ ✓ Resolved (comments removed).
