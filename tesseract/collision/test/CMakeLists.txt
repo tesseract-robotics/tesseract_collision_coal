@@ -92,7 +92,8 @@ add_gtest(${PROJECT_NAME}_coal_cache_pair_unit coal/coal_cache_pair_unit.cpp)
 add_gtest(${PROJECT_NAME}_coal_collision_geometry_cache_unit coal/coal_collision_geometry_cache_unit.cpp)
 add_gtest(${PROJECT_NAME}_coal_utils_shape_conversion_unit coal/coal_utils_shape_conversion_unit.cpp)
 add_gtest(${PROJECT_NAME}_coal_collision_object_wrapper_unit coal/coal_collision_object_wrapper_unit.cpp)
-add_gtest(${PROJECT_NAME}_coal_cast_manager_branches_unit coal/coal_cast_manager_branches_unit.cpp)
+add_gtest(${PROJECT_NAME}_cast_disable_during_sweep_unit collision_cast_disable_during_sweep_unit.cpp)
+add_gtest(${PROJECT_NAME}_cast_scenario_unit collision_cast_scenario_unit.cpp)
 
 add_gtest(${PROJECT_NAME}_cast_cctype_unit collision_cast_cctype_unit.cpp)
 

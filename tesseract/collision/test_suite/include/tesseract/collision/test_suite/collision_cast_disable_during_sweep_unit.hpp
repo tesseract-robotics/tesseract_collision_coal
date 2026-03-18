@@ -1,3 +1,6 @@
+#ifndef TESSERACT_COLLISION_COLLISION_CAST_DISABLE_DURING_SWEEP_UNIT_HPP
+#define TESSERACT_COLLISION_COLLISION_CAST_DISABLE_DURING_SWEEP_UNIT_HPP
+
 #include <tesseract/common/macros.h>
 TESSERACT_COMMON_IGNORE_WARNINGS_PUSH
 #include <gtest/gtest.h>
@@ -5,16 +8,15 @@ TESSERACT_COMMON_IGNORE_WARNINGS_POP
 
 #include <algorithm>
 
-#include <tesseract/collision/coal/coal_cast_managers.h>
+#include <tesseract/collision/continuous_contact_manager.h>
+#include <tesseract/collision/common.h>
 #include <tesseract/geometry/geometries.h>
 
-using namespace tesseract::collision;
-using namespace tesseract::collision::tesseract_collision_coal;
-
-#if defined(TESSERACT_COLLISION_COAL_ENABLE_COAL_CAST_TESTS)
-namespace
+namespace tesseract::collision::test_suite
 {
-void addStaticBoxAndActiveSphere(CoalCastBVHManager& checker)
+namespace detail
+{
+inline void addStaticBoxAndActiveSphere(ContinuousContactManager& checker)
 {
   CollisionShapesConst static_shapes;
   tesseract::common::VectorIsometry3d static_shape_poses;
@@ -29,17 +31,17 @@ void addStaticBoxAndActiveSphere(CoalCastBVHManager& checker)
   ASSERT_TRUE(checker.addCollisionObject("moving_sphere", 0, moving_shapes, moving_shape_poses, true));
 }
 
-bool hasPair(const ContactResultVector& results, const std::string& a, const std::string& b)
+inline bool hasPairInResults(const ContactResultVector& results, const std::string& a, const std::string& b)
 {
   return std::any_of(results.begin(), results.end(), [&a, &b](const ContactResult& cr) {
     return ((cr.link_names[0] == a && cr.link_names[1] == b) || (cr.link_names[0] == b && cr.link_names[1] == a));
   });
 }
-}  // namespace
 
-TEST(CoalCastManagerBranchesUnit, DisabledObjectSweepDoesNotUpdateCastState)  // NOLINT
+/// Verifies that disabling an object, setting its sweep transform, re-enabling
+/// it, then setting only the start pose does NOT retain stale cast sweep state.
+inline void runTestDisabledObjectSweepDoesNotUpdateCastState(ContinuousContactManager& checker)
 {
-  CoalCastBVHManager checker;
   addStaticBoxAndActiveSphere(checker);
 
   checker.setActiveCollisionObjects({ "moving_sphere" });
@@ -48,11 +50,12 @@ TEST(CoalCastManagerBranchesUnit, DisabledObjectSweepDoesNotUpdateCastState)  //
   const Eigen::Isometry3d start = Eigen::Isometry3d(Eigen::Translation3d(-2.0, 0.0, 0.0));
   const Eigen::Isometry3d end = Eigen::Isometry3d(Eigen::Translation3d(0.0, 0.0, 0.0));
 
+  // Disable the sphere, set a sweep transform (should be ignored), re-enable it
   checker.disableCollisionObject("moving_sphere");
   checker.setCollisionObjectsTransform("moving_sphere", start, end);
   checker.enableCollisionObject("moving_sphere");
 
-  // Force a broadphase update at the start pose while leaving cast sweep state untouched.
+  // Force a broadphase update at the start pose while leaving cast sweep state untouched
   checker.setCollisionObjectsTransform("moving_sphere", start);
 
   ContactResultMap no_sweep_result;
@@ -60,8 +63,10 @@ TEST(CoalCastManagerBranchesUnit, DisabledObjectSweepDoesNotUpdateCastState)  //
   ContactResultVector no_sweep_vector;
   no_sweep_result.flattenMoveResults(no_sweep_vector);
 
-  EXPECT_FALSE(hasPair(no_sweep_vector, "static_box", "moving_sphere"));
+  // At the start pose (-2, 0, 0) the sphere is far from the box — no contact expected
+  EXPECT_FALSE(hasPairInResults(no_sweep_vector, "static_box", "moving_sphere"));
 
+  // Now set the sweep properly (object is enabled)
   checker.setCollisionObjectsTransform("moving_sphere", start, end);
 
   ContactResultMap sweep_result;
@@ -69,12 +74,15 @@ TEST(CoalCastManagerBranchesUnit, DisabledObjectSweepDoesNotUpdateCastState)  //
   ContactResultVector sweep_vector;
   sweep_result.flattenMoveResults(sweep_vector);
 
-  EXPECT_TRUE(hasPair(sweep_vector, "static_box", "moving_sphere"));
+  // The sweep from (-2,0,0) to (0,0,0) passes through the box — contact expected
+  EXPECT_TRUE(hasPairInResults(sweep_vector, "static_box", "moving_sphere"));
 }
-#endif
+}  // namespace detail
 
-int main(int argc, char** argv)
+inline void runTestDisabledObjectSweepDoesNotUpdateCastState(ContinuousContactManager& checker)
 {
-  testing::InitGoogleTest(&argc, argv);
-  return RUN_ALL_TESTS();
+  detail::runTestDisabledObjectSweepDoesNotUpdateCastState(checker);
 }
+
+}  // namespace tesseract::collision::test_suite
+#endif  // TESSERACT_COLLISION_COLLISION_CAST_DISABLE_DURING_SWEEP_UNIT_HPP

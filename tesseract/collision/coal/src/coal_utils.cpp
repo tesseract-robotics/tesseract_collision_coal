@@ -387,8 +387,6 @@ void populateContinuousCollisionFields(ContactResult& contact,
                                        const coal::CollisionObject* o2)
 {
   const std::array<const coal::CollisionObject*, 2> objects = { o1, o2 };
-  const Eigen::Vector3d pt_world = (contact.nearest_points[0] + contact.nearest_points[1]) / 2.0;
-
   for (std::size_t i = 0; i < 2; ++i)
   {
     const auto* cow = static_cast<const CollisionObjectWrapper*>(objects[i]->getUserData());
@@ -489,22 +487,20 @@ void populateContinuousCollisionFields(ContactResult& contact,
     {
       contact.cc_type[i] = ContinuousCollisionType::CCType_Between;
 
-      // Interpolate cc_time by projecting the contact midpoint onto the
-      // per-shape centre trajectory (shape_center0 → shape_center1).
-      // The contact point follows the shape centre, not the link origin, so
-      // using the per-shape centre gives the correct fraction even when the
-      // shape has a non-zero local translation offset within the link.
-      // (The support comparison above uses the link centre to avoid orbital-
-      // motion bias, but that is a separate concern from the time projection.)
-      const Eigen::Vector3d shape_center0 = Eigen::Vector3d(tf_world0.getTranslation());
-      const Eigen::Vector3d shape_center1 = Eigen::Vector3d(tf_world1.getTranslation());
-      const Eigen::Vector3d shape_sweep = shape_center1 - shape_center0;
-      const double shape_sweep_sq = shape_sweep.squaredNorm();
+      // Compute cc_time from the ratio of distances between the GJK witness
+      // point and the surface support points at t=0 and t=1, matching
+      // Schulman et al. IJRR 2014, Eq. (17):
+      //   α = ||p1 - p_swept|| / (||p1 - p_swept|| + ||p0 - p_swept||)
+      // where α weights p0 (i.e., cc_time = 1-α = l0c/(l0c+l1c)).
+      const Eigen::Vector3d shape_ptWorld0 = shape_tf0 * Eigen::Vector3d(pt_local0);
+      const Eigen::Vector3d shape_ptWorld1 = shape_tf1 * Eigen::Vector3d(pt_local1);
+      const double l0c = (contact.nearest_points[i] - shape_ptWorld0).norm();
+      const double l1c = (contact.nearest_points[i] - shape_ptWorld1).norm();
 
-      if (shape_sweep_sq < COAL_LENGTH_TOLERANCE * COAL_LENGTH_TOLERANCE)
+      if (l0c + l1c < COAL_LENGTH_TOLERANCE)
         contact.cc_time[i] = 0.5;
       else
-        contact.cc_time[i] = std::clamp(shape_sweep.dot(pt_world - shape_center0) / shape_sweep_sq, 0.0, 1.0);
+        contact.cc_time[i] = std::clamp(l0c / (l0c + l1c), 0.0, 1.0);
 
       // nearest_points_local: average of the two local support points,
       // transformed to world via shape_tf0, then to link-local coordinates.

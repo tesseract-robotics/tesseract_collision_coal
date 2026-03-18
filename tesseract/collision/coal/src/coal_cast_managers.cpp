@@ -443,6 +443,20 @@ void CoalCastBVHManager::setCollisionObjectsTransform(const std::string& name,
     // updated CastHullShape local AABB (swept volume).
     cow->setCollisionObjectsTransform(pose1);
 
+    // Invalidate cached GJK guesses for collision pairs involving this object.
+    // The cached separating axis from the previous sweep direction is no longer
+    // valid after the cast transform changes, and can cause GJK to miss collisions.
+    const auto& cast_objects = cow->getCollisionObjects();
+    for (auto it_cache = collision_cache.begin(); it_cache != collision_cache.end();)
+    {
+      if (std::any_of(cast_objects.begin(), cast_objects.end(), [&it_cache](const auto& co) {
+            return it_cache->first.first == co.get() || it_cache->first.second == co.get();
+          }))
+        it_cache = collision_cache.erase(it_cache);
+      else
+        ++it_cache;
+    }
+
     // Update Broadphase AABB
     if (cow->m_collisionFilterGroup == CollisionFilterGroups::StaticFilter)
     {
