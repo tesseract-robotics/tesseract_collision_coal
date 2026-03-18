@@ -159,6 +159,12 @@ private:
   /** @brief This is used to store dynamic collision objects to update */
   std::vector<CollisionObjectRawPtr> dynamic_update_;
 
+  /** @brief Collect a single link's transform update into the batch update vectors */
+  void collectTransformUpdate(Link2COW::iterator it, const Eigen::Isometry3d& pose);
+
+  /** @brief Flush accumulated batch updates to the broadphase managers */
+  void flushBatchUpdate();
+
   /** @brief This function will update internal data when margin data has changed */
   void onCollisionMarginDataChanged();
 };

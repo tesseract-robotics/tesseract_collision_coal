@@ -243,6 +243,30 @@ inline COW::Ptr createCoalCollisionObject(const std::string& name,
   return new_cow;
 }
 
+/** @brief Tolerance for transform comparison to avoid unnecessary BVH re-balancing */
+static constexpr double kTransformEpsilon = 1e-8;
+
+/** @brief Check if two transforms differ beyond the tolerance threshold */
+inline bool transformChanged(const Eigen::Isometry3d& a, const Eigen::Isometry3d& b)
+{
+  return !a.translation().isApprox(b.translation(), kTransformEpsilon) ||
+         !a.rotation().isApprox(b.rotation(), kTransformEpsilon);
+}
+
+/**
+ * @brief Apply the collision filter mask based on the current filter group.
+ *
+ * StaticFilter groups can only collide with KinematicFilter groups.
+ * KinematicFilter groups can collide with both StaticFilter and KinematicFilter groups.
+ */
+inline void applyCollisionFilterMask(COW& cow)
+{
+  if (cow.m_collisionFilterGroup == CollisionFilterGroups::StaticFilter)
+    cow.m_collisionFilterMask = CollisionFilterGroups::KinematicFilter;
+  else
+    cow.m_collisionFilterMask = CollisionFilterGroups::StaticFilter | CollisionFilterGroups::KinematicFilter;
+}
+
 /**
  * @brief Update collision objects filters
  * @param active The active collision objects
@@ -286,17 +310,7 @@ inline void updateCollisionObjectFilters(const std::vector<std::string>& active,
     cow->m_collisionFilterGroup = CollisionFilterGroups::KinematicFilter;
   }
 
-  // If the group is StaticFilter then the Mask is KinematicFilter, then StaticFilter groups can only collide with
-  // KinematicFilter groups. If the group is KinematicFilter then the mask is StaticFilter and KinematicFilter meaning
-  // that KinematicFilter groups can collide with both StaticFilter and KinematicFilter groups.
-  if (cow->m_collisionFilterGroup == CollisionFilterGroups::StaticFilter)
-  {
-    cow->m_collisionFilterMask = CollisionFilterGroups::KinematicFilter;
-  }
-  else
-  {
-    cow->m_collisionFilterMask = CollisionFilterGroups::StaticFilter | CollisionFilterGroups::KinematicFilter;
-  }
+  applyCollisionFilterMask(*cow);
 }
 
 /**
@@ -381,25 +395,8 @@ inline void updateCollisionObjectFilters(const std::vector<std::string>& active,
     cast_cow->m_collisionFilterGroup = CollisionFilterGroups::KinematicFilter;
   }
 
-  // If the group is StaticFilter then the Mask is KinematicFilter, then StaticFilter groups can only collide with
-  // KinematicFilter groups. If the group is KinematicFilter then the mask is StaticFilter and KinematicFilter meaning
-  // that KinematicFilter groups can collide with both StaticFilter and KinematicFilter groups.
-  if (cow->m_collisionFilterGroup == CollisionFilterGroups::StaticFilter)
-  {
-    cow->m_collisionFilterMask = CollisionFilterGroups::KinematicFilter;
-  }
-  else
-  {
-    cow->m_collisionFilterMask = CollisionFilterGroups::StaticFilter | CollisionFilterGroups::KinematicFilter;
-  }
-  if (cast_cow->m_collisionFilterGroup == CollisionFilterGroups::StaticFilter)
-  {
-    cast_cow->m_collisionFilterMask = CollisionFilterGroups::KinematicFilter;
-  }
-  else
-  {
-    cast_cow->m_collisionFilterMask = CollisionFilterGroups::StaticFilter | CollisionFilterGroups::KinematicFilter;
-  }
+  applyCollisionFilterMask(*cow);
+  applyCollisionFilterMask(*cast_cow);
 }
 
 /**

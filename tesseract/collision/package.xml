@@ -18,15 +18,8 @@
   <build_depend>eigen</build_depend>
   <build_export_depend>eigen</build_export_depend>
 
-  <depend>yaml-cpp</depend>
-  <depend>bullet</depend>
-  <depend>bullet-extras</depend>
-  <depend>fcl</depend>
-  <depend>libfcl-dev</depend>
   <depend>coal</depend>
   <depend>libconsole-bridge-dev</depend>
-  <depend>tesseract_support</depend>
-  <depend>cereal</depend>
 
   <build_depend>libboost-system-dev</build_depend>
   <build_export_depend>libboost-system-dev</build_export_depend>
@@ -40,6 +33,12 @@
   <test_depend>gtest</test_depend>
   <test_depend>tesseract_scene_graph</test_depend>
   <test_depend>tesseract_support</test_depend>
+  <test_depend>yaml-cpp</test_depend>
+  <test_depend>bullet</test_depend>
+  <test_depend>bullet-extras</test_depend>
+  <test_depend>fcl</test_depend>
+  <test_depend>libfcl-dev</test_depend>
+  <test_depend>cereal</test_depend>
 
   <export>
     <build_type>cmake</build_type>

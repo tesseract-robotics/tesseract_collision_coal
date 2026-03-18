@@ -243,16 +243,14 @@ void CoalCastBVHManager::setCollisionObjectsTransform(const std::string& name, c
   {
     const Eigen::Isometry3d& cur_tf = it->second->getCollisionObjectsTransform();
     // Note: If the transform has not changed do not updated to prevent unnecessary re-balancing of the BVH tree
-    if (!cur_tf.translation().isApprox(pose.translation(), 1e-8) || !cur_tf.rotation().isApprox(pose.rotation(), 1e-8))
+    if (transformChanged(cur_tf, pose))
     {
       it->second->setCollisionObjectsTransform(pose);
 
       // Also update the cast version if it exists
       auto cast_it = link2castcow_.find(name);
       if (cast_it != link2castcow_.end())
-      {
         cast_it->second->setCollisionObjectsTransform(pose);
-      }
 
       if (it->second->m_collisionFilterGroup == CollisionFilterGroups::StaticFilter)
       {
@@ -267,13 +265,9 @@ void CoalCastBVHManager::setCollisionObjectsTransform(const std::string& name, c
       {
         // If this is an active/kinematic object, update the cast version in the dynamic manager
         if (cast_it != link2castcow_.end())
-        {
           dynamic_manager_->update(cast_it->second->getCollisionObjectsRaw());
-        }
         else
-        {
           dynamic_manager_->update(it->second->getCollisionObjectsRaw());
-        }
       }
     }
   }
@@ -289,53 +283,9 @@ void CoalCastBVHManager::setCollisionObjectsTransform(const std::vector<std::str
   {
     auto it = link2cow_.find(names[i]);
     if (it != link2cow_.end())
-    {
-      const Eigen::Isometry3d& cur_tf = it->second->getCollisionObjectsTransform();
-      // Note: If the transform has not changed do not updated to prevent unnecessary re-balancing of the BVH tree
-      if (!cur_tf.translation().isApprox(poses[i].translation(), 1e-8) ||
-          !cur_tf.rotation().isApprox(poses[i].rotation(), 1e-8))
-      {
-        it->second->setCollisionObjectsTransform(poses[i]);
-
-        // Also update the cast version if it exists
-        auto cast_it = link2castcow_.find(names[i]);
-        if (cast_it != link2castcow_.end())
-        {
-          cast_it->second->setCollisionObjectsTransform(poses[i]);
-
-          if (it->second->m_collisionFilterGroup == CollisionFilterGroups::KinematicFilter)
-          {
-            // For kinematic objects, add the cast version to the dynamic update
-            std::vector<CollisionObjectRawPtr>& co = cast_it->second->getCollisionObjectsRaw();
-            dynamic_update_.insert(dynamic_update_.end(), co.begin(), co.end());
-            continue;  // Skip adding the regular version
-          }
-        }
-
-        if (it->second->m_collisionFilterGroup == CollisionFilterGroups::StaticFilter)
-        {
-          // For non-ShapeBase geometries (e.g., octree) the cast representation is
-          // registered in the static manager, so update those objects instead.
-          std::vector<CollisionObjectRawPtr>& co = hasNonShapeBaseGeometry(it->second) ?
-                                                       link2castcow_[names[i]]->getCollisionObjectsRaw() :
-                                                       it->second->getCollisionObjectsRaw();
-          static_update_.insert(static_update_.end(), co.begin(), co.end());
-        }
-        else
-        {
-          std::vector<CollisionObjectRawPtr>& co = it->second->getCollisionObjectsRaw();
-          dynamic_update_.insert(dynamic_update_.end(), co.begin(), co.end());
-        }
-      }
-    }
+      collectTransformUpdate(it, poses[i]);
   }
-
-  // This is because Coal supports batch update which only re-balances the tree once
-  if (!static_update_.empty())
-    static_manager_->update(static_update_);
-
-  if (!dynamic_update_.empty())
-    dynamic_manager_->update(dynamic_update_);
+  flushBatchUpdate();
 }
 
 void CoalCastBVHManager::setCollisionObjectsTransform(const tesseract::common::TransformMap& transforms)
@@ -346,53 +296,9 @@ void CoalCastBVHManager::setCollisionObjectsTransform(const tesseract::common::T
   {
     auto it = link2cow_.find(transform.first);
     if (it != link2cow_.end())
-    {
-      const Eigen::Isometry3d& cur_tf = it->second->getCollisionObjectsTransform();
-      // Note: If the transform has not changed do not updated to prevent unnecessary re-balancing of the BVH tree
-      if (!cur_tf.translation().isApprox(transform.second.translation(), 1e-8) ||
-          !cur_tf.rotation().isApprox(transform.second.rotation(), 1e-8))
-      {
-        it->second->setCollisionObjectsTransform(transform.second);
-
-        // Also update the cast version if it exists
-        auto cast_it = link2castcow_.find(transform.first);
-        if (cast_it != link2castcow_.end())
-        {
-          cast_it->second->setCollisionObjectsTransform(transform.second);
-
-          if (it->second->m_collisionFilterGroup == CollisionFilterGroups::KinematicFilter)
-          {
-            // For kinematic objects, add the cast version to the dynamic update
-            std::vector<CollisionObjectRawPtr>& co = cast_it->second->getCollisionObjectsRaw();
-            dynamic_update_.insert(dynamic_update_.end(), co.begin(), co.end());
-            continue;  // Skip adding the regular version
-          }
-        }
-
-        if (it->second->m_collisionFilterGroup == CollisionFilterGroups::StaticFilter)
-        {
-          // For non-ShapeBase geometries (e.g., octree) the cast representation is
-          // registered in the static manager, so update those objects instead.
-          std::vector<CollisionObjectRawPtr>& co = hasNonShapeBaseGeometry(it->second) ?
-                                                       link2castcow_[transform.first]->getCollisionObjectsRaw() :
-                                                       it->second->getCollisionObjectsRaw();
-          static_update_.insert(static_update_.end(), co.begin(), co.end());
-        }
-        else
-        {
-          std::vector<CollisionObjectRawPtr>& co = it->second->getCollisionObjectsRaw();
-          dynamic_update_.insert(dynamic_update_.end(), co.begin(), co.end());
-        }
-      }
-    }
+      collectTransformUpdate(it, transform.second);
   }
-
-  // This is because Coal supports batch update which only re-balances the tree once
-  if (!static_update_.empty())
-    static_manager_->update(static_update_);
-
-  if (!dynamic_update_.empty())
-    dynamic_manager_->update(dynamic_update_);
+  flushBatchUpdate();
 }
 
 void CoalCastBVHManager::setCollisionObjectsTransform(const std::string& name,
@@ -622,6 +528,54 @@ void CoalCastBVHManager::addCollisionObject(const COW::Ptr& cow)
   const auto& n_static = static_manager_->size();
   const auto& n_dynamic = dynamic_manager_->size();
   collision_cache.reserve((n_static * n_dynamic) + (n_dynamic * (n_dynamic - 1) / 2));
+}
+
+void CoalCastBVHManager::collectTransformUpdate(Link2COW::iterator it, const Eigen::Isometry3d& pose)
+{
+  const Eigen::Isometry3d& cur_tf = it->second->getCollisionObjectsTransform();
+  if (!transformChanged(cur_tf, pose))
+    return;
+
+  it->second->setCollisionObjectsTransform(pose);
+
+  // Also update the cast version if it exists
+  auto cast_it = link2castcow_.find(it->first);
+  if (cast_it != link2castcow_.end())
+  {
+    cast_it->second->setCollisionObjectsTransform(pose);
+
+    if (it->second->m_collisionFilterGroup == CollisionFilterGroups::KinematicFilter)
+    {
+      // For kinematic objects, add the cast version to the dynamic update
+      std::vector<CollisionObjectRawPtr>& co = cast_it->second->getCollisionObjectsRaw();
+      dynamic_update_.insert(dynamic_update_.end(), co.begin(), co.end());
+      return;
+    }
+  }
+
+  if (it->second->m_collisionFilterGroup == CollisionFilterGroups::StaticFilter)
+  {
+    // For non-ShapeBase geometries (e.g., octree) the cast representation is
+    // registered in the static manager, so update those objects instead.
+    std::vector<CollisionObjectRawPtr>& co = hasNonShapeBaseGeometry(it->second) ?
+                                                 link2castcow_[it->first]->getCollisionObjectsRaw() :
+                                                 it->second->getCollisionObjectsRaw();
+    static_update_.insert(static_update_.end(), co.begin(), co.end());
+  }
+  else
+  {
+    std::vector<CollisionObjectRawPtr>& co = it->second->getCollisionObjectsRaw();
+    dynamic_update_.insert(dynamic_update_.end(), co.begin(), co.end());
+  }
+}
+
+void CoalCastBVHManager::flushBatchUpdate()
+{
+  if (!static_update_.empty())
+    static_manager_->update(static_update_);
+
+  if (!dynamic_update_.empty())
+    dynamic_manager_->update(dynamic_update_);
 }
 
 void CoalCastBVHManager::onCollisionMarginDataChanged()

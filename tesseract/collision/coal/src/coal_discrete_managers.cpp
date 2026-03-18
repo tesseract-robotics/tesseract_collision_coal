@@ -200,19 +200,14 @@ void CoalDiscreteBVHManager::setCollisionObjectsTransform(const std::string& nam
   {
     const Eigen::Isometry3d& cur_tf = it->second->getCollisionObjectsTransform();
     // Note: If the transform has not changed do not updated to prevent unnecessary re-balancing of the BVH tree
-    if (!cur_tf.translation().isApprox(pose.translation(), 1e-8) || !cur_tf.rotation().isApprox(pose.rotation(), 1e-8))
+    if (transformChanged(cur_tf, pose))
     {
       it->second->setCollisionObjectsTransform(pose);
+      // Note: Calling update causes a re-balance of the AABB tree, which is expensive
       if (it->second->m_collisionFilterGroup == CollisionFilterGroups::StaticFilter)
-      {
-        // Note: Calling update causes a re-balance of the AABB tree, which is expensive
         static_manager_->update(it->second->getCollisionObjectsRaw());
-      }
       else
-      {
-        // Note: Calling update causes a re-balance of the AABB tree, which is expensive
         dynamic_manager_->update(it->second->getCollisionObjectsRaw());
-      }
     }
   }
 }
@@ -227,32 +222,9 @@ void CoalDiscreteBVHManager::setCollisionObjectsTransform(const std::vector<std:
   {
     auto it = link2cow_.find(names[i]);
     if (it != link2cow_.end())
-    {
-      const Eigen::Isometry3d& cur_tf = it->second->getCollisionObjectsTransform();
-      // Note: If the transform has not changed do not updated to prevent unnecessary re-balancing of the BVH tree
-      if (!cur_tf.translation().isApprox(poses[i].translation(), 1e-8) ||
-          !cur_tf.rotation().isApprox(poses[i].rotation(), 1e-8))
-      {
-        it->second->setCollisionObjectsTransform(poses[i]);
-        std::vector<CollisionObjectRawPtr>& co = it->second->getCollisionObjectsRaw();
-        if (it->second->m_collisionFilterGroup == CollisionFilterGroups::StaticFilter)
-        {
-          static_update_.insert(static_update_.end(), co.begin(), co.end());
-        }
-        else
-        {
-          dynamic_update_.insert(dynamic_update_.end(), co.begin(), co.end());
-        }
-      }
-    }
+      collectTransformUpdate(it, poses[i]);
   }
-
-  // This is because Coal supports batch update which only re-balances the tree once
-  if (!static_update_.empty())
-    static_manager_->update(static_update_);
-
-  if (!dynamic_update_.empty())
-    dynamic_manager_->update(dynamic_update_);
+  flushBatchUpdate();
 }
 
 void CoalDiscreteBVHManager::setCollisionObjectsTransform(const tesseract::common::TransformMap& transforms)
@@ -263,32 +235,9 @@ void CoalDiscreteBVHManager::setCollisionObjectsTransform(const tesseract::commo
   {
     auto it = link2cow_.find(transform.first);
     if (it != link2cow_.end())
-    {
-      const Eigen::Isometry3d& cur_tf = it->second->getCollisionObjectsTransform();
-      // Note: If the transform has not changed do not updated to prevent unnecessary re-balancing of the BVH tree
-      if (!cur_tf.translation().isApprox(transform.second.translation(), 1e-8) ||
-          !cur_tf.rotation().isApprox(transform.second.rotation(), 1e-8))
-      {
-        it->second->setCollisionObjectsTransform(transform.second);
-        std::vector<CollisionObjectRawPtr>& co = it->second->getCollisionObjectsRaw();
-        if (it->second->m_collisionFilterGroup == CollisionFilterGroups::StaticFilter)
-        {
-          static_update_.insert(static_update_.end(), co.begin(), co.end());
-        }
-        else
-        {
-          dynamic_update_.insert(dynamic_update_.end(), co.begin(), co.end());
-        }
-      }
-    }
+      collectTransformUpdate(it, transform.second);
   }
-
-  // This is because Coal supports batch update which only re-balances the tree once
-  if (!static_update_.empty())
-    static_manager_->update(static_update_);
-
-  if (!dynamic_update_.empty())
-    dynamic_manager_->update(dynamic_update_);
+  flushBatchUpdate();
 }
 
 const std::vector<std::string>& CoalDiscreteBVHManager::getCollisionObjects() const { return collision_objects_; }
@@ -406,6 +355,29 @@ void CoalDiscreteBVHManager::addCollisionObject(const COW::Ptr& cow)
   const auto& n_static = static_manager_->size();
   const auto& n_dynamic = dynamic_manager_->size();
   collision_cache.reserve((n_static * n_dynamic) + (n_dynamic * (n_dynamic - 1) / 2));
+}
+
+void CoalDiscreteBVHManager::collectTransformUpdate(Link2COW::iterator it, const Eigen::Isometry3d& pose)
+{
+  const Eigen::Isometry3d& cur_tf = it->second->getCollisionObjectsTransform();
+  if (transformChanged(cur_tf, pose))
+  {
+    it->second->setCollisionObjectsTransform(pose);
+    std::vector<CollisionObjectRawPtr>& co = it->second->getCollisionObjectsRaw();
+    if (it->second->m_collisionFilterGroup == CollisionFilterGroups::StaticFilter)
+      static_update_.insert(static_update_.end(), co.begin(), co.end());
+    else
+      dynamic_update_.insert(dynamic_update_.end(), co.begin(), co.end());
+  }
+}
+
+void CoalDiscreteBVHManager::flushBatchUpdate()
+{
+  if (!static_update_.empty())
+    static_manager_->update(static_update_);
+
+  if (!dynamic_update_.empty())
+    dynamic_manager_->update(dynamic_update_);
 }
 
 void CoalDiscreteBVHManager::onCollisionMarginDataChanged()
