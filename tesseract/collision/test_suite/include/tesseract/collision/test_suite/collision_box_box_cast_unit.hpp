@@ -235,6 +235,9 @@ inline void runTest(ContinuousContactManager& checker)
     EXPECT_NEAR(cr.distance, -0.2475, 0.001) << "Penetration distance between static_box (1x1x1 at origin) and "
                                              << "moving_box (0.25^3 sweeping from (-1.9,0,0) to (1.9,3.8,0))";
 
+    // Contact normal must be a unit vector
+    EXPECT_NEAR(cr.normal.norm(), 1.0, 1e-4) << "Contact normal must be a unit vector";
+
     // cc_time[0]: static_box is not a cast shape, so cc_time should be -1 (unset)
     EXPECT_NEAR(cr.cc_time[0], -1.0, 0.001) << "static_box_link is not a cast shape, cc_time[0] should be -1 (unset)";
 

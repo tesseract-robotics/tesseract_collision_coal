@@ -136,6 +136,17 @@ inline void runTestMultiShapeCast(ContinuousContactManager& checker)
   // cc_time should be between 0 and 1 (sub-shape A passes nearest the obstacle mid-sweep)
   EXPECT_GT(cr.cc_time[arm_idx], 0.0) << "cc_time should be > 0 (not at start pose)";
   EXPECT_LT(cr.cc_time[arm_idx], 1.0) << "cc_time should be < 1 (not at end pose)";
+
+  // shape_id: arm_link has two sub-shapes (A at index 0, B at index 1).
+  // Sub-shape A (at local offset +1,0,0) is the one that sweeps through the obstacle;
+  // sub-shape B (at -1,0,0) sweeps away from the obstacle. So the contact must be
+  // on sub-shape A, i.e., shape_id[arm_idx] == 0.
+  EXPECT_EQ(cr.shape_id[arm_idx], 0)
+      << "arm_link collision was on sub-shape A (index 0, local offset +1,0,0). "
+      << "Got shape_id[arm_idx]=" << cr.shape_id[arm_idx];
+
+  // Contact normal must be a unit vector
+  EXPECT_NEAR(cr.normal.norm(), 1.0, 1e-4) << "Contact normal must be a unit vector";
 }
 
 /**

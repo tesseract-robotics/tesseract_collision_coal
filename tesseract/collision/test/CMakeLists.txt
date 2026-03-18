@@ -94,5 +94,7 @@ add_gtest(${PROJECT_NAME}_coal_utils_shape_conversion_unit coal/coal_utils_shape
 add_gtest(${PROJECT_NAME}_coal_collision_object_wrapper_unit coal/coal_collision_object_wrapper_unit.cpp)
 add_gtest(${PROJECT_NAME}_coal_cast_manager_branches_unit coal/coal_cast_manager_branches_unit.cpp)
 
+add_gtest(${PROJECT_NAME}_cast_cctype_unit collision_cast_cctype_unit.cpp)
+
 add_gtest(${PROJECT_NAME}_factory_static_unit contact_managers_factory_static_unit.cpp)
 target_link_libraries(${PROJECT_NAME}_factory_static_unit PRIVATE tesseract::collision_bullet)

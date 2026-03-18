@@ -327,6 +327,7 @@ inline void runTestPrimitive(ContinuousContactManager& checker)
                                                                                                                "0, 1)";
 
   // Contact normal should point along X (spheres separated in X direction)
+  EXPECT_NEAR(cr1.normal.norm(), 1.0, 1e-4) << "Contact normal must be a unit vector";
   EXPECT_NEAR(cr1.normal[0], idx[2] * 1.0, 0.001) << "Contact normal x: should point along X axis (sphere separation "
                                                      "direction)";
   EXPECT_NEAR(cr1.normal[1], idx[2] * 0.0, 0.001) << "Contact normal y: should be ~0 (no Y separation between sphere "
@@ -471,6 +472,7 @@ inline void runTestPrimitive(ContinuousContactManager& checker)
                                                                                                                "0, 1)";
 
   // Contact normal
+  EXPECT_NEAR(cr2.normal.norm(), 1.0, 1e-4) << "Contact normal must be a unit vector";
   EXPECT_NEAR(cr2.normal[0], idx[2] * 1.0, 0.001) << "Contact normal x: should point along X (sphere separation "
                                                      "direction)";
   EXPECT_NEAR(cr2.normal[1], idx[2] * 0.0, 0.001) << "Contact normal y: should be ~0";
@@ -631,6 +633,7 @@ inline void runTestConvex(ContinuousContactManager& checker)
                                                                                                                "0, 1)";
 
   // Contact normal
+  EXPECT_NEAR(cr1.normal.norm(), 1.0, 1e-4) << "Contact normal must be a unit vector";
   EXPECT_NEAR(cr1.normal[0], idx[2] * 1.0, 0.001) << "Contact normal x: should point along X (sphere separation "
                                                      "direction)";
   EXPECT_NEAR(cr1.normal[1], idx[2] * 0.0, 0.001) << "Contact normal y: should be ~0";
@@ -774,6 +777,7 @@ inline void runTestConvex(ContinuousContactManager& checker)
                                                                                                                "0, 1)";
 
   // Contact normal
+  EXPECT_NEAR(cr2.normal.norm(), 1.0, 1e-4) << "Contact normal must be a unit vector";
   EXPECT_NEAR(cr2.normal[0], idx[2] * 1.0, 0.001) << "Contact normal x: should point along X (sphere separation "
                                                      "direction)";
   EXPECT_NEAR(cr2.normal[1], idx[2] * 0.0, 0.001) << "Contact normal y: should be ~0";

@@ -97,7 +97,7 @@ The comment says "conservative AABB via the support function" which is correct �
 
 ---
 
-## Test coverage gaps (2026-03-19 audit)
+## Test coverage gaps (2026-03-19 audit, updated 2026-03-18)
 
 Audited all cast unit tests against the full `ContactResult` struct fields. Findings below.
 
@@ -107,7 +107,7 @@ Never set by either Bullet or Coal in cast callbacks (both default to `false`). 
 
 ### `type_id`
 
-Correctly propagated via `cd->getTypeID()` in Coal's callback. Not tested with non-zero values in any cast test — adding a test that registers an object with a non-zero type_id and asserts it is preserved in the contact result would close this gap. Not a suspected root cause of the Trajopt octree regression (Trajopt does not use `type_id` directly in gradient computation).
+**Gap (now addressed):** Correctly propagated via `cd->getTypeID()` in Coal's callback, but not tested with non-zero values in any cast test. `collision_cast_cctype_unit` now registers `moving_sphere` with `type_id=7` and asserts `contact.type_id[ki] == 7` and `contact.type_id[si] == 0` for both Bullet and Coal backends.
 
 ### `subshape_id`
 
@@ -115,15 +115,29 @@ Already tested via `runStaticOctreeSubshapeIdReportsPrimitiveIdentity` (`subshap
 
 ### `nearest_points_local`
 
-**Gap (now addressed):** Not validated in any octree cast test. A zero `nearest_points_local` would cause Trajopt to compute a zero-offset Jacobian for the contact point, producing incorrect gradients. The octree cast tests now assert `nearest_points_local[ki].norm() > 1e-6`. Note: `nearest_points_local` for `CCType_Time1` and `CCType_Time0` was previously left at the zero default and was fixed as part of issue 2 above.
+**Gap (now addressed):** Not validated in any octree cast test. A zero `nearest_points_local` would cause Trajopt to compute a zero-offset Jacobian for the contact point, producing incorrect gradients. The octree cast tests now assert `nearest_points_local[ki].norm() > 1e-6`. Note: `nearest_points_local` for `CCType_Time1` and `CCType_Time0` was previously left at the zero default and was fixed as part of issue 2 above. `collision_cast_cctype_unit` now asserts the exact round-trip values for both CCType_Time0 and CCType_Time1 (e.g., `transform[ki] * nearest_points_local[ki]` and `cc_transform[ki] * nearest_points_local[ki]`).
+
+### `normal` is a unit vector
+
+**Gap (now addressed):** Only one octree test checked `normal.norm() == 1.0`. Added `EXPECT_NEAR(cr.normal.norm(), 1.0, 1e-4)` to `collision_box_box_cast_unit`, `collision_sphere_sphere_cast_unit` (all four scenarios: primitive scenario 1 & 2, convex scenario 1 & 2), `collision_multi_shape_cast_unit`, and `collision_cast_cctype_unit`.
 
 ### `normal` direction for `CCType_Time1`
 
-**Gap (now addressed):** Not validated in octree cast tests. The invariant is: if `cc_type == CCType_Time1`, then the outward normal from the kinematic shape must have a strictly positive component along the sweep direction (this is exactly the condition that selects `CCType_Time1` over `CCType_Between`). Formally: `((ki==0 ? 1 : -1) * cr.normal).dot(sweep_dir) > 0`. The octree cast tests now assert this.
+**Gap (now addressed):** Not validated in octree cast tests. The invariant is: if `cc_type == CCType_Time1`, then the outward normal from the kinematic shape must have a strictly positive component along the sweep direction (this is exactly the condition that selects `CCType_Time1` over `CCType_Between`). Formally: `((ki==0 ? 1 : -1) * cr.normal).dot(sweep_dir) > 0`. The octree cast tests now assert this. `collision_cast_cctype_unit` also asserts `ns * cr.normal[0] > 0.5` for the CCType_Time1 and CCType_Time0 sphere-sphere scenarios.
 
 ### `distance` sign
 
 **Gap (now addressed):** Octree cast tests previously only checked `distance < 0.11` (within margin). Since the kinematic shape ends inside the octree, the swept hull must genuinely penetrate a voxel and `distance` must be negative. The octree cast tests now assert `distance < 0.0`.
+
+### `CCType_Time1` and `CCType_Time0` (dedicated scenarios)
+
+**Gap (now addressed):** No test explicitly constructed a scenario that was guaranteed to produce `CCType_Time1` or `CCType_Time0` and verified the exact `cc_time` value (0.0 or 1.0). `collision_cast_cctype_unit` now provides:
+- `runTestCCTypeTime1`: moving sphere sweeps in +x into a static sphere. `normal · sweep > 0` → `CCType_Time1`, `cc_time = 1.0`. Runs on both Bullet and Coal.
+- `runTestCCTypeTime0`: moving sphere starts overlapping a static sphere and retreats in −x. `normal · sweep < 0` → `CCType_Time0`, `cc_time = 0.0`. Runs on both Bullet and Coal.
+
+### `shape_id` for multi-shape links
+
+**Gap (now addressed):** All existing tests used single-shape links, so `shape_id` was always 0. `collision_multi_shape_cast_unit` now adds `EXPECT_EQ(cr.shape_id[arm_idx], 0)` to verify that the collision is correctly attributed to sub-shape A (index 0, the one that sweeps through the obstacle) and not sub-shape B (index 1).
 
 ### Trajopt octree regression analysis
 
