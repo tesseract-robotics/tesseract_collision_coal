@@ -5,6 +5,7 @@ TESSERACT_COMMON_IGNORE_WARNINGS_POP
 
 #include <tesseract/collision/coal/coal_utils.h>
 #include <tesseract/collision/coal/coal_discrete_managers.h>
+#include <tesseract/collision/coal/coal_cast_managers.h>
 #include <tesseract/geometry/geometries.h>
 
 using namespace tesseract::collision;
@@ -199,6 +200,133 @@ TEST(CoalCachePairUnit, RemoveReaddProducesCorrectResults)  // NOLINT
   ASSERT_EQ(result2_vec.size(), 1);
 
   EXPECT_NEAR(result1_vec[0].distance, result2_vec[0].distance, 1e-12);
+}
+
+/**
+ * @brief Verify that objects default to StaticFilter and produce no contacts
+ * without an explicit setActiveCollisionObjects call.
+ *
+ * COWs default to m_collisionFilterGroup = StaticFilter. This means newly added
+ * objects are registered in the static broadphase, and only static-vs-kinematic
+ * pairs are checked during contactTest. With no kinematic objects (no active list
+ * set), there are no valid pairs and contactTest must return zero contacts.
+ *
+ * This test exists because the default was changed from KinematicFilter to
+ * StaticFilter to avoid unnecessary broadphase churn: with the old default, all
+ * objects started in the dynamic manager and were immediately moved to static
+ * when setActiveCollisionObjects was called — wasting register/unregister cycles
+ * for the majority of objects (environment geometry) that are never active.
+ *
+ * Tested for both discrete and cast managers.
+ */
+TEST(CoalCachePairUnit, DefaultStaticFilterProducesNoContactsWithoutActiveList)  // NOLINT
+{
+  auto sphere = std::make_shared<tesseract::geometry::Sphere>(0.5);
+  CollisionShapesConst shapes = { sphere };
+  tesseract::common::VectorIsometry3d poses = { Eigen::Isometry3d::Identity() };
+
+  // --- Discrete manager ---
+  {
+    tesseract_collision_coal::CoalDiscreteBVHManager checker;
+    checker.addCollisionObject("link_a", 0, shapes, poses, true);
+    checker.addCollisionObject("link_b", 0, shapes, poses, true);
+    // Deliberately do NOT call setActiveCollisionObjects.
+
+    // Place spheres so they fully overlap at origin.
+    checker.setCollisionObjectsTransform("link_a", Eigen::Isometry3d::Identity());
+    checker.setCollisionObjectsTransform("link_b", Eigen::Isometry3d::Identity());
+
+    ContactResultMap result;
+    checker.contactTest(result, ContactRequest(ContactTestType::ALL));
+
+    EXPECT_TRUE(result.empty())
+        << "With no active objects set, all objects are static. "
+        << "Static-vs-static pairs are not checked, so no contacts should be reported.";
+  }
+
+  // --- Cast (continuous) manager ---
+  {
+    tesseract_collision_coal::CoalCastBVHManager checker;
+    checker.addCollisionObject("link_a", 0, shapes, poses, true);
+    checker.addCollisionObject("link_b", 0, shapes, poses, true);
+    // Deliberately do NOT call setActiveCollisionObjects.
+
+    checker.setCollisionObjectsTransform("link_a", Eigen::Isometry3d::Identity());
+    checker.setCollisionObjectsTransform("link_b", Eigen::Isometry3d::Identity());
+
+    ContactResultMap result;
+    checker.contactTest(result, ContactRequest(ContactTestType::ALL));
+
+    EXPECT_TRUE(result.empty())
+        << "With no active objects set, all objects are static. "
+        << "Static-vs-static pairs are not checked, so no contacts should be reported.";
+  }
+}
+
+/**
+ * @brief Verify that setting active objects after add produces the expected contacts.
+ *
+ * Complements DefaultStaticFilterProducesNoContactsWithoutActiveList: after calling
+ * setActiveCollisionObjects, the promoted objects move from static to kinematic and
+ * contacts are found normally. This confirms the StaticFilter default doesn't prevent
+ * collision detection when the active list is properly configured.
+ */
+TEST(CoalCachePairUnit, ActiveListPromotionEnablesContacts)  // NOLINT
+{
+  auto sphere = std::make_shared<tesseract::geometry::Sphere>(0.5);
+  CollisionShapesConst shapes = { sphere };
+  tesseract::common::VectorIsometry3d poses = { Eigen::Isometry3d::Identity() };
+
+  // --- Discrete manager ---
+  {
+    tesseract_collision_coal::CoalDiscreteBVHManager checker;
+    checker.addCollisionObject("link_a", 0, shapes, poses, true);
+    checker.addCollisionObject("link_b", 0, shapes, poses, true);
+
+    // No contacts before setting active list
+    checker.setCollisionObjectsTransform("link_a", Eigen::Isometry3d::Identity());
+    checker.setCollisionObjectsTransform("link_b", Eigen::Isometry3d::Identity());
+
+    ContactResultMap result_before;
+    checker.contactTest(result_before, ContactRequest(ContactTestType::ALL));
+    EXPECT_TRUE(result_before.empty());
+
+    // Now set one object active — static-vs-kinematic pair should produce contact
+    checker.setActiveCollisionObjects({ "link_a" });
+
+    ContactResultMap result_after;
+    checker.contactTest(result_after, ContactRequest(ContactTestType::ALL));
+    EXPECT_FALSE(result_after.empty())
+        << "After setting link_a active, link_a (kinematic) vs link_b (static) "
+        << "should produce a contact for two overlapping spheres.";
+  }
+
+  // --- Cast (continuous) manager ---
+  {
+    tesseract_collision_coal::CoalCastBVHManager checker;
+    checker.addCollisionObject("link_a", 0, shapes, poses, true);
+    checker.addCollisionObject("link_b", 0, shapes, poses, true);
+
+    checker.setCollisionObjectsTransform("link_a", Eigen::Isometry3d::Identity());
+    checker.setCollisionObjectsTransform("link_b", Eigen::Isometry3d::Identity());
+
+    ContactResultMap result_before;
+    checker.contactTest(result_before, ContactRequest(ContactTestType::ALL));
+    EXPECT_TRUE(result_before.empty());
+
+    // Set link_a active and give it a sweep transform
+    checker.setActiveCollisionObjects({ "link_a" });
+    Eigen::Isometry3d start = Eigen::Isometry3d::Identity();
+    Eigen::Isometry3d end = Eigen::Isometry3d::Identity();
+    end.translation() = Eigen::Vector3d(0.1, 0, 0);
+    checker.setCollisionObjectsTransform("link_a", start, end);
+
+    ContactResultMap result_after;
+    checker.contactTest(result_after, ContactRequest(ContactTestType::ALL));
+    EXPECT_FALSE(result_after.empty())
+        << "After setting link_a active with a sweep, link_a (kinematic) vs "
+        << "link_b (static) should produce a contact.";
+  }
 }
 
 int main(int argc, char** argv)

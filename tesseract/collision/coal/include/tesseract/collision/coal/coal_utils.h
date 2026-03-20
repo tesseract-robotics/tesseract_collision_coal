@@ -107,8 +107,8 @@ public:
                          CollisionShapesConst shapes,
                          tesseract::common::VectorIsometry3d shape_poses);
 
-  short int m_collisionFilterGroup{ CollisionFilterGroups::KinematicFilter };
-  short int m_collisionFilterMask{ CollisionFilterGroups::StaticFilter | CollisionFilterGroups::KinematicFilter };
+  short int m_collisionFilterGroup{ CollisionFilterGroups::StaticFilter };
+  short int m_collisionFilterMask{ CollisionFilterGroups::KinematicFilter };
   bool m_enabled{ true };
 
   const std::string& getName() const { return name_; }
@@ -329,67 +329,31 @@ inline void updateCollisionObjectFilters(const std::vector<std::string>& active,
 {
   const std::vector<CollisionObjectPtr>& reg_objects = cow->getCollisionObjects();
   const std::vector<CollisionObjectPtr>& cast_objects = cast_cow->getCollisionObjects();
-  const bool regular_has_non_shape_base =
-      std::any_of(reg_objects.begin(), reg_objects.end(), [](const CollisionObjectPtr& co) {
-        return (dynamic_cast<const coal::ShapeBase*>(co->collisionGeometry().get()) == nullptr);
-      });
-  // For inactive objects, use static manager; for non-ShapeBase geometry
-  // (e.g., octree) keep cast representation to stay on a supported path.
+
   if (!isLinkActive(active, cow->getName()))
   {
     if (cow->m_collisionFilterGroup != CollisionFilterGroups::StaticFilter)
     {
-      // This link was dynamic but is now static
+      // This link was dynamic but is now static: unregister cast from dynamic, register raw in static.
       for (const auto& co : cast_objects)
-      {
         dynamic_manager->unregisterObject(co.get());
-      }
-      // Use cast representation for static objects that cannot be represented
-      // as ShapeBase (e.g., octree), so narrowphase never sees CastHull-vs-OcTree.
-      const auto& static_objects = regular_has_non_shape_base ? cast_objects : reg_objects;
-      if (regular_has_non_shape_base)
-      {
-        coal::Transform3s identity_tf;
-        identity_tf.setIdentity();
 
-        // Clear any stale swept extent before reusing cast-backed objects as
-        // static proxies. Without this, a previously active octree can remain
-        // registered with a swept CastHullShape volume after demotion.
-        for (const auto& co : cast_objects)
-        {
-          auto* cast_shape = dynamic_cast<CastHullShape*>(co->collisionGeometry().get());
-          if (cast_shape != nullptr)
-          {
-            cast_shape->updateCastTransform(identity_tf);
-            co->updateAABB();
-          }
-        }
-      }
-      for (const auto& co : static_objects)
-      {
+      for (const auto& co : reg_objects)
         static_manager->registerObject(co.get());
-      }
     }
     cow->m_collisionFilterGroup = CollisionFilterGroups::StaticFilter;
     cast_cow->m_collisionFilterGroup = CollisionFilterGroups::StaticFilter;
   }
-  // For active objects, we want the cast version in the dynamic manager
   else
   {
     if (cow->m_collisionFilterGroup != CollisionFilterGroups::KinematicFilter)
     {
-      // This link was static but is now dynamic.
-      // For non-ShapeBase geometries (e.g., octree) the cast representation was
-      // registered in the static manager, so unregister those objects.
-      const auto& static_objects = regular_has_non_shape_base ? cast_objects : reg_objects;
-      for (const auto& co : static_objects)
-      {
+      // This link was static but is now dynamic: unregister raw from static, register cast in dynamic.
+      for (const auto& co : reg_objects)
         static_manager->unregisterObject(co.get());
-      }
+
       for (const auto& co : cast_objects)
-      {
         dynamic_manager->registerObject(co.get());
-      }
     }
     cow->m_collisionFilterGroup = CollisionFilterGroups::KinematicFilter;
     cast_cow->m_collisionFilterGroup = CollisionFilterGroups::KinematicFilter;

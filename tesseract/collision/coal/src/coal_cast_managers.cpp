@@ -51,14 +51,6 @@ namespace tesseract::collision::tesseract_collision_coal
 static const CollisionShapesConst EMPTY_COLLISION_SHAPES_CONST;
 static const tesseract::common::VectorIsometry3d EMPTY_COLLISION_SHAPES_TRANSFORMS;
 
-static bool hasNonShapeBaseGeometry(const COW::Ptr& cow)
-{
-  const auto& objects = cow->getCollisionObjects();
-  return std::any_of(objects.begin(), objects.end(), [](const CollisionObjectPtr& co) {
-    return (dynamic_cast<const coal::ShapeBase*>(co->collisionGeometry().get()) == nullptr);
-  });
-}
-
 CoalCastBVHManager::CoalCastBVHManager(std::string name) : name_(std::move(name))
 {
   static_manager_ = std::make_unique<coal::DynamicAABBTreeCollisionManager>();
@@ -257,11 +249,7 @@ void CoalCastBVHManager::setCollisionObjectsTransform(const std::string& name, c
 
       if (it->second->m_collisionFilterGroup == CollisionFilterGroups::StaticFilter)
       {
-        // For non-ShapeBase geometries (e.g., octree) the cast representation is
-        // registered in the static manager, so update those objects instead.
-        std::vector<CollisionObjectRawPtr>& co = hasNonShapeBaseGeometry(it->second) ?
-                                                     link2castcow_[name]->getCollisionObjectsRaw() :
-                                                     it->second->getCollisionObjectsRaw();
+        std::vector<CollisionObjectRawPtr>& co = it->second->getCollisionObjectsRaw();
         static_manager_->update(co);
       }
       else
@@ -504,10 +492,7 @@ void CoalCastBVHManager::addCollisionObject(const COW::Ptr& cow)
 
   if (cow->m_collisionFilterGroup == CollisionFilterGroups::StaticFilter)
   {
-    // If static add to static manager. For non-ShapeBase geometries (e.g., octree),
-    // keep using the cast representation to avoid CastHull-vs-OcTree unsupported pairs.
-    const std::vector<CollisionObjectPtr>& objects =
-        hasNonShapeBaseGeometry(cow) ? cast_cow->getCollisionObjects() : cow->getCollisionObjects();
+    const std::vector<CollisionObjectPtr>& objects = cow->getCollisionObjects();
     for (const auto& co : objects)
       static_manager_->registerObject(co.get());
   }
@@ -558,11 +543,7 @@ void CoalCastBVHManager::collectTransformUpdate(Link2COW::iterator it, const Eig
 
   if (it->second->m_collisionFilterGroup == CollisionFilterGroups::StaticFilter)
   {
-    // For non-ShapeBase geometries (e.g., octree) the cast representation is
-    // registered in the static manager, so update those objects instead.
-    std::vector<CollisionObjectRawPtr>& co = hasNonShapeBaseGeometry(it->second) ?
-                                                 link2castcow_[it->first]->getCollisionObjectsRaw() :
-                                                 it->second->getCollisionObjectsRaw();
+    std::vector<CollisionObjectRawPtr>& co = it->second->getCollisionObjectsRaw();
     static_update_.insert(static_update_.end(), co.begin(), co.end());
   }
   else
@@ -593,9 +574,7 @@ void CoalCastBVHManager::onCollisionMarginDataChanged()
     cow.second->setContactDistanceThreshold(collision_margin_data_.getMaxCollisionMargin(cow.second->getName()));
     if (cow.second->m_collisionFilterGroup == CollisionFilterGroups::StaticFilter)
     {
-      std::vector<CollisionObjectRawPtr>& co = hasNonShapeBaseGeometry(cow.second) ?
-                                                   link2castcow_[cow.second->getName()]->getCollisionObjectsRaw() :
-                                                   cow.second->getCollisionObjectsRaw();
+      std::vector<CollisionObjectRawPtr>& co = cow.second->getCollisionObjectsRaw();
       static_update_.insert(static_update_.end(), co.begin(), co.end());
     }
   }

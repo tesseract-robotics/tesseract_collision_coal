@@ -59,9 +59,9 @@ namespace tesseract::collision::tesseract_collision_coal
  * broadphase manager; inactive/static links register their regular COW in the
  * static broadphase manager.
  *
- * Exception: non-ShapeBase geometries (e.g., octree) always use the cast
- * representation (expanded into box sub-shapes) in the broadphase, even when
- * static, to avoid unsupported CastHull-vs-OcTree narrowphase pairs.
+ * Static octrees use the raw OcTree directly in the static broadphase.
+ * Coal provides native GEOM_CUSTOM (CastHullShape) vs GEOM_OCTREE collision
+ * support, so voxel expansion is only needed for active (kinematic) octrees.
  */
 class CoalCastBVHManager : public ContinuousContactManager
 {

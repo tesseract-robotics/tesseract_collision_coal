@@ -51,33 +51,29 @@ inline std::string formatOctomapContactResult(const ContactResult& cr)
 }
 
 /**
- * @brief Check continuous collision fields on an octree-vs-kinematic contact result.
+ * @brief Check continuous collision fields on an octree-vs-kinematic contact.
  *
  * @param cr           The contact result to validate.
  * @param kin_link     Name of the kinematic (active) link.
  * @param start_pos    Pose1 (start of sweep) for the kinematic link.
  * @param end_pos      Pose2 (end of sweep) for the kinematic link.
- * @param sweep_dir    Unit vector along the sweep direction in world frame.
- */
-/**
- * @brief Check continuous collision fields on an octree-vs-kinematic contact.
- *
- * @param sweep_dir  Unit vector along the sweep direction, used to validate
- *                   the normal direction when cc_type is CCType_Between.
+ * @param sweep_dir    Unit vector along the sweep direction, used to validate
+ *                     the normal-direction invariants for each CCType.
  *
  * Which CCType the kinematic side receives depends on which octree voxel the
- * broadphase selects (non-deterministic across test runs):
+ * narrowphase selects and the resulting contact normal direction:
  *
- *  - CCType_Time1: the contact normal has a large component along the sweep
- *    direction, so the t=1 world-frame support dominates → cc_time = 1.0.
+ *  - CCType_Time0: the outward normal from the kinematic shape has a large
+ *    component opposite to the sweep → t=0 support dominates → cc_time = 0.
  *
- *  - CCType_Between: the contact normal is roughly perpendicular to the sweep
+ *  - CCType_Time1: the outward normal has a large component along the sweep
+ *    → t=1 support dominates → cc_time = 1.0.
+ *
+ *  - CCType_Between: the normal is roughly perpendicular to the sweep
  *    (normal · sweep ≈ 0), world supports are equal → cc_time ∈ (0, 1].
- *    In this case the perpendicularity is a consequence of the type, so we
- *    can also assert it.
  *
- * CCType_None is impossible (kinematic object), and CCType_Time0 is
- * impossible because the kinematic shape starts well outside the octree.
+ * CCType_None is impossible for the kinematic side (would mean it wasn't
+ * processed by populateContinuousCollisionFields).
  */
 inline void checkOctomapCastResult(const ContactResult& cr,
                                    const std::string& kin_link,
@@ -94,9 +90,9 @@ inline void checkOctomapCastResult(const ContactResult& cr,
 
   // -----------------------------------------------------------------------
   // Static (octree) side
-  // The octree voxels are wrapped in CastHullShape with identity cast, but
-  // they are in StaticFilter.  populateContinuousCollisionFields skips them,
-  // so their CCD fields keep the default values: CCType_None / cc_time = -1.
+  // The static octree is a raw OcTree collision object (not CastHullShape),
+  // so populateContinuousCollisionFields skips it and CCD fields keep
+  // defaults: CCType_None / cc_time = -1.
   // -----------------------------------------------------------------------
   EXPECT_EQ(cr.cc_type[si], ContinuousCollisionType::CCType_None)
       << "Octree (static) cc_type should be CCType_None; "
@@ -105,26 +101,38 @@ inline void checkOctomapCastResult(const ContactResult& cr,
       << "Octree (static) cc_time should be -1 (not set for static objects)";
 
   // -----------------------------------------------------------------------
-  // Kinematic side: cc_type must be Time1 or Between.
+  // Kinematic side: cc_type must not be CCType_None.
   //
-  // Which one depends on which voxel the broadphase selects (ordering is not
-  // guaranteed across test runs).  Both values are correct; what matters is
-  // that the static value (None) and the impossible value (Time0) are ruled
-  // out.
+  // Which specific type (Time0, Time1, Between) depends on which octree
+  // voxel the narrowphase selects and the resulting contact normal direction:
+  //
+  //  - CCType_Time0: the contact normal has a large component OPPOSITE to
+  //    the sweep direction (outward normal from kin shape points away from
+  //    sweep), so the t=0 world-frame support dominates → cc_time = 0.
+  //    This can happen when Coal's OcTree traversal selects a deeply
+  //    penetrated voxel whose normal is aligned with the sweep axis.
+  //
+  //  - CCType_Time1: the contact normal has a large component along the
+  //    sweep direction → t=1 support dominates → cc_time = 1.0.
+  //
+  //  - CCType_Between: the contact normal is roughly perpendicular to the
+  //    sweep → world supports are nearly equal → cc_time ∈ (0, 1].
+  //
+  // CCType_None would mean the kinematic side wasn't processed by
+  // populateContinuousCollisionFields, which is a bug.
   // -----------------------------------------------------------------------
-  const bool kin_type_valid = (cr.cc_type[ki] == ContinuousCollisionType::CCType_Time1 ||
-                               cr.cc_type[ki] == ContinuousCollisionType::CCType_Between);
-  EXPECT_TRUE(kin_type_valid)
-      << "Kinematic cc_type must be CCType_Time1 (2) or CCType_Between (3); "
+  EXPECT_NE(cr.cc_type[ki], ContinuousCollisionType::CCType_None)
+      << "Kinematic cc_type must not be CCType_None; "
       << "got " << static_cast<int>(cr.cc_type[ki])
-      << ". CCType_None means static (wrong). "
-         "CCType_Time0 is geometrically impossible (shape starts outside octree).";
+      << ". CCType_None means the kinematic side was not processed.";
 
   // cc_time consistency with cc_type:
-  //   CCType_Time1  → cc_time = 1.0 (set explicitly by populateContinuousCollisionFields)
-  //   CCType_Between → cc_time = projection of contact midpoint onto sweep,
-  //                    always > 0 because the shape starts outside the octree.
-  if (cr.cc_type[ki] == ContinuousCollisionType::CCType_Time1)
+  if (cr.cc_type[ki] == ContinuousCollisionType::CCType_Time0)
+  {
+    EXPECT_NEAR(cr.cc_time[ki], 0.0, 1e-3)
+        << "For CCType_Time0, cc_time must be 0.0";
+  }
+  else if (cr.cc_type[ki] == ContinuousCollisionType::CCType_Time1)
   {
     EXPECT_NEAR(cr.cc_time[ki], 1.0, 1e-3)
         << "For CCType_Time1, cc_time must be 1.0";
@@ -132,7 +140,7 @@ inline void checkOctomapCastResult(const ContactResult& cr,
   else
   {
     EXPECT_GT(cr.cc_time[ki], 0.0)
-        << "For CCType_Between, cc_time must be > 0 (shape starts outside octree)";
+        << "For CCType_Between, cc_time must be > 0";
     EXPECT_LE(cr.cc_time[ki], 1.0)
         << "For CCType_Between, cc_time must be <= 1.0";
 
@@ -144,7 +152,7 @@ inline void checkOctomapCastResult(const ContactResult& cr,
         << "For CCType_Between, contact normal should be mostly perpendicular "
         << "to sweep direction (along_sweep = " << along_sweep << "); "
         << "a large component means the world supports should differ and "
-        << "CCType_Time1 should have been set instead";
+        << "CCType_Time0/Time1 should have been set instead";
   }
 
   // transform[ki] = pose1 (start of sweep).
@@ -180,18 +188,29 @@ inline void checkOctomapCastResult(const ContactResult& cr,
          "field was not set by populateContinuousCollisionFields.";
 
   // -----------------------------------------------------------------------
-  // CCType_Time1 normal-direction invariant:
+  // Normal-direction invariants for CCType_Time0 and CCType_Time1:
   //
-  // CCType_Time1 is selected when link_sup1 > link_sup0 + tolerance.
-  // For a pure-translational sweep:
+  // The cc_type is selected based on link_sup1 vs link_sup0. For a
+  // pure-translational sweep:
   //   link_sup1 - link_sup0  =  normal_world · sweep_vector
   // where normal_world is the outward normal FROM the kinematic shape
   // (i.e. normal_world = contact.normal when ki==0, -contact.normal when ki==1).
   //
-  // Therefore, if cc_type is CCType_Time1, the outward normal from the
-  // kinematic shape must have a strictly positive component along sweep_dir.
+  // CCType_Time0: link_sup0 > link_sup1 → outward normal has NEGATIVE
+  //   component along sweep_dir (shape surface recedes during sweep).
+  // CCType_Time1: link_sup1 > link_sup0 → outward normal has POSITIVE
+  //   component along sweep_dir (shape surface advances during sweep).
   // -----------------------------------------------------------------------
-  if (cr.cc_type[ki] == ContinuousCollisionType::CCType_Time1)
+  if (cr.cc_type[ki] == ContinuousCollisionType::CCType_Time0)
+  {
+    const double along_sweep = (ki == 0 ? 1.0 : -1.0) * cr.normal.dot(sweep_dir);
+    EXPECT_LT(along_sweep, -0.001)
+        << "For CCType_Time0, the outward normal from the kinematic shape must "
+        << "have a negative component along sweep_dir "
+        << "(along_sweep = " << along_sweep << "). "
+        << "This is the invariant that selects CCType_Time0 over CCType_Between.";
+  }
+  else if (cr.cc_type[ki] == ContinuousCollisionType::CCType_Time1)
   {
     const double along_sweep = (ki == 0 ? 1.0 : -1.0) * cr.normal.dot(sweep_dir);
     EXPECT_GT(along_sweep, 0.001)
@@ -485,8 +504,8 @@ inline void runOctomapConvexHullCastTest(ContinuousContactManager& checker, Cont
  * @brief Run continuous collision test: static octree (BOX) vs active cylinder.
  *
  * Tests the scenario where an octree is static and a primitive shape sweeps
- * through it. This exercises the cast manager's handling of expanded octree
- * voxels in the static broadphase vs CastHullShape in the dynamic broadphase.
+ * through it. This exercises the cast manager's handling of a raw OcTree in the
+ * static broadphase vs CastHullShape in the dynamic broadphase.
  */
 inline void runTestOctomapCylinder(ContinuousContactManager& checker)
 {

@@ -60,6 +60,7 @@ TESSERACT_COMMON_IGNORE_WARNINGS_POP
 #include <tesseract/collision/coal/coal_utils.h>
 #include <tesseract/collision/coal/coal_collision_geometry_cache.h>
 #include <tesseract/collision/coal/coal_casthullshape.h>
+#include <tesseract/collision/coal/coal_collision_object_wrapper.h>
 #include <tesseract/geometry/geometries.h>
 
 namespace tesseract::collision::tesseract_collision_coal
@@ -459,7 +460,7 @@ void populateContinuousCollisionFields(ContactResult& contact,
     // local normal), so link_sup1 − link_sup0 = normal · link_sweep.
     // A positive value means the shape's surface advances in the normal
     // direction over the sweep → CCType_Time1, matching Bullet.
-    const Eigen::Vector3d nw(normal_world);
+    const Eigen::Vector3d& nw(normal_world);
     const double link_sup0 = sup_local0 + nw.dot(contact.transform[i].translation());
     const double link_sup1 = sup_local1 + nw.dot(contact.cc_transform[i].translation());
 
@@ -538,13 +539,13 @@ bool CollisionCallback::collide(coal::CollisionObject* o1, coal::CollisionObject
     num_contacts = 1;
   const auto security_margin = cdata->collision_margin_data.getCollisionMargin(cd1->getName(), cd2->getName());
 
-  // CastHullShape (GEOM_CUSTOM) is now handled natively by Coal via virtual dispatch
+  // CastHullShape (GEOM_CUSTOM) is handled natively by Coal via virtual dispatch
   // through CastHullShape::computeShapeSupport().  We still detect it to apply
   // appropriate GJK settings: DefaultGJK (no acceleration) because the Schulman
   // support function is discontinuous, and an unbounded distance_upper_bound
   // because swept volumes can be much larger than the security margin.
-  const bool is_cast_hull = (dynamic_cast<const CastHullShape*>(o1->collisionGeometry().get()) != nullptr) ||
-                            (dynamic_cast<const CastHullShape*>(o2->collisionGeometry().get()) != nullptr);
+  const bool has_cast_hull = dynamic_cast<const CastHullShape*>(o1->collisionGeometry().get()) != nullptr ||
+                             dynamic_cast<const CastHullShape*>(o2->collisionGeometry().get()) != nullptr;
 
   coal::CollisionResult col_result;
 
@@ -560,7 +561,7 @@ bool CollisionCallback::collide(coal::CollisionObject* o1, coal::CollisionObject
   if (col_request_it == cdata->collision_cache->end())
   {
     coal::CollisionRequest col_request;
-    if (is_cast_hull)
+    if (has_cast_hull)
     {
       // Use DefaultGJK — do NOT set gjk_variant, convergence_criterion, or
       // convergence_criterion_type, leaving them at Coal defaults.
@@ -602,7 +603,7 @@ bool CollisionCallback::collide(coal::CollisionObject* o1, coal::CollisionObject
     cached_request.enable_contact = cdata->req.calculate_penetration;
     cached_request.num_max_contacts = num_contacts;
     cached_request.security_margin = security_margin;
-    if (!is_cast_hull)
+    if (!has_cast_hull)
       cached_request.distance_upper_bound = security_margin + cached_request.gjk_tolerance;
   }
 
@@ -618,6 +619,13 @@ bool CollisionCallback::collide(coal::CollisionObject* o1, coal::CollisionObject
 
   if (!col_result.isCollision())
     return false;
+
+  // Some Coal traversal nodes (e.g., ShapeOcTreeCollisionTraversalNode) internally
+  // swap arguments without compensating in the result, causing Contact o1/o2, b1/b2,
+  // nearest_points, and normal to not match the (co1, co2) ordering. Detect this by
+  // checking if the first contact's o1 matches co1's geometry.
+  if (col_result.getContact(0).o1 != co1->collisionGeometry().get())
+    col_result.swapObjects();
 
   TESSERACT_THREAD_LOCAL tesseract::common::LinkNamesPair link_pair;
   tesseract::common::makeOrderedLinkPair(link_pair, cd1->getName(), cd2->getName());
@@ -675,9 +683,6 @@ CollisionObjectWrapper::CollisionObjectWrapper(std::string name,
   assert(!shape_poses_.empty());                  // NOLINT
   assert(!name_.empty());                         // NOLINT
   assert(shapes_.size() == shape_poses_.size());  // NOLINT
-
-  m_collisionFilterGroup = CollisionFilterGroups::KinematicFilter;
-  m_collisionFilterMask = CollisionFilterGroups::StaticFilter | CollisionFilterGroups::KinematicFilter;
 
   collision_geometries_.reserve(shapes_.size());
   collision_objects_.reserve(shapes_.size());

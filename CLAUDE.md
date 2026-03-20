@@ -1,80 +1,40 @@
-# tesseract_collision_coal
+# CLAUDE.md
 
-Coal-based collision checking plugin for the Tesseract motion planning framework.
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## What this is
+## Overview
 
-This repository implements discrete and continuous (swept/cast) collision detection using the [Coal](https://github.com/coal-library/coal) library, as an alternative to the existing Bullet and FCL backends in Tesseract. The architecture closely mirrors Tesseract's Bullet collision implementation.
+Coal-based collision checking plugin for the Tesseract motion planning framework. Implements discrete and continuous (swept/cast) collision detection using the Coal library, as an alternative to the existing Bullet and FCL backends. Architecture closely mirrors Tesseract's Bullet collision implementation.
 
-The reference Bullet and FCL implementations live at:
-https://github.com/tesseract-robotics/tesseract/tree/master/collision
+The reference Bullet and FCL implementations live in `src/tesseract/tesseract_collision/`.
 
 ## Coal fork requirement
 
-Continuous collision detection requires custom geometry support (`GEOM_CUSTOM`) in Coal for the `CastHullShape` class. This is provided by the following branch, which must be used instead of upstream Coal:
+Continuous collision detection requires `GEOM_CUSTOM` support in Coal for the `CastHullShape` class. The workspace's `src/coal/` fork provides this. Without it, Coal's narrowphase dispatcher won't recognize custom shapes.
 
-https://github.com/rjoomen/coal/tree/copilot/review-custom-cast-shape-support
+## Architecture
 
-Without this branch, `CastHullShape` (the swept convex hull used for cast collision) will not work — Coal's narrowphase dispatcher won't recognize `GEOM_CUSTOM` shapes.
+### Key design concepts
 
-## Repository structure
+- **COW (Collision Object Wrapper):** Each link becomes a COW containing one or more Coal `CollisionObject`s (one per shape). Tracks link name, world pose, filter group, and per-shape local transforms.
+- **Dual broadphase managers:** Both discrete and cast managers maintain `static_manager_` and `dynamic_manager_` trees. Only kinematic-to-kinematic and kinematic-to-static pairs are checked. Objects move between managers via `setActiveCollisionObjects()`.
+- **Active list management:** `active_` controls which objects are kinematic vs static. Adding a new collision object does **not** auto-add it to `active_`; removing cleans it from `active_`.
+- **CastHullShape (continuous collision):** Wraps a `coal::ShapeBase` with a cast transform (start-to-end motion). Uses support functions at both poses for swept volume — no vertex materialization. Independent GJK support hints per pose.
+- **Dual COW maps (cast manager):** `link2cow_` has regular geometry; `link2castcow_` has CastHullShape-wrapped versions.
+- **Octree handling:** Static octrees use the raw OcTree in the broadphase (Coal has native CastHullShape-vs-OcTree support). Active octrees are expanded into individual boxes per voxel, each wrapped in CastHullShape, for sweep support.
+- **Collision functor cache:** `ComputeCollision` functors and `CollisionRequest` objects cached per object pair to preserve GJK warm-start hints.
 
-```
-tesseract/collision/
-├── coal/
-│   ├── include/tesseract/collision/coal/
-│   │   ├── coal_discrete_managers.h      # DiscreteContactManager implementation
-│   │   ├── coal_cast_managers.h          # ContinuousContactManager implementation
-│   │   ├── coal_utils.h                  # COW, collision callbacks, filter logic
-│   │   ├── coal_collision_object_wrapper.h  # AABB-inflated CollisionObject
-│   │   ├── coal_casthullshape.h          # Swept geometry via support functions
-│   │   ├── coal_collision_geometry_cache.h
-│   │   └── coal_factories.h             # Plugin factory registration
-│   └── src/                             # Corresponding implementations
-├── test/
-│   ├── coal/                            # Coal-specific unit tests
-│   └── *.cpp                            # Integration tests (shared test suite)
-└── test_suite/include/                  # Shared test harness headers
-```
+### Plugin registration
 
-## Key design concepts
+Two factory classes (`CoalDiscreteBVHManagerFactory`, `CoalCastBVHManagerFactory`) registered via `TESSERACT_ADD_DISCRETE_MANAGER_PLUGIN` / `TESSERACT_ADD_CONTINUOUS_MANAGER_PLUGIN`. Built as separate `tesseract_collision_coal_factories` library.
 
-### Collision Object Wrapper (COW)
-Each Tesseract link becomes a `COW` containing one or more Coal `CollisionObject`s (one per shape in the link). The COW tracks the link name, world pose, filter group, and per-shape local transforms.
+### Test organization (three layers)
 
-### Dual broadphase managers
-Both discrete and cast managers maintain separate `static_manager_` and `dynamic_manager_` broadphase trees. Only kinematic-to-kinematic and kinematic-to-static pairs are checked. Objects move between managers when `setActiveCollisionObjects()` is called.
+1. **Test suite headers** (`test_suite/include/`) — 26 reusable `.hpp` headers defining `addCollisionObjects()` + `runTest()` for each scenario. Headers-only INTERFACE library shared across collision backends.
+2. **Integration tests** (`test/*.cpp`) — Instantiate Coal managers and call test suite `runTest()` functions. ~24 tests covering discrete (box-sphere, mesh-mesh, octomap, large dataset, multi-threaded) and continuous (cast box-box, sphere-sphere, octomap cast, multi-shape cast).
+3. **Coal-specific unit tests** (`test/coal/`) — 7 tests for internal components: CastHullShape behavior, functor caching/GJK warm-start, geometry cache, collision object wrapper AABB inflation, shape conversion.
 
-### Active list management
-The `active_` list controls which objects are kinematic (checked against everything) vs static (checked only against kinematic). Callers manage this via `setActiveCollisionObjects()`. Adding a new collision object does **not** auto-add it to `active_`; removing an object does clean it from `active_`.
-
-### CastHullShape (continuous collision)
-Wraps a `coal::ShapeBase` with a cast transform (start-to-end motion). Uses the support function of the underlying shape at both poses to compute the convex hull of the swept volume — no vertex materialization needed. Each pose maintains independent GJK support hints.
-
-### Dual COW maps for cast manager
-`CoalCastBVHManager` maintains two parallel COW hierarchies:
-- `link2cow_` — regular geometry
-- `link2castcow_` — CastHullShape-wrapped versions for swept collision
-
-### Octree handling
-Coal lacks native CastHull-vs-OcTree narrowphase, so octrees are expanded into individual boxes per occupied voxel, each wrapped in CastHullShape.
-
-### Collision functor cache
-`ComputeCollision` functors and `CollisionRequest` objects are cached per object pair to avoid reconstruction cost and to preserve GJK warm-start hints.
-
-## Building
-
-The project uses CMake with `ros_industrial_cmake_boilerplate`. Source directory is `tesseract/collision/`.
-
-```bash
-mkdir build && cd build
-cmake ../tesseract/collision -DCMAKE_BUILD_TYPE=Release
-make -j$(nproc)
-```
-
-Dependencies: Coal, Eigen3, octomap, boost_plugin_loader, tesseract (collision + geometry interfaces).
-
-Cast tests are gated behind `TESSERACT_COLLISION_COAL_ENABLE_COAL_CAST_TESTS` (default OFF).
+Cast tests gated behind `TESSERACT_COLLISION_COAL_ENABLE_COAL_CAST_TESTS` CMake option (default OFF).
 
 ## Known issues
 
