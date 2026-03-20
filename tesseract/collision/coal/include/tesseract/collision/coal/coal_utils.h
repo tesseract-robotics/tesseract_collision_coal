@@ -65,7 +65,6 @@ namespace tesseract::collision::tesseract_collision_coal
 using CollisionGeometryPtr = std::shared_ptr<coal::CollisionGeometry>;
 using CollisionObjectPtr = std::shared_ptr<CoalCollisionObjectWrapper>;
 using CollisionObjectRawPtr = coal::CollisionObject*;
-using CollisionObjectConstPtr = std::shared_ptr<const coal::CollisionObject>;
 
 /** @brief A pair of collision objects used as map key */
 using CollisionObjectPair = std::pair<coal::CollisionObject*, coal::CollisionObject*>;
@@ -80,6 +79,39 @@ struct CollisionObjectPairHash
 using CollisionCacheMap = std::unordered_map<CollisionObjectPair,
                                              std::pair<coal::ComputeCollision, coal::CollisionRequest>,
                                              CollisionObjectPairHash>;
+
+/** @brief Remove cache entries involving any of the given collision objects */
+inline void invalidateCacheFor(CollisionCacheMap& cache, const std::vector<CollisionObjectPtr>& objects)
+{
+  for (auto it = cache.begin(); it != cache.end();)
+  {
+    if (std::any_of(objects.begin(), objects.end(), [&it](const auto& co) {
+          return it->first.first == co.get() || it->first.second == co.get();
+        }))
+      it = cache.erase(it);
+    else
+      ++it;
+  }
+}
+
+/** @brief Remove cache entries involving any object from either vector (single-pass) */
+inline void invalidateCacheFor(CollisionCacheMap& cache,
+                               const std::vector<CollisionObjectPtr>& objects1,
+                               const std::vector<CollisionObjectPtr>& objects2)
+{
+  for (auto it = cache.begin(); it != cache.end();)
+  {
+    const auto* first = it->first.first;
+    const auto* second = it->first.second;
+    if (std::any_of(objects1.begin(), objects1.end(),
+                    [first, second](const auto& co) { return first == co.get() || second == co.get(); }) ||
+        std::any_of(objects2.begin(), objects2.end(),
+                    [first, second](const auto& co) { return first == co.get() || second == co.get(); }))
+      it = cache.erase(it);
+    else
+      ++it;
+  }
+}
 
 enum CollisionFilterGroups : std::int8_t
 {
@@ -113,17 +145,6 @@ public:
 
   const std::string& getName() const { return name_; }
   const int& getTypeID() const { return type_id_; }
-  /** \brief Check if two objects point to the same source object */
-  bool sameObject(const CollisionObjectWrapper& other) const
-  {
-    return name_ == other.name_ && type_id_ == other.type_id_ && shapes_.size() == other.shapes_.size() &&
-           shape_poses_.size() == other.shape_poses_.size() &&
-           std::equal(shapes_.begin(), shapes_.end(), other.shapes_.begin()) &&
-           std::equal(shape_poses_.begin(),
-                      shape_poses_.end(),
-                      other.shape_poses_.begin(),
-                      [](const Eigen::Isometry3d& t1, const Eigen::Isometry3d& t2) { return t1.isApprox(t2); });
-  }
 
   const CollisionShapesConst& getCollisionGeometries() const { return shapes_; }
 
@@ -159,9 +180,12 @@ public:
 
   std::vector<CollisionObjectPtr>& getCollisionObjects() { return collision_objects_; }
 
-  const std::vector<CollisionObjectRawPtr>& getCollisionObjectsRaw() const { return collision_objects_raw_; }
-
-  std::vector<CollisionObjectRawPtr>& getCollisionObjectsRaw() { return collision_objects_raw_; }
+  /** @brief Append raw pointers from this wrapper's collision objects into @p out. */
+  void appendCollisionObjectsRaw(std::vector<CollisionObjectRawPtr>& out) const
+  {
+    for (const auto& co : collision_objects_)
+      out.push_back(co.get());
+  }
 
   std::shared_ptr<CollisionObjectWrapper> clone() const
   {
@@ -173,7 +197,6 @@ public:
     clone_cow->collision_geometries_ = collision_geometries_;
 
     clone_cow->collision_objects_.reserve(collision_objects_.size());
-    clone_cow->collision_objects_raw_.reserve(collision_objects_.size());
     for (const auto& co : collision_objects_)
     {
       assert(std::dynamic_pointer_cast<CoalCollisionObjectWrapper>(co) != nullptr);
@@ -183,7 +206,6 @@ public:
       collObj->setTransform(co->getTransform());
       collObj->updateAABB();
       clone_cow->collision_objects_.push_back(collObj);
-      clone_cow->collision_objects_raw_.push_back(collObj.get());
     }
 
     clone_cow->world_pose_ = world_pose_;
@@ -208,11 +230,6 @@ protected:
   tesseract::common::VectorIsometry3d shape_poses_;
   std::vector<CollisionGeometryPtr> collision_geometries_;
   std::vector<CollisionObjectPtr> collision_objects_;
-  /**
-   * @brief The raw pointer is also stored because Coal accepts vectors for batch process.
-   * Note: They are updating the API to Shared Pointers but the broadphase has not been updated yet.
-   */
-  std::vector<CollisionObjectRawPtr> collision_objects_raw_;
 
   double contact_distance_{ 0 }; /**< @brief The contact distance threshold */
 };
@@ -221,7 +238,6 @@ CollisionGeometryPtr createShapePrimitive(const CollisionShapeConstPtr& geom);
 
 using COW = CollisionObjectWrapper;
 using Link2COW = std::map<std::string, COW::Ptr>;
-using Link2ConstCOW = std::map<std::string, COW::ConstPtr>;
 
 inline COW::Ptr createCoalCollisionObject(const std::string& name,
                                           const int& type_id,
@@ -374,19 +390,17 @@ inline COW::Ptr makeCastCollisionObject(const COW::Ptr& cow)
 
   // Create the vector of new collision objects
   std::vector<CollisionObjectPtr> new_collision_objects;
-  std::vector<CollisionObjectRawPtr> new_collision_objects_raw;
 
   // Identity transform for initial state
   coal::Transform3s identity_tf;
   identity_tf.setIdentity();
 
-  const auto link_tf = cast_cow->getCollisionObjectsTransform();
-  const auto current_shapes = cast_cow->getCollisionGeometries();
-  const auto current_shape_poses = cast_cow->getCollisionGeometriesTransforms();
+  const auto& link_tf = cast_cow->getCollisionObjectsTransform();
+  const auto& current_shapes = cast_cow->getCollisionGeometries();
+  const auto& current_shape_poses = cast_cow->getCollisionGeometriesTransforms();
 
   const auto& current_collision_objects = cast_cow->getCollisionObjects();
   new_collision_objects.reserve(current_collision_objects.size());
-  new_collision_objects_raw.reserve(current_collision_objects.size());
 
   CollisionShapesConst new_shapes;
   tesseract::common::VectorIsometry3d new_shape_poses;
@@ -416,7 +430,6 @@ inline COW::Ptr makeCastCollisionObject(const COW::Ptr& cow)
 
       // Store everything
       new_collision_objects.push_back(cast_co);
-      new_collision_objects_raw.push_back(cast_co.get());
       new_shapes.push_back(current_shapes[old_shape_index]);
       new_shape_poses.push_back(current_shape_poses[old_shape_index]);
     }
@@ -465,7 +478,6 @@ inline COW::Ptr makeCastCollisionObject(const COW::Ptr& cow)
           cast_co->setUserData(cast_cow.get());
 
           new_collision_objects.push_back(cast_co);
-          new_collision_objects_raw.push_back(cast_co.get());
           new_shapes.push_back(current_shapes[old_shape_index]);
           new_shape_poses.push_back(shape_pose);
         }
@@ -482,7 +494,6 @@ inline COW::Ptr makeCastCollisionObject(const COW::Ptr& cow)
   cast_cow->getCollisionGeometries() = new_shapes;
   cast_cow->getCollisionGeometriesTransforms() = new_shape_poses;
   cast_cow->getCollisionObjects() = new_collision_objects;
-  cast_cow->getCollisionObjectsRaw() = new_collision_objects_raw;
 
   return cast_cow;
 }

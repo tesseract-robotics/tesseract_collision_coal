@@ -24,13 +24,17 @@
  *    with the distribution.
  * @par
  * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
- * MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR
- * CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
- * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR
- * BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR
- * TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF
- * THE POSSIBILITY OF SUCH DAMAGE.
+ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
+ * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
+ * COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
+ * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
+ * BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+ * LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+ * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
+ * ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+ * POSSIBILITY OF SUCH DAMAGE.
  */
 
 #include <tesseract/common/macros.h>
@@ -174,16 +178,7 @@ void CoalCastBVHManager::removeObjects(const std::vector<CollisionObjectPtr>& ob
       dynamic_manager_->unregisterObject(co.get());
   }
 
-  // Remove cached collision functors that involve the removed objects
-  for (auto it_cache = collision_cache.begin(); it_cache != collision_cache.end();)
-  {
-    if (std::any_of(objects.begin(), objects.end(), [&it_cache](const auto& co) {
-          return it_cache->first.first == co.get() || it_cache->first.second == co.get();
-        }))
-      it_cache = collision_cache.erase(it_cache);
-    else
-      ++it_cache;
-  }
+  invalidateCacheFor(collision_cache, objects);
 }
 
 bool CoalCastBVHManager::enableCollisionObject(const std::string& name)
@@ -236,31 +231,10 @@ void CoalCastBVHManager::setCollisionObjectsTransform(const std::string& name, c
   auto it = link2cow_.find(name);
   if (it != link2cow_.end())
   {
-    const Eigen::Isometry3d& cur_tf = it->second->getCollisionObjectsTransform();
-    // Note: If the transform has not changed do not updated to prevent unnecessary re-balancing of the BVH tree
-    if (transformChanged(cur_tf, pose))
-    {
-      it->second->setCollisionObjectsTransform(pose);
-
-      // Also update the cast version if it exists
-      auto cast_it = link2castcow_.find(name);
-      if (cast_it != link2castcow_.end())
-        cast_it->second->setCollisionObjectsTransform(pose);
-
-      if (it->second->m_collisionFilterGroup == CollisionFilterGroups::StaticFilter)
-      {
-        std::vector<CollisionObjectRawPtr>& co = it->second->getCollisionObjectsRaw();
-        static_manager_->update(co);
-      }
-      else
-      {
-        // If this is an active/kinematic object, update the cast version in the dynamic manager
-        if (cast_it != link2castcow_.end())
-          dynamic_manager_->update(cast_it->second->getCollisionObjectsRaw());
-        else
-          dynamic_manager_->update(it->second->getCollisionObjectsRaw());
-      }
-    }
+    static_update_.clear();
+    dynamic_update_.clear();
+    collectTransformUpdate(it, pose);
+    flushBatchUpdate();
   }
 }
 
@@ -296,73 +270,24 @@ void CoalCastBVHManager::setCollisionObjectsTransform(const std::string& name,
                                                       const Eigen::Isometry3d& pose1,
                                                       const Eigen::Isometry3d& pose2)
 {
-  auto it = link2castcow_.find(name);
-  if (it != link2castcow_.end())
+  auto cast_it = link2castcow_.find(name);
+  if (cast_it != link2castcow_.end())
   {
+    static_update_.clear();
+    dynamic_update_.clear();
     auto reg_it = link2cow_.find(name);
-    COW::Ptr& cow = it->second;
-
-    // Keep regular and cast objects aligned at the start transform
-    cow->setCollisionObjectsTransform(pose1);
+    collectCastTransformUpdate(cast_it, reg_it, pose1, pose2);
+    // Selective invalidation for single-link updates — evicts cache entries for both
+    // cast and regular objects in a single pass. The regular COW's transform also
+    // changes (synced to pose1), so its broadphase entries become stale too.
+    // The multi-link overloads use collision_cache.clear() instead since that is
+    // O(M) once vs O(N*M) for N per-link invalidations.
     if (reg_it != link2cow_.end())
-      reg_it->second->setCollisionObjectsTransform(pose1);
-
-    // Match Bullet behavior: do not update cast sweep state/AABB for disabled objects
-    if (!cow->m_enabled)
-      return;
-
-    // Convert to coal::Transform3s format
-    const auto tf1 = coal::Transform3s(pose1.rotation(), pose1.translation());
-    const auto tf2 = coal::Transform3s(pose2.rotation(), pose2.translation());
-
-    const auto& shape_poses = cow->getCollisionGeometriesTransforms();
-
-    // Update cast transforms first so computeLocalAABB reflects the swept volume
-    for (auto& co : cow->getCollisionObjects())
-    {
-      if (auto* cast_shape = dynamic_cast<CastHullShape*>(co->collisionGeometry().get()))
-      {
-        // Compute per-shape relative transform accounting for local offset.
-        // Each shape's world transform is link_tf * local_tf, so the relative
-        // motion in the shape's local frame is:
-        //   (tf1 * local_tf)^-1 * (tf2 * local_tf)
-        // This matches Bullet's compound shape handling where each child gets
-        // its own delta_tf = (tf1 * local_tf).inverseTimes(tf2 * local_tf).
-        const auto& shape_pose = shape_poses[static_cast<std::size_t>(co->getShapeIndex())];
-        const auto local_tf = coal::Transform3s(shape_pose.rotation(), shape_pose.translation());
-        const auto shape_tf1 = tf1 * local_tf;
-        const auto shape_tf2 = tf2 * local_tf;
-        cast_shape->updateCastTransform(shape_tf1.inverseTimes(shape_tf2));
-      }
-    }
-
-    // Re-apply world transform so CoalCollisionObjectWrapper::updateAABB uses the
-    // updated CastHullShape local AABB (swept volume).
-    cow->setCollisionObjectsTransform(pose1);
-
-    // Invalidate cached GJK guesses for collision pairs involving this object.
-    // The cached separating axis from the previous sweep direction is no longer
-    // valid after the cast transform changes, and can cause GJK to miss collisions.
-    const auto& cast_objects = cow->getCollisionObjects();
-    for (auto it_cache = collision_cache.begin(); it_cache != collision_cache.end();)
-    {
-      if (std::any_of(cast_objects.begin(), cast_objects.end(), [&it_cache](const auto& co) {
-            return it_cache->first.first == co.get() || it_cache->first.second == co.get();
-          }))
-        it_cache = collision_cache.erase(it_cache);
-      else
-        ++it_cache;
-    }
-
-    // Update Broadphase AABB
-    if (cow->m_collisionFilterGroup == CollisionFilterGroups::StaticFilter)
-    {
-      static_manager_->update(cow->getCollisionObjectsRaw());
-    }
+      invalidateCacheFor(
+          collision_cache, cast_it->second->getCollisionObjects(), reg_it->second->getCollisionObjects());
     else
-    {
-      dynamic_manager_->update(cow->getCollisionObjectsRaw());
-    }
+      invalidateCacheFor(collision_cache, cast_it->second->getCollisionObjects());
+    flushBatchUpdate();
   }
 }
 
@@ -372,20 +297,40 @@ void CoalCastBVHManager::setCollisionObjectsTransform(const std::vector<std::str
 {
   assert(names.size() == pose1.size());
   assert(names.size() == pose2.size());
+  static_update_.clear();
+  dynamic_update_.clear();
   for (auto i = 0U; i < names.size(); ++i)
-    setCollisionObjectsTransform(names[i], pose1[i], pose2[i]);
+  {
+    auto cast_it = link2castcow_.find(names[i]);
+    if (cast_it != link2castcow_.end())
+      collectCastTransformUpdate(cast_it, link2cow_.find(names[i]), pose1[i], pose2[i]);
+  }
+  // Invalidate all cached GJK guesses — the cast transforms changed so the cached
+  // separating axes are no longer valid. Clearing the entire cache is O(M) once,
+  // versus O(N*M) for per-link invalidation.
+  collision_cache.clear();
+  flushBatchUpdate();
 }
 
 void CoalCastBVHManager::setCollisionObjectsTransform(const tesseract::common::TransformMap& pose1,
                                                       const tesseract::common::TransformMap& pose2)
 {
   assert(pose1.size() == pose2.size());
+  static_update_.clear();
+  dynamic_update_.clear();
   for (const auto& [name, tf1] : pose1)
   {
-    auto it2 = pose2.find(name);
-    assert(it2 != pose2.end());
-    setCollisionObjectsTransform(name, tf1, it2->second);
+    auto cast_it = link2castcow_.find(name);
+    if (cast_it != link2castcow_.end())
+    {
+      auto it2 = pose2.find(name);
+      assert(it2 != pose2.end());
+      collectCastTransformUpdate(cast_it, link2cow_.find(name), tf1, it2->second);
+    }
   }
+  // Invalidate all cached GJK guesses — see comment in vector overload above.
+  collision_cache.clear();
+  flushBatchUpdate();
 }
 
 const std::vector<std::string>& CoalCastBVHManager::getCollisionObjects() const { return collision_objects_; }
@@ -477,7 +422,7 @@ void CoalCastBVHManager::contactTest(ContactResultMap& collisions, const Contact
 
 void CoalCastBVHManager::addCollisionObject(const COW::Ptr& cow)
 {
-  const std::size_t cnt = cow->getCollisionObjectsRaw().size();
+  const std::size_t cnt = cow->getCollisionObjects().size();
   coal_co_count_ += cnt;
   static_update_.reserve(coal_co_count_);
   dynamic_update_.reserve(coal_co_count_);
@@ -534,23 +479,73 @@ void CoalCastBVHManager::collectTransformUpdate(Link2COW::iterator it, const Eig
 
     if (it->second->m_collisionFilterGroup == CollisionFilterGroups::KinematicFilter)
     {
-      // For kinematic objects, add the cast version to the dynamic update
-      std::vector<CollisionObjectRawPtr>& co = cast_it->second->getCollisionObjectsRaw();
-      dynamic_update_.insert(dynamic_update_.end(), co.begin(), co.end());
+      // For kinematic objects, only the cast COW is in the broadphase — the regular
+      // COW is not registered in any manager, so skip its broadphase update.
+      cast_it->second->appendCollisionObjectsRaw(dynamic_update_);
       return;
     }
   }
 
-  if (it->second->m_collisionFilterGroup == CollisionFilterGroups::StaticFilter)
+  auto& update_vec =
+      (it->second->m_collisionFilterGroup == CollisionFilterGroups::StaticFilter) ? static_update_ : dynamic_update_;
+  it->second->appendCollisionObjectsRaw(update_vec);
+}
+
+void CoalCastBVHManager::collectCastTransformUpdate(Link2COW::iterator cast_it,
+                                                    Link2COW::iterator reg_it,
+                                                    const Eigen::Isometry3d& pose1,
+                                                    const Eigen::Isometry3d& pose2)
+{
+  COW::Ptr& cow = cast_it->second;
+
+  // Keep regular object aligned at the start transform
+  if (reg_it != link2cow_.end())
+    reg_it->second->setCollisionObjectsTransform(pose1);
+
+  // Match Bullet behavior: do not update cast sweep state/AABB for disabled objects.
+  // Still sync the cast COW's transform so it's correct when re-enabled.
+  if (!cow->m_enabled)
   {
-    std::vector<CollisionObjectRawPtr>& co = it->second->getCollisionObjectsRaw();
-    static_update_.insert(static_update_.end(), co.begin(), co.end());
+    cow->setCollisionObjectsTransform(pose1);
+    return;
   }
-  else
+
+  // Convert to coal::Transform3s format
+  const auto tf1 = coal::Transform3s(pose1.rotation(), pose1.translation());
+  const auto tf2 = coal::Transform3s(pose2.rotation(), pose2.translation());
+
+  const auto& shape_poses = cow->getCollisionGeometriesTransforms();
+
+  // Update cast transforms first so computeLocalAABB reflects the swept volume.
+  // All objects in link2castcow_ are CastHullShape-wrapped (by makeCastCollisionObject).
+  for (auto& co : cow->getCollisionObjects())
   {
-    std::vector<CollisionObjectRawPtr>& co = it->second->getCollisionObjectsRaw();
-    dynamic_update_.insert(dynamic_update_.end(), co.begin(), co.end());
+    auto* cast_shape = static_cast<CastHullShape*>(co->collisionGeometry().get());
+    assert(cast_shape != nullptr);
+    // Compute per-shape relative transform accounting for local offset.
+    // Each shape's world transform is link_tf * local_tf, so the relative
+    // motion in the shape's local frame is:
+    //   (tf1 * local_tf)^-1 * (tf2 * local_tf)
+    // This matches Bullet's compound shape handling where each child gets
+    // its own delta_tf = (tf1 * local_tf).inverseTimes(tf2 * local_tf).
+    const auto& shape_pose = shape_poses[static_cast<std::size_t>(co->getShapeIndex())];
+    const auto local_tf = coal::Transform3s(shape_pose.rotation(), shape_pose.translation());
+    const auto shape_tf1 = tf1 * local_tf;
+    const auto shape_tf2 = tf2 * local_tf;
+    cast_shape->updateCastTransform(shape_tf1.inverseTimes(shape_tf2));
   }
+
+  // Re-apply world transform so CoalCollisionObjectWrapper::updateAABB uses the
+  // updated CastHullShape local AABB (swept volume).
+  cow->setCollisionObjectsTransform(pose1);
+
+  // Note: GJK cache invalidation is NOT done here — callers are responsible for
+  // invalidating after all links are updated, to avoid O(N*M) repeated cache scans.
+
+  // Append to broadphase update vectors (flushed by caller)
+  auto& update_vec =
+      (cow->m_collisionFilterGroup == CollisionFilterGroups::StaticFilter) ? static_update_ : dynamic_update_;
+  cow->appendCollisionObjectsRaw(update_vec);
 }
 
 void CoalCastBVHManager::flushBatchUpdate()
@@ -573,10 +568,7 @@ void CoalCastBVHManager::onCollisionMarginDataChanged()
   {
     cow.second->setContactDistanceThreshold(collision_margin_data_.getMaxCollisionMargin(cow.second->getName()));
     if (cow.second->m_collisionFilterGroup == CollisionFilterGroups::StaticFilter)
-    {
-      std::vector<CollisionObjectRawPtr>& co = cow.second->getCollisionObjectsRaw();
-      static_update_.insert(static_update_.end(), co.begin(), co.end());
-    }
+      cow.second->appendCollisionObjectsRaw(static_update_);
   }
 
   // Also update cast collision objects
@@ -586,17 +578,9 @@ void CoalCastBVHManager::onCollisionMarginDataChanged()
         collision_margin_data_.getMaxCollisionMargin(cast_cow.second->getName()));
     // Only add to update if this is a dynamic object (static objects use the non-cast version)
     if (cast_cow.second->m_collisionFilterGroup == CollisionFilterGroups::KinematicFilter)
-    {
-      std::vector<CollisionObjectRawPtr>& co = cast_cow.second->getCollisionObjectsRaw();
-      dynamic_update_.insert(dynamic_update_.end(), co.begin(), co.end());
-    }
+      cast_cow.second->appendCollisionObjectsRaw(dynamic_update_);
   }
 
-  if (!static_update_.empty())
-    static_manager_->update(static_update_);
-
-  if (!dynamic_update_.empty())
-    dynamic_manager_->update(dynamic_update_);
+  flushBatchUpdate();
 }
-
 }  // namespace tesseract::collision::tesseract_collision_coal

@@ -136,10 +136,10 @@ public:
 private:
   std::string name_;
 
-  /** @brief Broad-phase Collision Manager for active collision objects */
+  /** @brief Broad-phase Collision Manager for static collision objects */
   std::unique_ptr<coal::BroadPhaseCollisionManager> static_manager_;
 
-  /** @brief Broad-phase Collision Manager for active collision objects */
+  /** @brief Broad-phase Collision Manager for active (kinematic) collision objects */
   std::unique_ptr<coal::BroadPhaseCollisionManager> dynamic_manager_;
 
   /** @brief Cache for collision functors and collision requests */
@@ -161,6 +161,9 @@ private:
 
   /** @brief Collect a single link's transform update into the batch update vectors */
   void collectTransformUpdate(Link2COW::iterator it, const Eigen::Isometry3d& pose);
+
+  /** @brief Unregister objects from broadphase managers and invalidate cache */
+  void removeObjects(const std::vector<CollisionObjectPtr>& objects);
 
   /** @brief Flush accumulated batch updates to the broadphase managers */
   void flushBatchUpdate();

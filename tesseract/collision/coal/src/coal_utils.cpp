@@ -656,7 +656,6 @@ CollisionObjectWrapper::CollisionObjectWrapper(std::string name,
 
   collision_geometries_.reserve(shapes_.size());
   collision_objects_.reserve(shapes_.size());
-  collision_objects_raw_.reserve(shapes_.size());
   for (std::size_t i = 0; i < shapes_.size(); ++i)  // NOLINT
   {
     if (shapes_[i]->getType() == tesseract::geometry::GeometryType::COMPOUND_MESH)
@@ -677,7 +676,6 @@ CollisionObjectWrapper::CollisionObjectWrapper(std::string name,
           co->setTransform(coal::Transform3s(shape_poses_[i].rotation(), shape_poses_[i].translation()));
           co->updateAABB();
           collision_objects_.push_back(co);
-          collision_objects_raw_.push_back(co.get());
         }
       }
     }
@@ -694,7 +692,6 @@ CollisionObjectWrapper::CollisionObjectWrapper(std::string name,
         co->setTransform(coal::Transform3s(shape_poses_[i].rotation(), shape_poses_[i].translation()));
         co->updateAABB();
         collision_objects_.push_back(co);
-        collision_objects_raw_.push_back(co.get());
       }
     }
   }

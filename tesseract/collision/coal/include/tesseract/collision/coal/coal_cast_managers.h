@@ -97,8 +97,6 @@ public:
 
   bool removeCollisionObject(const std::string& name) override final;
 
-  void removeObjects(const std::vector<CollisionObjectPtr>& objects);
-
   bool enableCollisionObject(const std::string& name) override final;
 
   bool disableCollisionObject(const std::string& name) override final;
@@ -161,10 +159,10 @@ public:
 private:
   std::string name_;
 
-  /** @brief Broad-phase Collision Manager for active collision objects */
+  /** @brief Broad-phase Collision Manager for static collision objects */
   std::unique_ptr<coal::BroadPhaseCollisionManager> static_manager_;
 
-  /** @brief Broad-phase Collision Manager for active collision objects */
+  /** @brief Broad-phase Collision Manager for active (kinematic) collision objects */
   std::unique_ptr<coal::BroadPhaseCollisionManager> dynamic_manager_;
 
   /** @brief Cache for collision functors and collision requests */
@@ -187,6 +185,20 @@ private:
 
   /** @brief Collect a single link's transform update into the batch update vectors */
   void collectTransformUpdate(Link2COW::iterator it, const Eigen::Isometry3d& pose);
+
+  /** @brief Collect a single link's cast transform update into the batch update vectors.
+   *  Updates cast shape swept volumes, world transforms, and appends to broadphase
+   *  update vectors without flushing. Does NOT invalidate the collision cache — callers
+   *  must call invalidateCacheFor() after all links are updated.
+   *  @param cast_it Iterator into link2castcow_ for the link to update
+   *  @param reg_it Iterator into link2cow_ for the same link (may be link2cow_.end()) */
+  void collectCastTransformUpdate(Link2COW::iterator cast_it,
+                                  Link2COW::iterator reg_it,
+                                  const Eigen::Isometry3d& pose1,
+                                  const Eigen::Isometry3d& pose2);
+
+  /** @brief Unregister objects from broadphase managers and invalidate cache */
+  void removeObjects(const std::vector<CollisionObjectPtr>& objects);
 
   /** @brief Flush accumulated batch updates to the broadphase managers */
   void flushBatchUpdate();

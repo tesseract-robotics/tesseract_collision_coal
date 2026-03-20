@@ -3,7 +3,7 @@
  * @brief Tesseract Coal contact checker implementation.
  *
  * @author Roelof Oomen, Levi Armstrong
- * @date Dec 18, 2017
+ * @date Aug 04, 2025
  *
  * @copyright Copyright (c) 2017, Southwest Research Institute
  *
@@ -68,7 +68,9 @@ DiscreteContactManager::UPtr CoalDiscreteBVHManager::clone() const
   auto manager = std::make_unique<CoalDiscreteBVHManager>();
 
   for (const auto& cow : link2cow_)
+  {
     manager->addCollisionObject(cow.second->clone());
+  }
 
   manager->setActiveCollisionObjects(active_);
   manager->setCollisionMarginData(collision_margin_data_);
@@ -119,50 +121,46 @@ bool CoalDiscreteBVHManager::removeCollisionObject(const std::string& name)
   auto it = link2cow_.find(name);
   if (it != link2cow_.end())
   {
-    const std::vector<CollisionObjectPtr>& objects = it->second->getCollisionObjects();
-    coal_co_count_ -= objects.size();
-
-    std::vector<coal::CollisionObject*> static_objs;
-    static_manager_->getObjects(static_objs);
-    std::unordered_set<coal::CollisionObject*> static_set(static_objs.begin(), static_objs.end());
-
-    std::vector<coal::CollisionObject*> dynamic_objs;
-    dynamic_manager_->getObjects(dynamic_objs);
-    std::unordered_set<coal::CollisionObject*> dynamic_set(dynamic_objs.begin(), dynamic_objs.end());
-
-    // Must check if object exists in the manager before calling unregister.
-    // If it does not exist and unregister is called it is undefined behavior
-    for (const auto& co : objects)
-    {
-      if (static_set.count(co.get()) != 0)
-        static_manager_->unregisterObject(co.get());
-
-      if (dynamic_set.count(co.get()) != 0)
-        dynamic_manager_->unregisterObject(co.get());
-    }
-
     auto it_obj = std::find(collision_objects_.begin(), collision_objects_.end(), name);
     if (it_obj != collision_objects_.end())
       collision_objects_.erase(it_obj);
+    const std::vector<CollisionObjectPtr>& objects = it->second->getCollisionObjects();
+    coal_co_count_ -= objects.size();
+    removeObjects(objects);
     link2cow_.erase(name);
 
     auto it_active = std::find(active_.begin(), active_.end(), name);
     if (it_active != active_.end())
       active_.erase(it_active);
 
-    // Remove cached collision functors that involve the removed object
-    for (auto it_cache = collision_cache.begin(); it_cache != collision_cache.end();)
-    {
-      if (std::any_of(objects.begin(), objects.end(), [&it_cache](const auto& co) {
-            return it_cache->first.first == co.get() || it_cache->first.second == co.get();
-          }))
-        it_cache = collision_cache.erase(it_cache);
-      else
-        ++it_cache;
-    }
     return true;
   }
+
   return false;
+}
+
+void CoalDiscreteBVHManager::removeObjects(const std::vector<CollisionObjectPtr>& objects)
+{
+  std::vector<coal::CollisionObject*> static_objs;
+  static_manager_->getObjects(static_objs);
+  std::unordered_set<coal::CollisionObject*> static_set(static_objs.begin(), static_objs.end());
+
+  std::vector<coal::CollisionObject*> dynamic_objs;
+  dynamic_manager_->getObjects(dynamic_objs);
+  std::unordered_set<coal::CollisionObject*> dynamic_set(dynamic_objs.begin(), dynamic_objs.end());
+
+  // Must check if object exists in the manager before calling unregister.
+  // If it does not exist and unregister is called it is undefined behavior
+  for (const auto& co : objects)
+  {
+    if (static_set.count(co.get()) != 0)
+      static_manager_->unregisterObject(co.get());
+
+    if (dynamic_set.count(co.get()) != 0)
+      dynamic_manager_->unregisterObject(co.get());
+  }
+
+  invalidateCacheFor(collision_cache, objects);
 }
 
 bool CoalDiscreteBVHManager::enableCollisionObject(const std::string& name)
@@ -173,6 +171,7 @@ bool CoalDiscreteBVHManager::enableCollisionObject(const std::string& name)
     it->second->m_enabled = true;
     return true;
   }
+
   return false;
 }
 
@@ -184,6 +183,7 @@ bool CoalDiscreteBVHManager::disableCollisionObject(const std::string& name)
     it->second->m_enabled = false;
     return true;
   }
+
   return false;
 }
 
@@ -201,17 +201,10 @@ void CoalDiscreteBVHManager::setCollisionObjectsTransform(const std::string& nam
   auto it = link2cow_.find(name);
   if (it != link2cow_.end())
   {
-    const Eigen::Isometry3d& cur_tf = it->second->getCollisionObjectsTransform();
-    // Note: If the transform has not changed do not updated to prevent unnecessary re-balancing of the BVH tree
-    if (transformChanged(cur_tf, pose))
-    {
-      it->second->setCollisionObjectsTransform(pose);
-      // Note: Calling update causes a re-balance of the AABB tree, which is expensive
-      if (it->second->m_collisionFilterGroup == CollisionFilterGroups::StaticFilter)
-        static_manager_->update(it->second->getCollisionObjectsRaw());
-      else
-        dynamic_manager_->update(it->second->getCollisionObjectsRaw());
-    }
+    static_update_.clear();
+    dynamic_update_.clear();
+    collectTransformUpdate(it, pose);
+    flushBatchUpdate();
   }
 }
 
@@ -250,7 +243,9 @@ void CoalDiscreteBVHManager::setActiveCollisionObjects(const std::vector<std::st
   active_ = names;
 
   for (auto& co : link2cow_)
+  {
     updateCollisionObjectFilters(active_, co.second, static_manager_, dynamic_manager_);
+  }
 
   // This causes a refit on the bvh tree.
   dynamic_manager_->update();
@@ -299,6 +294,7 @@ void CoalDiscreteBVHManager::setContactAllowedValidator(
 {
   validator_ = std::move(validator);
 }
+
 std::shared_ptr<const tesseract::common::ContactAllowedValidator>
 CoalDiscreteBVHManager::getContactAllowedValidator() const
 {
@@ -325,7 +321,7 @@ void CoalDiscreteBVHManager::contactTest(ContactResultMap& collisions, const Con
 
 void CoalDiscreteBVHManager::addCollisionObject(const COW::Ptr& cow)
 {
-  const std::size_t cnt = cow->getCollisionObjectsRaw().size();
+  const std::size_t cnt = cow->getCollisionObjects().size();
   coal_co_count_ += cnt;
   static_update_.reserve(coal_co_count_);
   dynamic_update_.reserve(coal_co_count_);
@@ -366,11 +362,9 @@ void CoalDiscreteBVHManager::collectTransformUpdate(Link2COW::iterator it, const
   if (transformChanged(cur_tf, pose))
   {
     it->second->setCollisionObjectsTransform(pose);
-    std::vector<CollisionObjectRawPtr>& co = it->second->getCollisionObjectsRaw();
-    if (it->second->m_collisionFilterGroup == CollisionFilterGroups::StaticFilter)
-      static_update_.insert(static_update_.end(), co.begin(), co.end());
-    else
-      dynamic_update_.insert(dynamic_update_.end(), co.begin(), co.end());
+    auto& update_vec =
+        (it->second->m_collisionFilterGroup == CollisionFilterGroups::StaticFilter) ? static_update_ : dynamic_update_;
+    it->second->appendCollisionObjectsRaw(update_vec);
   }
 }
 
@@ -391,21 +385,11 @@ void CoalDiscreteBVHManager::onCollisionMarginDataChanged()
   for (auto& cow : link2cow_)
   {
     cow.second->setContactDistanceThreshold(collision_margin_data_.getMaxCollisionMargin(cow.second->getName()));
-    std::vector<CollisionObjectRawPtr>& co = cow.second->getCollisionObjectsRaw();
-    if (cow.second->m_collisionFilterGroup == CollisionFilterGroups::StaticFilter)
-    {
-      static_update_.insert(static_update_.end(), co.begin(), co.end());
-    }
-    else
-    {
-      dynamic_update_.insert(dynamic_update_.end(), co.begin(), co.end());
-    }
+    auto& update_vec =
+        (cow.second->m_collisionFilterGroup == CollisionFilterGroups::StaticFilter) ? static_update_ : dynamic_update_;
+    cow.second->appendCollisionObjectsRaw(update_vec);
   }
 
-  if (!static_update_.empty())
-    static_manager_->update(static_update_);
-
-  if (!dynamic_update_.empty())
-    dynamic_manager_->update(dynamic_update_);
+  flushBatchUpdate();
 }
 }  // namespace tesseract::collision::tesseract_collision_coal
