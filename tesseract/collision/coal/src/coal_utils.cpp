@@ -539,14 +539,6 @@ bool CollisionCallback::collide(coal::CollisionObject* o1, coal::CollisionObject
     num_contacts = 1;
   const auto security_margin = cdata->collision_margin_data.getCollisionMargin(cd1->getName(), cd2->getName());
 
-  // CastHullShape (GEOM_CUSTOM) is handled natively by Coal via virtual dispatch
-  // through CastHullShape::computeShapeSupport().  We still detect it to apply
-  // appropriate GJK settings: DefaultGJK (no acceleration) because the Schulman
-  // support function is discontinuous, and an unbounded distance_upper_bound
-  // because swept volumes can be much larger than the security margin.
-  const bool has_cast_hull = dynamic_cast<const CastHullShape*>(o1->collisionGeometry().get()) != nullptr ||
-                             dynamic_cast<const CastHullShape*>(o2->collisionGeometry().get()) != nullptr;
-
   coal::CollisionResult col_result;
 
   // Normalize pair ordering for consistent cache lookups: Coal's broadphase
@@ -561,35 +553,14 @@ bool CollisionCallback::collide(coal::CollisionObject* o1, coal::CollisionObject
   if (col_request_it == cdata->collision_cache->end())
   {
     coal::CollisionRequest col_request;
-    if (has_cast_hull)
-    {
-      // Use DefaultGJK — do NOT set gjk_variant, convergence_criterion, or
-      // convergence_criterion_type, leaving them at Coal defaults.
-      // CastHullShape swept volumes can be much larger than security_margin, so
-      // do not limit the GJK early-break distance.
-      //
-      // Use CachedGuess with the center-to-center vector instead of
-      // BoundingVolumeGuess.  BoundingVolumeGuess uses AABB centers of the
-      // swept volumes, which are shifted toward the midpoint of each sweep.
-      // This gives a very different initial GJK direction than the actual
-      // shape-center vector, causing EPA to converge to different (incorrect)
-      // contact points on degenerate swept-hull surfaces where the penetration
-      // depth is constant along the sweep axis.
-      col_request.gjk_initial_guess = coal::CachedGuess;
-      coal::Vec3s guess = co1->getTransform().getTranslation() - co2->getTransform().getTranslation();
-      if (guess.squaredNorm() < 1e-12)
-        guess = coal::Vec3s(1, 0, 0);
-      col_request.cached_gjk_guess = guess;
-      col_request.distance_upper_bound = (std::numeric_limits<coal::Scalar>::max)();
-    }
-    else
-    {
-      col_request.gjk_variant = coal::GJKVariant::PolyakAcceleration;
-      col_request.gjk_convergence_criterion = coal::GJKConvergenceCriterion::DualityGap;
-      col_request.gjk_convergence_criterion_type = coal::GJKConvergenceCriterionType::Absolute;
-      col_request.gjk_initial_guess = coal::BoundingVolumeGuess;
-      col_request.distance_upper_bound = security_margin + col_request.gjk_tolerance;
-    }
+    // NesterovAcceleration produces contact points matching Bullet on tessellated
+    // convex hulls.  PolyakAcceleration is slightly faster but produces different
+    // (equally valid) witness points on swept convex geometry, shifting cc_time.
+    col_request.gjk_variant = coal::GJKVariant::NesterovAcceleration;
+    col_request.gjk_convergence_criterion = coal::GJKConvergenceCriterion::DualityGap;
+    col_request.gjk_convergence_criterion_type = coal::GJKConvergenceCriterionType::Absolute;
+    col_request.distance_upper_bound = security_margin + col_request.gjk_tolerance;
+    col_request.gjk_initial_guess = coal::BoundingVolumeGuess;
     col_request.enable_contact = cdata->req.calculate_penetration;
     col_request.num_max_contacts = num_contacts;
     col_request.security_margin = security_margin;
@@ -603,8 +574,7 @@ bool CollisionCallback::collide(coal::CollisionObject* o1, coal::CollisionObject
     cached_request.enable_contact = cdata->req.calculate_penetration;
     cached_request.num_max_contacts = num_contacts;
     cached_request.security_margin = security_margin;
-    if (!has_cast_hull)
-      cached_request.distance_upper_bound = security_margin + cached_request.gjk_tolerance;
+    cached_request.distance_upper_bound = security_margin + cached_request.gjk_tolerance;
   }
 
   auto& [functor, cached_request] = col_request_it->second;
