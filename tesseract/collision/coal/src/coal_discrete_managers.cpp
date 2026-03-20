@@ -42,7 +42,6 @@ TESSERACT_COMMON_IGNORE_WARNINGS_PUSH
 #include <coal/broadphase/broadphase_dynamic_AABB_tree.h>
 TESSERACT_COMMON_IGNORE_WARNINGS_POP
 
-#include <unordered_set>
 
 #include <tesseract/collision/coal/coal_collision_geometry_cache.h>
 #include <tesseract/collision/coal/coal_discrete_managers.h>
@@ -126,7 +125,7 @@ bool CoalDiscreteBVHManager::removeCollisionObject(const std::string& name)
       collision_objects_.erase(it_obj);
     const std::vector<CollisionObjectPtr>& objects = it->second->getCollisionObjects();
     coal_co_count_ -= objects.size();
-    removeObjects(objects);
+    removeObjects(objects, it->second->m_collisionFilterGroup);
     link2cow_.erase(name);
 
     auto it_active = std::find(active_.begin(), active_.end(), name);
@@ -139,26 +138,11 @@ bool CoalDiscreteBVHManager::removeCollisionObject(const std::string& name)
   return false;
 }
 
-void CoalDiscreteBVHManager::removeObjects(const std::vector<CollisionObjectPtr>& objects)
+void CoalDiscreteBVHManager::removeObjects(const std::vector<CollisionObjectPtr>& objects, short int filter_group)
 {
-  std::vector<coal::CollisionObject*> static_objs;
-  static_manager_->getObjects(static_objs);
-  std::unordered_set<coal::CollisionObject*> static_set(static_objs.begin(), static_objs.end());
-
-  std::vector<coal::CollisionObject*> dynamic_objs;
-  dynamic_manager_->getObjects(dynamic_objs);
-  std::unordered_set<coal::CollisionObject*> dynamic_set(dynamic_objs.begin(), dynamic_objs.end());
-
-  // Must check if object exists in the manager before calling unregister.
-  // If it does not exist and unregister is called it is undefined behavior
+  auto& manager = (filter_group == CollisionFilterGroups::StaticFilter) ? static_manager_ : dynamic_manager_;
   for (const auto& co : objects)
-  {
-    if (static_set.count(co.get()) != 0)
-      static_manager_->unregisterObject(co.get());
-
-    if (dynamic_set.count(co.get()) != 0)
-      dynamic_manager_->unregisterObject(co.get());
-  }
+    manager->unregisterObject(co.get());
 
   invalidateCacheFor(collision_cache, objects);
 }

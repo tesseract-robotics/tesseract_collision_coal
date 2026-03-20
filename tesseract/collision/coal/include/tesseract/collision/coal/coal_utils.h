@@ -43,22 +43,17 @@
 #include <tesseract/common/macros.h>
 TESSERACT_COMMON_IGNORE_WARNINGS_PUSH
 #include <memory>
-#include <stdexcept>
 #include <unordered_map>
 #include <utility>
 #include <boost/functional/hash.hpp>
-#include <console_bridge/console.h>
 #include <coal/broadphase/broadphase_collision_manager.h>
 #include <coal/collision.h>
-#include <coal/octree.h>
-#include <coal/shape/geometric_shapes.h>
 TESSERACT_COMMON_IGNORE_WARNINGS_POP
 
 #include <tesseract/collision/types.h>
 #include <tesseract/collision/common.h>
 
 #include <tesseract/collision/coal/coal_collision_object_wrapper.h>
-#include <tesseract/collision/coal/coal_casthullshape.h>
 
 namespace tesseract::collision::tesseract_collision_coal
 {
@@ -81,37 +76,12 @@ using CollisionCacheMap = std::unordered_map<CollisionObjectPair,
                                              CollisionObjectPairHash>;
 
 /** @brief Remove cache entries involving any of the given collision objects */
-inline void invalidateCacheFor(CollisionCacheMap& cache, const std::vector<CollisionObjectPtr>& objects)
-{
-  for (auto it = cache.begin(); it != cache.end();)
-  {
-    if (std::any_of(objects.begin(), objects.end(), [&it](const auto& co) {
-          return it->first.first == co.get() || it->first.second == co.get();
-        }))
-      it = cache.erase(it);
-    else
-      ++it;
-  }
-}
+void invalidateCacheFor(CollisionCacheMap& cache, const std::vector<CollisionObjectPtr>& objects);
 
 /** @brief Remove cache entries involving any object from either vector (single-pass) */
-inline void invalidateCacheFor(CollisionCacheMap& cache,
-                               const std::vector<CollisionObjectPtr>& objects1,
-                               const std::vector<CollisionObjectPtr>& objects2)
-{
-  for (auto it = cache.begin(); it != cache.end();)
-  {
-    const auto* first = it->first.first;
-    const auto* second = it->first.second;
-    if (std::any_of(objects1.begin(), objects1.end(),
-                    [first, second](const auto& co) { return first == co.get() || second == co.get(); }) ||
-        std::any_of(objects2.begin(), objects2.end(),
-                    [first, second](const auto& co) { return first == co.get() || second == co.get(); }))
-      it = cache.erase(it);
-    else
-      ++it;
-  }
-}
+void invalidateCacheFor(CollisionCacheMap& cache,
+                        const std::vector<CollisionObjectPtr>& objects1,
+                        const std::vector<CollisionObjectPtr>& objects2);
 
 enum CollisionFilterGroups : std::int8_t
 {
@@ -154,23 +124,9 @@ public:
 
   tesseract::common::VectorIsometry3d& getCollisionGeometriesTransforms() { return shape_poses_; }
 
-  void setCollisionObjectsTransform(const Eigen::Isometry3d& pose)
-  {
-    world_pose_ = pose;
-    for (auto& co : collision_objects_)
-    {
-      auto tf = pose * shape_poses_[static_cast<std::size_t>(co->getShapeIndex())];
-      co->setTransform(coal::Transform3s(tf.rotation(), tf.translation()));
-      co->updateAABB();  // This a tesseract function that updates the aabb to take into account contact distance
-    }
-  }
+  void setCollisionObjectsTransform(const Eigen::Isometry3d& pose);
 
-  void setContactDistanceThreshold(double contact_distance)
-  {
-    contact_distance_ = contact_distance;
-    for (auto& co : collision_objects_)
-      co->setContactDistanceThreshold(contact_distance_);
-  }
+  void setContactDistanceThreshold(double contact_distance);
 
   double getContactDistanceThreshold() const { return contact_distance_; }
 
@@ -181,39 +137,9 @@ public:
   std::vector<CollisionObjectPtr>& getCollisionObjects() { return collision_objects_; }
 
   /** @brief Append raw pointers from this wrapper's collision objects into @p out. */
-  void appendCollisionObjectsRaw(std::vector<CollisionObjectRawPtr>& out) const
-  {
-    for (const auto& co : collision_objects_)
-      out.push_back(co.get());
-  }
+  void appendCollisionObjectsRaw(std::vector<CollisionObjectRawPtr>& out) const;
 
-  std::shared_ptr<CollisionObjectWrapper> clone() const
-  {
-    auto clone_cow = std::make_shared<CollisionObjectWrapper>();
-    clone_cow->name_ = name_;
-    clone_cow->type_id_ = type_id_;
-    clone_cow->shapes_ = shapes_;
-    clone_cow->shape_poses_ = shape_poses_;
-    clone_cow->collision_geometries_ = collision_geometries_;
-
-    clone_cow->collision_objects_.reserve(collision_objects_.size());
-    for (const auto& co : collision_objects_)
-    {
-      assert(std::dynamic_pointer_cast<CoalCollisionObjectWrapper>(co) != nullptr);
-      auto collObj =
-          std::make_shared<CoalCollisionObjectWrapper>(*std::static_pointer_cast<CoalCollisionObjectWrapper>(co));
-      collObj->setUserData(clone_cow.get());
-      collObj->setTransform(co->getTransform());
-      collObj->updateAABB();
-      clone_cow->collision_objects_.push_back(collObj);
-    }
-
-    clone_cow->world_pose_ = world_pose_;
-    clone_cow->m_collisionFilterGroup = m_collisionFilterGroup;
-    clone_cow->m_collisionFilterMask = m_collisionFilterMask;
-    clone_cow->m_enabled = m_enabled;
-    return clone_cow;
-  }
+  std::shared_ptr<CollisionObjectWrapper> clone() const;
 
   /**
    * @brief Given Coal collision shape get the index to the links collision shape
@@ -239,35 +165,14 @@ CollisionGeometryPtr createShapePrimitive(const CollisionShapeConstPtr& geom);
 using COW = CollisionObjectWrapper;
 using Link2COW = std::map<std::string, COW::Ptr>;
 
-inline COW::Ptr createCoalCollisionObject(const std::string& name,
-                                          const int& type_id,
-                                          const CollisionShapesConst& shapes,
-                                          const tesseract::common::VectorIsometry3d& shape_poses,
-                                          bool enabled)
-{
-  // dont add object that does not have geometry
-  if (shapes.empty() || shape_poses.empty() || (shapes.size() != shape_poses.size()))
-  {
-    CONSOLE_BRIDGE_logDebug("ignoring link %s", name.c_str());
-    return nullptr;
-  }
-
-  auto new_cow = std::make_shared<COW>(name, type_id, shapes, shape_poses);
-
-  new_cow->m_enabled = enabled;
-  // CONSOLE_BRIDGE_logDebug("Created collision object for link %s", new_cow->getName().c_str());
-  return new_cow;
-}
-
-/** @brief Tolerance for transform comparison to avoid unnecessary BVH re-balancing */
-static constexpr double kTransformEpsilon = 1e-8;
+COW::Ptr createCoalCollisionObject(const std::string& name,
+                                   const int& type_id,
+                                   const CollisionShapesConst& shapes,
+                                   const tesseract::common::VectorIsometry3d& shape_poses,
+                                   bool enabled);
 
 /** @brief Check if two transforms differ beyond the tolerance threshold */
-inline bool transformChanged(const Eigen::Isometry3d& a, const Eigen::Isometry3d& b)
-{
-  return !a.translation().isApprox(b.translation(), kTransformEpsilon) ||
-         !a.rotation().isApprox(b.rotation(), kTransformEpsilon);
-}
+bool transformChanged(const Eigen::Isometry3d& a, const Eigen::Isometry3d& b);
 
 /**
  * @brief Apply the collision filter mask based on the current filter group.
@@ -275,13 +180,7 @@ inline bool transformChanged(const Eigen::Isometry3d& a, const Eigen::Isometry3d
  * StaticFilter groups can only collide with KinematicFilter groups.
  * KinematicFilter groups can collide with both StaticFilter and KinematicFilter groups.
  */
-inline void applyCollisionFilterMask(COW& cow)
-{
-  if (cow.m_collisionFilterGroup == CollisionFilterGroups::StaticFilter)
-    cow.m_collisionFilterMask = CollisionFilterGroups::KinematicFilter;
-  else
-    cow.m_collisionFilterMask = CollisionFilterGroups::StaticFilter | CollisionFilterGroups::KinematicFilter;
-}
+void applyCollisionFilterMask(COW& cow);
 
 /**
  * @brief Update collision objects filters
@@ -290,44 +189,10 @@ inline void applyCollisionFilterMask(COW& cow)
  * @param static_manager Broadphase manager for static objects
  * @param dynamic_manager Broadphase manager for dynamic objects
  */
-inline void updateCollisionObjectFilters(const std::vector<std::string>& active,
-                                         const COW::Ptr& cow,
-                                         const std::unique_ptr<coal::BroadPhaseCollisionManager>& static_manager,
-                                         const std::unique_ptr<coal::BroadPhaseCollisionManager>& dynamic_manager)
-{
-  // For discrete checks we can check static to kinematic and kinematic to
-  // kinematic
-  if (!isLinkActive(active, cow->getName()))
-  {
-    if (cow->m_collisionFilterGroup != CollisionFilterGroups::StaticFilter)
-    {
-      const std::vector<CollisionObjectPtr>& objects = cow->getCollisionObjects();
-      // This link was dynamic but is now static
-      for (const auto& co : objects)
-        dynamic_manager->unregisterObject(co.get());
-
-      for (const auto& co : objects)
-        static_manager->registerObject(co.get());
-    }
-    cow->m_collisionFilterGroup = CollisionFilterGroups::StaticFilter;
-  }
-  else
-  {
-    if (cow->m_collisionFilterGroup != CollisionFilterGroups::KinematicFilter)
-    {
-      const std::vector<CollisionObjectPtr>& objects = cow->getCollisionObjects();
-      // This link was static but is now dynamic
-      for (const auto& co : objects)
-        static_manager->unregisterObject(co.get());
-
-      for (const auto& co : objects)
-        dynamic_manager->registerObject(co.get());
-    }
-    cow->m_collisionFilterGroup = CollisionFilterGroups::KinematicFilter;
-  }
-
-  applyCollisionFilterMask(*cow);
-}
+void updateCollisionObjectFilters(const std::vector<std::string>& active,
+                                  const COW::Ptr& cow,
+                                  const std::unique_ptr<coal::BroadPhaseCollisionManager>& static_manager,
+                                  const std::unique_ptr<coal::BroadPhaseCollisionManager>& dynamic_manager);
 
 /**
  * @brief Update collision objects filters for continuous collision checking
@@ -337,166 +202,18 @@ inline void updateCollisionObjectFilters(const std::vector<std::string>& active,
  * @param static_manager Broadphase manager for static objects
  * @param dynamic_manager Broadphase manager for dynamic objects
  */
-inline void updateCollisionObjectFilters(const std::vector<std::string>& active,
-                                         const COW::Ptr& cow,
-                                         const COW::Ptr& cast_cow,
-                                         const std::unique_ptr<coal::BroadPhaseCollisionManager>& static_manager,
-                                         const std::unique_ptr<coal::BroadPhaseCollisionManager>& dynamic_manager)
-{
-  const std::vector<CollisionObjectPtr>& reg_objects = cow->getCollisionObjects();
-  const std::vector<CollisionObjectPtr>& cast_objects = cast_cow->getCollisionObjects();
-
-  if (!isLinkActive(active, cow->getName()))
-  {
-    if (cow->m_collisionFilterGroup != CollisionFilterGroups::StaticFilter)
-    {
-      // This link was dynamic but is now static: unregister cast from dynamic, register raw in static.
-      for (const auto& co : cast_objects)
-        dynamic_manager->unregisterObject(co.get());
-
-      for (const auto& co : reg_objects)
-        static_manager->registerObject(co.get());
-    }
-    cow->m_collisionFilterGroup = CollisionFilterGroups::StaticFilter;
-    cast_cow->m_collisionFilterGroup = CollisionFilterGroups::StaticFilter;
-  }
-  else
-  {
-    if (cow->m_collisionFilterGroup != CollisionFilterGroups::KinematicFilter)
-    {
-      // This link was static but is now dynamic: unregister raw from static, register cast in dynamic.
-      for (const auto& co : reg_objects)
-        static_manager->unregisterObject(co.get());
-
-      for (const auto& co : cast_objects)
-        dynamic_manager->registerObject(co.get());
-    }
-    cow->m_collisionFilterGroup = CollisionFilterGroups::KinematicFilter;
-    cast_cow->m_collisionFilterGroup = CollisionFilterGroups::KinematicFilter;
-  }
-
-  applyCollisionFilterMask(*cow);
-  applyCollisionFilterMask(*cast_cow);
-}
+void updateCollisionObjectFilters(const std::vector<std::string>& active,
+                                  const COW::Ptr& cow,
+                                  const COW::Ptr& cast_cow,
+                                  const std::unique_ptr<coal::BroadPhaseCollisionManager>& static_manager,
+                                  const std::unique_ptr<coal::BroadPhaseCollisionManager>& dynamic_manager);
 
 /**
  * @brief Create a cast collision object from a regular collision object
  * @param cow The collision object to convert
  * @return A new collision object with shapes converted to CastHullShapes
  */
-inline COW::Ptr makeCastCollisionObject(const COW::Ptr& cow)
-{
-  auto cast_cow = cow->clone();
-
-  // Create the vector of new collision objects
-  std::vector<CollisionObjectPtr> new_collision_objects;
-
-  // Identity transform for initial state
-  coal::Transform3s identity_tf;
-  identity_tf.setIdentity();
-
-  const auto& link_tf = cast_cow->getCollisionObjectsTransform();
-  const auto& current_shapes = cast_cow->getCollisionGeometries();
-  const auto& current_shape_poses = cast_cow->getCollisionGeometriesTransforms();
-
-  const auto& current_collision_objects = cast_cow->getCollisionObjects();
-  new_collision_objects.reserve(current_collision_objects.size());
-
-  CollisionShapesConst new_shapes;
-  tesseract::common::VectorIsometry3d new_shape_poses;
-  new_shapes.reserve(current_shapes.size());
-  new_shape_poses.reserve(current_shape_poses.size());
-
-  for (const auto& co : current_collision_objects)
-  {
-    const auto old_shape_index = static_cast<std::size_t>(co->getShapeIndex());
-    assert(old_shape_index < current_shapes.size());
-    assert(old_shape_index < current_shape_poses.size());
-
-    auto geo = co->collisionGeometry();
-    auto* shape_base_ptr = dynamic_cast<coal::ShapeBase*>(geo.get());
-    if (shape_base_ptr != nullptr)
-    {
-      // Create a cast hull shape from the original shape
-      auto cast_shape = std::make_shared<CastHullShape>(std::static_pointer_cast<coal::ShapeBase>(geo), identity_tf);
-
-      // Create a new collision object with the cast shape
-      auto cast_co = std::make_shared<CoalCollisionObjectWrapper>(cast_shape, co->getTransform());
-      cast_co->setShapeIndex(static_cast<int>(new_shape_poses.size()));
-      cast_co->setSourceShapeIndex(static_cast<int>(old_shape_index));
-      cast_co->setSourceSubshapeIndex(co->getSourceSubshapeIndex());
-      cast_co->setContactDistanceThreshold(co->getContactDistanceThreshold());
-      cast_co->setUserData(cast_cow.get());
-
-      // Store everything
-      new_collision_objects.push_back(cast_co);
-      new_shapes.push_back(current_shapes[old_shape_index]);
-      new_shape_poses.push_back(current_shape_poses[old_shape_index]);
-    }
-    else
-    {
-      if (auto octree_geo = std::dynamic_pointer_cast<coal::OcTree>(geo); octree_geo != nullptr)
-      {
-        // Expand occupied octree cells into castable box sub-shapes.
-        const auto tree = octree_geo->getTree();
-        assert(tree != nullptr);
-        const auto& base_shape_pose = current_shape_poses[old_shape_index];
-        int octree_subshape_index = 0;
-
-        // Reuse one box shape per tree depth level (all voxels at the same depth
-        // have the same size), matching Bullet's managed_shapes pattern.
-        std::vector<std::shared_ptr<coal::Box>> managed_boxes(tree->getTreeDepth() + 1);
-
-        for (octomap::OcTree::iterator it = tree->begin(static_cast<unsigned char>(tree->getTreeDepth())),
-                                       end = tree->end();
-             it != end;
-             ++it)
-        {
-          if (!octree_geo->isNodeOccupied(&(*it)))
-            continue;
-
-          auto& box_shape = managed_boxes.at(it.getDepth());
-          if (box_shape == nullptr)
-          {
-            const double size = it.getSize();
-            box_shape = std::make_shared<coal::Box>(size, size, size);
-          }
-          auto cast_shape = std::make_shared<CastHullShape>(box_shape, identity_tf);
-
-          Eigen::Isometry3d voxel_pose = Eigen::Isometry3d::Identity();
-          voxel_pose.translation() = Eigen::Vector3d(it.getX(), it.getY(), it.getZ());
-
-          const Eigen::Isometry3d shape_pose = base_shape_pose * voxel_pose;
-          const Eigen::Isometry3d world_pose = link_tf * shape_pose;
-
-          auto cast_co = std::make_shared<CoalCollisionObjectWrapper>(
-              cast_shape, coal::Transform3s(world_pose.rotation(), world_pose.translation()));
-          cast_co->setShapeIndex(static_cast<int>(new_shape_poses.size()));
-          cast_co->setSourceShapeIndex(static_cast<int>(old_shape_index));
-          cast_co->setSourceSubshapeIndex(octree_subshape_index++);
-          cast_co->setContactDistanceThreshold(co->getContactDistanceThreshold());
-          cast_co->setUserData(cast_cow.get());
-
-          new_collision_objects.push_back(cast_co);
-          new_shapes.push_back(current_shapes[old_shape_index]);
-          new_shape_poses.push_back(shape_pose);
-        }
-      }
-      else
-      {
-        throw std::runtime_error("I can only continuous collision check convex shapes, compound shapes made of "
-                                 "convex shapes, and octree boxes");
-      }
-    }
-  }
-
-  // Replace the collision objects in the cast_cow with the cast versions
-  cast_cow->getCollisionGeometries() = new_shapes;
-  cast_cow->getCollisionGeometriesTransforms() = new_shape_poses;
-  cast_cow->getCollisionObjects() = new_collision_objects;
-
-  return cast_cow;
-}
+COW::Ptr makeCastCollisionObject(const COW::Ptr& cow);
 
 /**
  * @brief This is used to check if a collision check is required between the provided two collision objects

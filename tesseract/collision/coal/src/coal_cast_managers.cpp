@@ -42,7 +42,6 @@ TESSERACT_COMMON_IGNORE_WARNINGS_PUSH
 #include <coal/broadphase/broadphase_dynamic_AABB_tree.h>
 TESSERACT_COMMON_IGNORE_WARNINGS_POP
 
-#include <unordered_set>
 
 #include <tesseract/geometry/geometry.h>
 #include <tesseract/collision/coal/coal_cast_managers.h>
@@ -135,7 +134,8 @@ bool CoalCastBVHManager::removeCollisionObject(const std::string& name)
       collision_objects_.erase(it_obj);
     const std::vector<CollisionObjectPtr>& objects = it->second->getCollisionObjects();
     coal_co_count_ -= objects.size();
-    removeObjects(objects);
+    if (it->second->m_collisionFilterGroup == CollisionFilterGroups::StaticFilter)
+      removeObjects(objects, *static_manager_);
     link2cow_.erase(name);
 
     auto it_active = std::find(active_.begin(), active_.end(), name);
@@ -147,7 +147,8 @@ bool CoalCastBVHManager::removeCollisionObject(const std::string& name)
     if (it_cast != link2castcow_.end())
     {
       const std::vector<CollisionObjectPtr>& objects_cast = it_cast->second->getCollisionObjects();
-      removeObjects(objects_cast);
+      if (it_cast->second->m_collisionFilterGroup == CollisionFilterGroups::KinematicFilter)
+        removeObjects(objects_cast, *dynamic_manager_);
       link2castcow_.erase(name);
     }
 
@@ -157,27 +158,11 @@ bool CoalCastBVHManager::removeCollisionObject(const std::string& name)
   return false;
 }
 
-void CoalCastBVHManager::removeObjects(const std::vector<CollisionObjectPtr>& objects)
+void CoalCastBVHManager::removeObjects(const std::vector<CollisionObjectPtr>& objects,
+                                       coal::BroadPhaseCollisionManager& manager)
 {
-  std::vector<coal::CollisionObject*> static_objs;
-  static_manager_->getObjects(static_objs);
-  std::unordered_set<coal::CollisionObject*> static_set(static_objs.begin(), static_objs.end());
-
-  std::vector<coal::CollisionObject*> dynamic_objs;
-  dynamic_manager_->getObjects(dynamic_objs);
-  std::unordered_set<coal::CollisionObject*> dynamic_set(dynamic_objs.begin(), dynamic_objs.end());
-
-  // Must check if object exists in the manager before calling unregister.
-  // If it does not exist and unregister is called it is undefined behavior
   for (const auto& co : objects)
-  {
-    if (static_set.count(co.get()) != 0)
-      static_manager_->unregisterObject(co.get());
-
-    if (dynamic_set.count(co.get()) != 0)
-      dynamic_manager_->unregisterObject(co.get());
-  }
-
+    manager.unregisterObject(co.get());
   invalidateCacheFor(collision_cache, objects);
 }
 

@@ -197,8 +197,8 @@ private:
                                   const Eigen::Isometry3d& pose1,
                                   const Eigen::Isometry3d& pose2);
 
-  /** @brief Unregister objects from broadphase managers and invalidate cache */
-  void removeObjects(const std::vector<CollisionObjectPtr>& objects);
+  /** @brief Unregister objects from a broadphase manager and invalidate cache */
+  void removeObjects(const std::vector<CollisionObjectPtr>& objects, coal::BroadPhaseCollisionManager& manager);
 
   /** @brief Flush accumulated batch updates to the broadphase managers */
   void flushBatchUpdate();
