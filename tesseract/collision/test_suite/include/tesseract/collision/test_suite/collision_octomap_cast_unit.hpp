@@ -27,26 +27,26 @@ inline std::string formatOctomapContactResult(const ContactResult& cr)
   os << std::setprecision(6) << std::fixed;
   os << "Contact result:"
      << "\n  link_names: [" << cr.link_names[0] << ", " << cr.link_names[1] << "]"
-     << "\n  distance: " << cr.distance
-     << "\n  normal: (" << cr.normal[0] << ", " << cr.normal[1] << ", " << cr.normal[2] << ")"
+     << "\n  distance: " << cr.distance << "\n  normal: (" << cr.normal[0] << ", " << cr.normal[1] << ", "
+     << cr.normal[2] << ")"
      << "\n  nearest_points[0]: (" << cr.nearest_points[0][0] << ", " << cr.nearest_points[0][1] << ", "
      << cr.nearest_points[0][2] << ")"
      << "\n  nearest_points[1]: (" << cr.nearest_points[1][0] << ", " << cr.nearest_points[1][1] << ", "
      << cr.nearest_points[1][2] << ")"
-     << "\n  nearest_points_local[0]: (" << cr.nearest_points_local[0][0] << ", "
-     << cr.nearest_points_local[0][1] << ", " << cr.nearest_points_local[0][2] << ")"
-     << "\n  nearest_points_local[1]: (" << cr.nearest_points_local[1][0] << ", "
-     << cr.nearest_points_local[1][1] << ", " << cr.nearest_points_local[1][2] << ")"
+     << "\n  nearest_points_local[0]: (" << cr.nearest_points_local[0][0] << ", " << cr.nearest_points_local[0][1]
+     << ", " << cr.nearest_points_local[0][2] << ")"
+     << "\n  nearest_points_local[1]: (" << cr.nearest_points_local[1][0] << ", " << cr.nearest_points_local[1][1]
+     << ", " << cr.nearest_points_local[1][2] << ")"
      << "\n  cc_time: [" << cr.cc_time[0] << ", " << cr.cc_time[1] << "]"
      << "\n  cc_type: [" << static_cast<int>(cr.cc_type[0]) << ", " << static_cast<int>(cr.cc_type[1]) << "]"
      << "\n  transform[0].t: (" << cr.transform[0].translation()[0] << ", " << cr.transform[0].translation()[1] << ", "
      << cr.transform[0].translation()[2] << ")"
      << "\n  transform[1].t: (" << cr.transform[1].translation()[0] << ", " << cr.transform[1].translation()[1] << ", "
      << cr.transform[1].translation()[2] << ")"
-     << "\n  cc_transform[0].t: (" << cr.cc_transform[0].translation()[0] << ", "
-     << cr.cc_transform[0].translation()[1] << ", " << cr.cc_transform[0].translation()[2] << ")"
-     << "\n  cc_transform[1].t: (" << cr.cc_transform[1].translation()[0] << ", "
-     << cr.cc_transform[1].translation()[1] << ", " << cr.cc_transform[1].translation()[2] << ")";
+     << "\n  cc_transform[0].t: (" << cr.cc_transform[0].translation()[0] << ", " << cr.cc_transform[0].translation()[1]
+     << ", " << cr.cc_transform[0].translation()[2] << ")"
+     << "\n  cc_transform[1].t: (" << cr.cc_transform[1].translation()[0] << ", " << cr.cc_transform[1].translation()[1]
+     << ", " << cr.cc_transform[1].translation()[2] << ")";
   return os.str();
 }
 
@@ -94,11 +94,9 @@ inline void checkOctomapCastResult(const ContactResult& cr,
   // so populateContinuousCollisionFields skips it and CCD fields keep
   // defaults: CCType_None / cc_time = -1.
   // -----------------------------------------------------------------------
-  EXPECT_EQ(cr.cc_type[si], ContinuousCollisionType::CCType_None)
-      << "Octree (static) cc_type should be CCType_None; "
-      << "got " << static_cast<int>(cr.cc_type[si]);
-  EXPECT_NEAR(cr.cc_time[si], -1.0, 1e-3)
-      << "Octree (static) cc_time should be -1 (not set for static objects)";
+  EXPECT_EQ(cr.cc_type[si], ContinuousCollisionType::CCType_None) << "Octree (static) cc_type should be CCType_None; "
+                                                                  << "got " << static_cast<int>(cr.cc_type[si]);
+  EXPECT_NEAR(cr.cc_time[si], -1.0, 1e-3) << "Octree (static) cc_time should be -1 (not set for static objects)";
 
   // -----------------------------------------------------------------------
   // Kinematic side: cc_type must not be CCType_None.
@@ -123,58 +121,48 @@ inline void checkOctomapCastResult(const ContactResult& cr,
   // -----------------------------------------------------------------------
   EXPECT_NE(cr.cc_type[ki], ContinuousCollisionType::CCType_None)
       << "Kinematic cc_type must not be CCType_None; "
-      << "got " << static_cast<int>(cr.cc_type[ki])
-      << ". CCType_None means the kinematic side was not processed.";
+      << "got " << static_cast<int>(cr.cc_type[ki]) << ". CCType_None means the kinematic side was not processed.";
 
   // cc_time consistency with cc_type:
   if (cr.cc_type[ki] == ContinuousCollisionType::CCType_Time0)
   {
-    EXPECT_NEAR(cr.cc_time[ki], 0.0, 1e-3)
-        << "For CCType_Time0, cc_time must be 0.0";
+    EXPECT_NEAR(cr.cc_time[ki], 0.0, 1e-3) << "For CCType_Time0, cc_time must be 0.0";
   }
   else if (cr.cc_type[ki] == ContinuousCollisionType::CCType_Time1)
   {
-    EXPECT_NEAR(cr.cc_time[ki], 1.0, 1e-3)
-        << "For CCType_Time1, cc_time must be 1.0";
+    EXPECT_NEAR(cr.cc_time[ki], 1.0, 1e-3) << "For CCType_Time1, cc_time must be 1.0";
   }
   else
   {
-    EXPECT_GT(cr.cc_time[ki], 0.0)
-        << "For CCType_Between, cc_time must be > 0";
-    EXPECT_LE(cr.cc_time[ki], 1.0)
-        << "For CCType_Between, cc_time must be <= 1.0";
+    EXPECT_GT(cr.cc_time[ki], 0.0) << "For CCType_Between, cc_time must be > 0";
+    EXPECT_LE(cr.cc_time[ki], 1.0) << "For CCType_Between, cc_time must be <= 1.0";
 
     // CCType_Between is set precisely when the contact normal is perpendicular
     // to the sweep (normal · sweep ≈ 0), making the world supports equal at
     // t=0 and t=1.  This is an invariant we can verify.
     const double along_sweep = std::abs(cr.normal.dot(sweep_dir));
-    EXPECT_LT(along_sweep, 0.5)
-        << "For CCType_Between, contact normal should be mostly perpendicular "
-        << "to sweep direction (along_sweep = " << along_sweep << "); "
-        << "a large component means the world supports should differ and "
-        << "CCType_Time0/Time1 should have been set instead";
+    EXPECT_LT(along_sweep, 0.5) << "For CCType_Between, contact normal should be mostly perpendicular "
+                                << "to sweep direction (along_sweep = " << along_sweep << "); "
+                                << "a large component means the world supports should differ and "
+                                << "CCType_Time0/Time1 should have been set instead";
   }
 
   // transform[ki] = pose1 (start of sweep).
-  EXPECT_TRUE(cr.transform[ki].isApprox(start_pos, 1e-5))
-      << "Kinematic transform should match start pose (pose1)";
+  EXPECT_TRUE(cr.transform[ki].isApprox(start_pos, 1e-5)) << "Kinematic transform should match start pose (pose1)";
 
   // cc_transform[ki] = pose2 (end of sweep).
-  EXPECT_TRUE(cr.cc_transform[ki].isApprox(end_pos, 1e-5))
-      << "Kinematic cc_transform should match end pose (pose2)";
+  EXPECT_TRUE(cr.cc_transform[ki].isApprox(end_pos, 1e-5)) << "Kinematic cc_transform should match end pose (pose2)";
 
   // Normal must be a unit vector.
-  EXPECT_NEAR(cr.normal.norm(), 1.0, 1e-3)
-      << "Contact normal must be a unit vector";
+  EXPECT_NEAR(cr.normal.norm(), 1.0, 1e-3) << "Contact normal must be a unit vector";
 
   // -----------------------------------------------------------------------
   // distance: the kinematic link ends inside the octree, so the swept hull
   // genuinely penetrates at least one voxel → distance must be negative.
   // -----------------------------------------------------------------------
-  EXPECT_LT(cr.distance, 0.0)
-      << "Expected penetration (distance < 0); got " << cr.distance
-      << ". The kinematic shape ends inside the octree, so the swept hull "
-         "must overlap a voxel and distance must be strictly negative.";
+  EXPECT_LT(cr.distance, 0.0) << "Expected penetration (distance < 0); got " << cr.distance
+                              << ". The kinematic shape ends inside the octree, so the swept hull "
+                                 "must overlap a voxel and distance must be strictly negative.";
 
   // -----------------------------------------------------------------------
   // nearest_points_local[ki]: the local-frame contact point for the kinematic
@@ -182,10 +170,11 @@ inline void checkOctomapCastResult(const ContactResult& cr,
   // never populated, which would cause Trajopt to compute a zero-offset
   // Jacobian and produce incorrect gradients.
   // -----------------------------------------------------------------------
-  EXPECT_GT(cr.nearest_points_local[ki].norm(), 1e-6)
-      << "nearest_points_local for kinematic link '" << kin_link << "' should be non-zero "
-         "(non-trivial contact point in the link frame). A zero value means the "
-         "field was not set by populateContinuousCollisionFields.";
+  EXPECT_GT(cr.nearest_points_local[ki].norm(), 1e-6) << "nearest_points_local for kinematic link '" << kin_link
+                                                      << "' should be non-zero "
+                                                         "(non-trivial contact point in the link frame). A zero value "
+                                                         "means the "
+                                                         "field was not set by populateContinuousCollisionFields.";
 
   // -----------------------------------------------------------------------
   // Normal-direction invariants for CCType_Time0 and CCType_Time1:
@@ -204,20 +193,18 @@ inline void checkOctomapCastResult(const ContactResult& cr,
   if (cr.cc_type[ki] == ContinuousCollisionType::CCType_Time0)
   {
     const double along_sweep = (ki == 0 ? 1.0 : -1.0) * cr.normal.dot(sweep_dir);
-    EXPECT_LT(along_sweep, -0.001)
-        << "For CCType_Time0, the outward normal from the kinematic shape must "
-        << "have a negative component along sweep_dir "
-        << "(along_sweep = " << along_sweep << "). "
-        << "This is the invariant that selects CCType_Time0 over CCType_Between.";
+    EXPECT_LT(along_sweep, -0.001) << "For CCType_Time0, the outward normal from the kinematic shape must "
+                                   << "have a negative component along sweep_dir "
+                                   << "(along_sweep = " << along_sweep << "). "
+                                   << "This is the invariant that selects CCType_Time0 over CCType_Between.";
   }
   else if (cr.cc_type[ki] == ContinuousCollisionType::CCType_Time1)
   {
     const double along_sweep = (ki == 0 ? 1.0 : -1.0) * cr.normal.dot(sweep_dir);
-    EXPECT_GT(along_sweep, 0.001)
-        << "For CCType_Time1, the outward normal from the kinematic shape must "
-        << "have a positive component along sweep_dir "
-        << "(along_sweep = " << along_sweep << "). "
-        << "This is the invariant that selects CCType_Time1 over CCType_Between.";
+    EXPECT_GT(along_sweep, 0.001) << "For CCType_Time1, the outward normal from the kinematic shape must "
+                                  << "have a positive component along sweep_dir "
+                                  << "(along_sweep = " << along_sweep << "). "
+                                  << "This is the invariant that selects CCType_Time1 over CCType_Between.";
   }
 }
 

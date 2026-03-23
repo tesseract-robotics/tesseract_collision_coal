@@ -4,8 +4,6 @@
 #include <tesseract/common/macros.h>
 TESSERACT_COMMON_IGNORE_WARNINGS_PUSH
 #include <gtest/gtest.h>
-#include <iomanip>
-#include <sstream>
 TESSERACT_COMMON_IGNORE_WARNINGS_POP
 
 #include <tesseract/collision/continuous_contact_manager.h>
@@ -141,9 +139,8 @@ inline void runTestMultiShapeCast(ContinuousContactManager& checker)
   // Sub-shape A (at local offset +1,0,0) is the one that sweeps through the obstacle;
   // sub-shape B (at -1,0,0) sweeps away from the obstacle. So the contact must be
   // on sub-shape A, i.e., shape_id[arm_idx] == 0.
-  EXPECT_EQ(cr.shape_id[arm_idx], 0)
-      << "arm_link collision was on sub-shape A (index 0, local offset +1,0,0). "
-      << "Got shape_id[arm_idx]=" << cr.shape_id[arm_idx];
+  EXPECT_EQ(cr.shape_id[arm_idx], 0) << "arm_link collision was on sub-shape A (index 0, local offset +1,0,0). "
+                                     << "Got shape_id[arm_idx]=" << cr.shape_id[arm_idx];
 
   // Contact normal must be a unit vector
   EXPECT_NEAR(cr.normal.norm(), 1.0, 1e-4) << "Contact normal must be a unit vector";

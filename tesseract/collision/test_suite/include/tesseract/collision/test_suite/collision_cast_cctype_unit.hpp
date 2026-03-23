@@ -119,10 +119,8 @@ inline void runTestCCTypeTime1(ContinuousContactManager& checker)
   // Static sphere fixed at origin
   checker.setCollisionObjectsTransform("static_sphere", Eigen::Isometry3d::Identity());
 
-  const Eigen::Isometry3d start_pose =
-      Eigen::Isometry3d(Eigen::Translation3d(-2.0, 0.0, 0.0));
-  const Eigen::Isometry3d end_pose =
-      Eigen::Isometry3d(Eigen::Translation3d(-0.1, 0.0, 0.0));
+  const Eigen::Isometry3d start_pose = Eigen::Isometry3d(Eigen::Translation3d(-2.0, 0.0, 0.0));
+  const Eigen::Isometry3d end_pose = Eigen::Isometry3d(Eigen::Translation3d(-0.1, 0.0, 0.0));
 
   checker.setCollisionObjectsTransform("moving_sphere", start_pose, end_pose);
 
@@ -132,33 +130,28 @@ inline void runTestCCTypeTime1(ContinuousContactManager& checker)
   ContactResultVector result_vector;
   result.flattenMoveResults(result_vector);
 
-  ASSERT_FALSE(result_vector.empty())
-      << "CCType_Time1: moving_sphere (r=0.25) sweeps from x=-2 to x=-0.1. "
-      << "At t=1 its centre is 0.1 from static_sphere centre → penetration 0.4. "
-      << "A contact is expected.";
+  ASSERT_FALSE(result_vector.empty()) << "CCType_Time1: moving_sphere (r=0.25) sweeps from x=-2 to x=-0.1. "
+                                      << "At t=1 its centre is 0.1 from static_sphere centre → penetration 0.4. "
+                                      << "A contact is expected.";
 
   const auto& cr = result_vector[0];
   const auto slots = getSlots(cr);
-  const std::size_t ki = static_cast<std::size_t>(slots[0]);  // moving_sphere slot
-  const std::size_t si = static_cast<std::size_t>(slots[1]);  // static_sphere slot
+  const auto ki = static_cast<std::size_t>(slots[0]);  // moving_sphere slot
+  const auto si = static_cast<std::size_t>(slots[1]);  // static_sphere slot
 
-  SCOPED_TRACE("CCType_Time1 contact: link_names=[" + cr.link_names[0] + ", " +
-               cr.link_names[1] + "] ki=" + std::to_string(ki) +
-               " si=" + std::to_string(si));
+  SCOPED_TRACE("CCType_Time1 contact: link_names=[" + cr.link_names[0] + ", " + cr.link_names[1] +
+               "] ki=" + std::to_string(ki) + " si=" + std::to_string(si));
 
   // -----------------------------------------------------------------------
   // distance
   // -----------------------------------------------------------------------
-  EXPECT_NEAR(cr.distance, -0.4, 0.001)
-      << "Penetration depth: sphere centres 0.1 apart, combined radii 0.5 → −0.4";
+  EXPECT_NEAR(cr.distance, -0.4, 0.001) << "Penetration depth: sphere centres 0.1 apart, combined radii 0.5 → −0.4";
 
   // -----------------------------------------------------------------------
   // type_id propagation
   // -----------------------------------------------------------------------
-  EXPECT_EQ(cr.type_id[ki], 7)
-      << "moving_sphere was registered with type_id=7; result must reflect that";
-  EXPECT_EQ(cr.type_id[si], 0)
-      << "static_sphere was registered with type_id=0; result must reflect that";
+  EXPECT_EQ(cr.type_id[ki], 7) << "moving_sphere was registered with type_id=7; result must reflect that";
+  EXPECT_EQ(cr.type_id[si], 0) << "static_sphere was registered with type_id=0; result must reflect that";
 
   // -----------------------------------------------------------------------
   // cc_type / cc_time for the moving (kinematic) sphere
@@ -167,37 +160,34 @@ inline void runTestCCTypeTime1(ContinuousContactManager& checker)
       << "moving_sphere translates in +x; contact normal is in +x direction; "
       << "normal·sweep > 0 → CCType_Time1. Got: " << static_cast<int>(cr.cc_type[ki]);
 
-  EXPECT_NEAR(cr.cc_time[ki], 1.0, 0.001)
-      << "CCType_Time1 → cc_time must be 1.0 (collision worst at end pose)";
+  EXPECT_NEAR(cr.cc_time[ki], 1.0, 0.001) << "CCType_Time1 → cc_time must be 1.0 (collision worst at end pose)";
 
   // -----------------------------------------------------------------------
   // cc_type / cc_time for the static sphere
   // -----------------------------------------------------------------------
-  EXPECT_EQ(cr.cc_type[si], ContinuousCollisionType::CCType_None)
-      << "static_sphere has no CastHullShape → cc_type must be CCType_None";
+  EXPECT_EQ(cr.cc_type[si], ContinuousCollisionType::CCType_None) << "static_sphere has no CastHullShape → cc_type "
+                                                                     "must be CCType_None";
 
-  EXPECT_NEAR(cr.cc_time[si], -1.0, 0.001)
-      << "static_sphere has no CastHullShape → cc_time must be −1 (unset)";
+  EXPECT_NEAR(cr.cc_time[si], -1.0, 0.001) << "static_sphere has no CastHullShape → cc_time must be −1 (unset)";
 
   // -----------------------------------------------------------------------
   // transform / cc_transform for the moving sphere
   // -----------------------------------------------------------------------
-  EXPECT_TRUE(cr.transform[ki].isApprox(start_pose, 1e-5))
-      << "transform[ki] must equal the start pose of moving_sphere";
+  EXPECT_TRUE(cr.transform[ki].isApprox(start_pose, 1e-5)) << "transform[ki] must equal the start pose of "
+                                                              "moving_sphere";
 
-  EXPECT_TRUE(cr.cc_transform[ki].isApprox(end_pose, 1e-5))
-      << "cc_transform[ki] must equal the end pose of moving_sphere";
+  EXPECT_TRUE(cr.cc_transform[ki].isApprox(end_pose, 1e-5)) << "cc_transform[ki] must equal the end pose of "
+                                                               "moving_sphere";
 
   // -----------------------------------------------------------------------
   // normal is a unit vector
   // -----------------------------------------------------------------------
-  EXPECT_NEAR(cr.normal.norm(), 1.0, 1e-4)
-      << "Contact normal must be a unit vector";
+  EXPECT_NEAR(cr.normal.norm(), 1.0, 1e-4) << "Contact normal must be a unit vector";
 
   // Contact normal must have a component along +x (sphere-sphere along X axis)
   const int ns = slots[2];  // +1 if moving_sphere is link_names[0]
-  EXPECT_GT(ns * cr.normal[0], 0.5)
-      << "Contact normal x-component should point from moving_sphere toward static_sphere (+x)";
+  EXPECT_GT(ns * cr.normal[0], 0.5) << "Contact normal x-component should point from moving_sphere toward "
+                                       "static_sphere (+x)";
 
   // -----------------------------------------------------------------------
   // nearest_points (world frame)
@@ -205,19 +195,14 @@ inline void runTestCCTypeTime1(ContinuousContactManager& checker)
   // At t=1: moving_sphere surface toward static_sphere is at (−0.1+0.25, 0, 0)=(0.15, 0, 0)
   // static_sphere surface toward moving_sphere is at (−0.25, 0, 0)
   // Bullet GJK on CastHullShape (capsule) has up to ~0.003 x-error and ~0.03 y,z error
-  EXPECT_NEAR(cr.nearest_points[ki][0], 0.15, 0.005)
-      << "nearest_points[ki].x: moving_sphere surface at end pose toward static_sphere";
-  EXPECT_NEAR(cr.nearest_points[ki][1], 0.0, 0.05)
-      << "nearest_points[ki].y: no offset in Y";
-  EXPECT_NEAR(cr.nearest_points[ki][2], 0.0, 0.05)
-      << "nearest_points[ki].z: no offset in Z";
+  EXPECT_NEAR(cr.nearest_points[ki][0], 0.15, 0.005) << "nearest_points[ki].x: moving_sphere surface at end pose "
+                                                        "toward static_sphere";
+  EXPECT_NEAR(cr.nearest_points[ki][1], 0.0, 0.05) << "nearest_points[ki].y: no offset in Y";
+  EXPECT_NEAR(cr.nearest_points[ki][2], 0.0, 0.05) << "nearest_points[ki].z: no offset in Z";
 
-  EXPECT_NEAR(cr.nearest_points[si][0], -0.25, 0.005)
-      << "nearest_points[si].x: static_sphere surface in −x direction";
-  EXPECT_NEAR(cr.nearest_points[si][1], 0.0, 0.05)
-      << "nearest_points[si].y: no offset in Y";
-  EXPECT_NEAR(cr.nearest_points[si][2], 0.0, 0.05)
-      << "nearest_points[si].z: no offset in Z";
+  EXPECT_NEAR(cr.nearest_points[si][0], -0.25, 0.005) << "nearest_points[si].x: static_sphere surface in −x direction";
+  EXPECT_NEAR(cr.nearest_points[si][1], 0.0, 0.05) << "nearest_points[si].y: no offset in Y";
+  EXPECT_NEAR(cr.nearest_points[si][2], 0.0, 0.05) << "nearest_points[si].z: no offset in Z";
 
   // -----------------------------------------------------------------------
   // nearest_points_local via round-trip transforms
@@ -229,19 +214,19 @@ inline void runTestCCTypeTime1(ContinuousContactManager& checker)
   //   transform[ki]    * (2.15,0,0) = start_pos + 2.15 = (0.15,0,0) = world contact
   //   cc_transform[ki] * (2.15,0,0) = end_pos   + 2.15 = (2.05,0,0)
   // -----------------------------------------------------------------------
-  EXPECT_GT(cr.nearest_points_local[ki].norm(), 1e-6)
-      << "nearest_points_local[ki] must be non-zero (was previously left at zero for CCType_Time1)";
+  EXPECT_GT(cr.nearest_points_local[ki].norm(), 1e-6) << "nearest_points_local[ki] must be non-zero (was previously "
+                                                         "left at zero for CCType_Time1)";
 
   // transform[ki] * nearest_points_local[ki] == nearest_points[ki] (world contact at t=1)
   const Eigen::Vector3d p_at_start = cr.transform[ki] * cr.nearest_points_local[ki];
-  EXPECT_NEAR(p_at_start[0], 0.15, 0.01)
-      << "transform[ki] * nearest_points_local[ki]: should equal world contact point (0.15,0,0)";
+  EXPECT_NEAR(p_at_start[0], 0.15, 0.01) << "transform[ki] * nearest_points_local[ki]: should equal world contact "
+                                            "point (0.15,0,0)";
   EXPECT_NEAR(p_at_start[1], 0.0, 0.05);
   EXPECT_NEAR(p_at_start[2], 0.0, 0.05);
 
   const Eigen::Vector3d p_at_end = cr.cc_transform[ki] * cr.nearest_points_local[ki];
-  EXPECT_NEAR(p_at_end[0], 2.05, 0.01)
-      << "cc_transform[ki] * nearest_points_local[ki]: sphere surface projected to end pose";
+  EXPECT_NEAR(p_at_end[0], 2.05, 0.01) << "cc_transform[ki] * nearest_points_local[ki]: sphere surface projected to "
+                                          "end pose";
   EXPECT_NEAR(p_at_end[1], 0.0, 0.05);
   EXPECT_NEAR(p_at_end[2], 0.0, 0.05);
 }
@@ -267,10 +252,8 @@ inline void runTestCCTypeTime0(ContinuousContactManager& checker)
   // Static sphere fixed at origin
   checker.setCollisionObjectsTransform("static_sphere", Eigen::Isometry3d::Identity());
 
-  const Eigen::Isometry3d start_pose =
-      Eigen::Isometry3d(Eigen::Translation3d(-0.1, 0.0, 0.0));
-  const Eigen::Isometry3d end_pose =
-      Eigen::Isometry3d(Eigen::Translation3d(-2.0, 0.0, 0.0));
+  const Eigen::Isometry3d start_pose = Eigen::Isometry3d(Eigen::Translation3d(-0.1, 0.0, 0.0));
+  const Eigen::Isometry3d end_pose = Eigen::Isometry3d(Eigen::Translation3d(-2.0, 0.0, 0.0));
 
   checker.setCollisionObjectsTransform("moving_sphere", start_pose, end_pose);
 
@@ -280,32 +263,27 @@ inline void runTestCCTypeTime0(ContinuousContactManager& checker)
   ContactResultVector result_vector;
   result.flattenMoveResults(result_vector);
 
-  ASSERT_FALSE(result_vector.empty())
-      << "CCType_Time0: moving_sphere starts at x=-0.1 overlapping static_sphere. "
-      << "The swept hull includes this start position, so a contact is expected.";
+  ASSERT_FALSE(result_vector.empty()) << "CCType_Time0: moving_sphere starts at x=-0.1 overlapping static_sphere. "
+                                      << "The swept hull includes this start position, so a contact is expected.";
 
   const auto& cr = result_vector[0];
   const auto slots = getSlots(cr);
-  const std::size_t ki = static_cast<std::size_t>(slots[0]);
-  const std::size_t si = static_cast<std::size_t>(slots[1]);
+  const auto ki = static_cast<std::size_t>(slots[0]);
+  const auto si = static_cast<std::size_t>(slots[1]);
 
-  SCOPED_TRACE("CCType_Time0 contact: link_names=[" + cr.link_names[0] + ", " +
-               cr.link_names[1] + "] ki=" + std::to_string(ki) +
-               " si=" + std::to_string(si));
+  SCOPED_TRACE("CCType_Time0 contact: link_names=[" + cr.link_names[0] + ", " + cr.link_names[1] +
+               "] ki=" + std::to_string(ki) + " si=" + std::to_string(si));
 
   // -----------------------------------------------------------------------
   // distance
   // -----------------------------------------------------------------------
-  EXPECT_NEAR(cr.distance, -0.4, 0.001)
-      << "Penetration depth: same geometry as CCType_Time1 scenario";
+  EXPECT_NEAR(cr.distance, -0.4, 0.001) << "Penetration depth: same geometry as CCType_Time1 scenario";
 
   // -----------------------------------------------------------------------
   // type_id propagation
   // -----------------------------------------------------------------------
-  EXPECT_EQ(cr.type_id[ki], 7)
-      << "moving_sphere type_id must be 7 in both CCType_Time0 and CCType_Time1";
-  EXPECT_EQ(cr.type_id[si], 0)
-      << "static_sphere type_id must be 0";
+  EXPECT_EQ(cr.type_id[ki], 7) << "moving_sphere type_id must be 7 in both CCType_Time0 and CCType_Time1";
+  EXPECT_EQ(cr.type_id[si], 0) << "static_sphere type_id must be 0";
 
   // -----------------------------------------------------------------------
   // cc_type / cc_time for the moving sphere
@@ -314,37 +292,30 @@ inline void runTestCCTypeTime0(ContinuousContactManager& checker)
       << "moving_sphere retreats in −x; contact normal is in +x direction; "
       << "normal·sweep < 0 → CCType_Time0. Got: " << static_cast<int>(cr.cc_type[ki]);
 
-  EXPECT_NEAR(cr.cc_time[ki], 0.0, 0.001)
-      << "CCType_Time0 → cc_time must be 0.0 (collision worst at start pose)";
+  EXPECT_NEAR(cr.cc_time[ki], 0.0, 0.001) << "CCType_Time0 → cc_time must be 0.0 (collision worst at start pose)";
 
   // -----------------------------------------------------------------------
   // cc_type / cc_time for the static sphere
   // -----------------------------------------------------------------------
-  EXPECT_EQ(cr.cc_type[si], ContinuousCollisionType::CCType_None)
-      << "static_sphere → CCType_None";
+  EXPECT_EQ(cr.cc_type[si], ContinuousCollisionType::CCType_None) << "static_sphere → CCType_None";
 
-  EXPECT_NEAR(cr.cc_time[si], -1.0, 0.001)
-      << "static_sphere → cc_time = −1 (unset)";
+  EXPECT_NEAR(cr.cc_time[si], -1.0, 0.001) << "static_sphere → cc_time = −1 (unset)";
 
   // -----------------------------------------------------------------------
   // transform / cc_transform for the moving sphere
   // -----------------------------------------------------------------------
-  EXPECT_TRUE(cr.transform[ki].isApprox(start_pose, 1e-5))
-      << "transform[ki] must equal the start pose (−0.1, 0, 0)";
+  EXPECT_TRUE(cr.transform[ki].isApprox(start_pose, 1e-5)) << "transform[ki] must equal the start pose (−0.1, 0, 0)";
 
-  EXPECT_TRUE(cr.cc_transform[ki].isApprox(end_pose, 1e-5))
-      << "cc_transform[ki] must equal the end pose (−2, 0, 0)";
+  EXPECT_TRUE(cr.cc_transform[ki].isApprox(end_pose, 1e-5)) << "cc_transform[ki] must equal the end pose (−2, 0, 0)";
 
   // -----------------------------------------------------------------------
   // normal is a unit vector
   // -----------------------------------------------------------------------
-  EXPECT_NEAR(cr.normal.norm(), 1.0, 1e-4)
-      << "Contact normal must be a unit vector";
+  EXPECT_NEAR(cr.normal.norm(), 1.0, 1e-4) << "Contact normal must be a unit vector";
 
   // Contact normal still points from moving_sphere toward static_sphere (+x)
   const int ns = slots[2];
-  EXPECT_GT(ns * cr.normal[0], 0.5)
-      << "Contact normal x must point from moving_sphere toward static_sphere (+x)";
+  EXPECT_GT(ns * cr.normal[0], 0.5) << "Contact normal x must point from moving_sphere toward static_sphere (+x)";
 
   // -----------------------------------------------------------------------
   // nearest_points (world frame)
@@ -352,13 +323,12 @@ inline void runTestCCTypeTime0(ContinuousContactManager& checker)
   // At t=0: moving_sphere surface toward static_sphere is at (−0.1+0.25, 0, 0) = (0.15, 0, 0)
   // static_sphere surface toward moving_sphere is at (−0.25, 0, 0)
   // Bullet GJK on CastHullShape (capsule) has up to ~0.003 x-error and ~0.03 y,z error
-  EXPECT_NEAR(cr.nearest_points[ki][0], 0.15, 0.005)
-      << "nearest_points[ki].x: moving_sphere surface at start pose toward static_sphere";
+  EXPECT_NEAR(cr.nearest_points[ki][0], 0.15, 0.005) << "nearest_points[ki].x: moving_sphere surface at start pose "
+                                                        "toward static_sphere";
   EXPECT_NEAR(cr.nearest_points[ki][1], 0.0, 0.05);
   EXPECT_NEAR(cr.nearest_points[ki][2], 0.0, 0.05);
 
-  EXPECT_NEAR(cr.nearest_points[si][0], -0.25, 0.005)
-      << "nearest_points[si].x: static_sphere surface in −x direction";
+  EXPECT_NEAR(cr.nearest_points[si][0], -0.25, 0.005) << "nearest_points[si].x: static_sphere surface in −x direction";
   EXPECT_NEAR(cr.nearest_points[si][1], 0.0, 0.05);
   EXPECT_NEAR(cr.nearest_points[si][2], 0.0, 0.05);
 
@@ -372,18 +342,18 @@ inline void runTestCCTypeTime0(ContinuousContactManager& checker)
   //   transform[ki]    * (0.25,0,0) = start_pos + 0.25 = ( 0.15, 0, 0) = world contact
   //   cc_transform[ki] * (0.25,0,0) = end_pos   + 0.25 = (-1.75, 0, 0)
   // -----------------------------------------------------------------------
-  EXPECT_GT(cr.nearest_points_local[ki].norm(), 1e-6)
-      << "nearest_points_local[ki] must be non-zero (was previously left at zero for CCType_Time0)";
+  EXPECT_GT(cr.nearest_points_local[ki].norm(), 1e-6) << "nearest_points_local[ki] must be non-zero (was previously "
+                                                         "left at zero for CCType_Time0)";
 
   const Eigen::Vector3d p_at_start = cr.transform[ki] * cr.nearest_points_local[ki];
-  EXPECT_NEAR(p_at_start[0], 0.15, 0.01)
-      << "transform[ki] * nearest_points_local[ki]: sphere surface at start pose = world contact";
+  EXPECT_NEAR(p_at_start[0], 0.15, 0.01) << "transform[ki] * nearest_points_local[ki]: sphere surface at start pose = "
+                                            "world contact";
   EXPECT_NEAR(p_at_start[1], 0.0, 0.05);
   EXPECT_NEAR(p_at_start[2], 0.0, 0.05);
 
   const Eigen::Vector3d p_at_end = cr.cc_transform[ki] * cr.nearest_points_local[ki];
-  EXPECT_NEAR(p_at_end[0], -1.75, 0.01)
-      << "cc_transform[ki] * nearest_points_local[ki]: sphere surface projected to end pose";
+  EXPECT_NEAR(p_at_end[0], -1.75, 0.01) << "cc_transform[ki] * nearest_points_local[ki]: sphere surface projected to "
+                                           "end pose";
   EXPECT_NEAR(p_at_end[1], 0.0, 0.05);
   EXPECT_NEAR(p_at_end[2], 0.0, 0.05);
 }
@@ -395,16 +365,10 @@ inline void runTestCCTypeTime0(ContinuousContactManager& checker)
 // ---------------------------------------------------------------------------
 
 /// Run the CCType_Time1 test on the provided cast manager.
-inline void runTestCCTypeTime1(ContinuousContactManager& checker)
-{
-  detail::runTestCCTypeTime1(checker);
-}
+inline void runTestCCTypeTime1(ContinuousContactManager& checker) { detail::runTestCCTypeTime1(checker); }
 
 /// Run the CCType_Time0 test on the provided cast manager.
-inline void runTestCCTypeTime0(ContinuousContactManager& checker)
-{
-  detail::runTestCCTypeTime0(checker);
-}
+inline void runTestCCTypeTime0(ContinuousContactManager& checker) { detail::runTestCCTypeTime0(checker); }
 
 }  // namespace tesseract::collision::test_suite
 

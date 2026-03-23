@@ -239,9 +239,8 @@ TEST(CoalCachePairUnit, DefaultStaticFilterProducesNoContactsWithoutActiveList) 
     ContactResultMap result;
     checker.contactTest(result, ContactRequest(ContactTestType::ALL));
 
-    EXPECT_TRUE(result.empty())
-        << "With no active objects set, all objects are static. "
-        << "Static-vs-static pairs are not checked, so no contacts should be reported.";
+    EXPECT_TRUE(result.empty()) << "With no active objects set, all objects are static. "
+                                << "Static-vs-static pairs are not checked, so no contacts should be reported.";
   }
 
   // --- Cast (continuous) manager ---
@@ -257,9 +256,8 @@ TEST(CoalCachePairUnit, DefaultStaticFilterProducesNoContactsWithoutActiveList) 
     ContactResultMap result;
     checker.contactTest(result, ContactRequest(ContactTestType::ALL));
 
-    EXPECT_TRUE(result.empty())
-        << "With no active objects set, all objects are static. "
-        << "Static-vs-static pairs are not checked, so no contacts should be reported.";
+    EXPECT_TRUE(result.empty()) << "With no active objects set, all objects are static. "
+                                << "Static-vs-static pairs are not checked, so no contacts should be reported.";
   }
 }
 
@@ -296,9 +294,8 @@ TEST(CoalCachePairUnit, ActiveListPromotionEnablesContacts)  // NOLINT
 
     ContactResultMap result_after;
     checker.contactTest(result_after, ContactRequest(ContactTestType::ALL));
-    EXPECT_FALSE(result_after.empty())
-        << "After setting link_a active, link_a (kinematic) vs link_b (static) "
-        << "should produce a contact for two overlapping spheres.";
+    EXPECT_FALSE(result_after.empty()) << "After setting link_a active, link_a (kinematic) vs link_b (static) "
+                                       << "should produce a contact for two overlapping spheres.";
   }
 
   // --- Cast (continuous) manager ---
@@ -323,9 +320,8 @@ TEST(CoalCachePairUnit, ActiveListPromotionEnablesContacts)  // NOLINT
 
     ContactResultMap result_after;
     checker.contactTest(result_after, ContactRequest(ContactTestType::ALL));
-    EXPECT_FALSE(result_after.empty())
-        << "After setting link_a active with a sweep, link_a (kinematic) vs "
-        << "link_b (static) should produce a contact.";
+    EXPECT_FALSE(result_after.empty()) << "After setting link_a active with a sweep, link_a (kinematic) vs "
+                                       << "link_b (static) should produce a contact.";
   }
 }
 

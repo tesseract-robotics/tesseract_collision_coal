@@ -22,7 +22,7 @@ TEST(CoalVsBulletUnit, ConvexHullSphereSphereSweptComparison)  // NOLINT
   auto run_scenario = [](ContinuousContactManager& checker) -> ContactResult {
     test_suite::detail::addCollisionObjects(checker, true);
 
-    checker.setActiveCollisionObjects({"sphere_link", "sphere1_link"});
+    checker.setActiveCollisionObjects({ "sphere_link", "sphere1_link" });
     checker.setCollisionMarginData(CollisionMarginData(0.1));
 
     tesseract::common::TransformMap start, end;

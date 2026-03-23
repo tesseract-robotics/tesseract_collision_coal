@@ -149,8 +149,8 @@ inline Eigen::Vector3d trajoptContactPoint(const ContactResult& cr, std::size_t 
     case ContinuousCollisionType::CCType_Between:
     {
       Eigen::Isometry3d interp = Eigen::Isometry3d::Identity();
-      interp.translation() = (1.0 - cr.cc_time[ki]) * cr.transform[ki].translation() +
-                              cr.cc_time[ki] * cr.cc_transform[ki].translation();
+      interp.translation() =
+          (1.0 - cr.cc_time[ki]) * cr.transform[ki].translation() + cr.cc_time[ki] * cr.cc_transform[ki].translation();
       Eigen::Quaterniond q0(cr.transform[ki].rotation());
       Eigen::Quaterniond q1(cr.cc_transform[ki].rotation());
       interp.linear() = q0.slerp(cr.cc_time[ki], q1).toRotationMatrix();
@@ -162,8 +162,7 @@ inline Eigen::Vector3d trajoptContactPoint(const ContactResult& cr, std::size_t 
 }
 
 /// Run contactTest on a manager and flatten results.
-inline ContactResultVector runContact(ContinuousContactManager& checker,
-                                      ContactTestType type = ContactTestType::ALL)
+inline ContactResultVector runContact(ContinuousContactManager& checker, ContactTestType type = ContactTestType::ALL)
 {
   ContactResultMap result;
   checker.contactTest(result, ContactRequest(type));
@@ -258,16 +257,13 @@ inline int findMatchingContact(const ContactResult& ref_cr,
 }
 
 /// Compare a scalar between two backends, logging differences.
-inline bool compareScalar(const std::string& field_name,
-                          double val_a,
-                          double val_b,
-                          double tolerance,
-                          std::ostringstream& log)
+inline bool
+compareScalar(const std::string& field_name, double val_a, double val_b, double tolerance, std::ostringstream& log)
 {
   bool match = std::abs(val_a - val_b) <= tolerance;
   if (!match)
-    log << "  DIFF " << field_name << ": a=" << val_a << "  b=" << val_b
-        << "  delta=" << std::abs(val_a - val_b) << "\n";
+    log << "  DIFF " << field_name << ": a=" << val_a << "  b=" << val_b << "  delta=" << std::abs(val_a - val_b)
+        << "\n";
   return match;
 }
 
@@ -328,8 +324,8 @@ inline void runTestScenarioA_RotationalSweep(ContinuousContactManager& checker)
 inline void runTestScenarioB_MultiShapeSweep(ContinuousContactManager& checker)
 {
   addOctree(checker, "octomap_link");
-  addMultiShapeLink(checker, "arm_link", Eigen::Vector3d(0.1, 0.1, 0.1), Eigen::Vector3d(0.5, 0, 0),
-                    Eigen::Vector3d(-0.5, 0, 0));
+  addMultiShapeLink(
+      checker, "arm_link", Eigen::Vector3d(0.1, 0.1, 0.1), Eigen::Vector3d(0.5, 0, 0), Eigen::Vector3d(-0.5, 0, 0));
   checker.setActiveCollisionObjects({ "arm_link" });
   checker.setDefaultCollisionMargin(0.1);
   checker.setCollisionObjectsTransform("octomap_link", Eigen::Isometry3d::Identity());
@@ -480,10 +476,12 @@ inline void runTestScenarioD_Comparison(ContinuousContactManager& checker_a,
 
     std::ostringstream diff_log;
     bool all_match = true;
-    all_match &= compareInt("cc_type[" + std::string(link) + "]", static_cast<int>(acr.cc_type[a_ki]),
-                            static_cast<int>(bcr.cc_type[b_ki]), diff_log);
-    all_match &= compareScalar("cc_time[" + std::string(link) + "]", acr.cc_time[a_ki], bcr.cc_time[b_ki],
-                               0.15, diff_log);
+    all_match &= compareInt("cc_type[" + std::string(link) + "]",
+                            static_cast<int>(acr.cc_type[a_ki]),
+                            static_cast<int>(bcr.cc_type[b_ki]),
+                            diff_log);
+    all_match &=
+        compareScalar("cc_time[" + std::string(link) + "]", acr.cc_time[a_ki], bcr.cc_time[b_ki], 0.15, diff_log);
     all_match &= compareScalar("distance[" + std::string(link) + "]", acr.distance, bcr.distance, 0.1, diff_log);
 
     Eigen::Vector3d a_pt = trajoptContactPoint(acr, a_ki);
@@ -544,8 +542,8 @@ inline void runTestScenarioE_SubdivisionLoop(ContinuousContactManager& checker)
 
     // Self-consistency for every contact in every segment
     for (std::size_t i = 0; i < results.size(); ++i)
-      validateOctreeContactSelfConsistency(results[i], "kin_link", pose1, pose2,
-                                           "Seg" + std::to_string(seg) + "[" + std::to_string(i) + "]");
+      validateOctreeContactSelfConsistency(
+          results[i], "kin_link", pose1, pose2, "Seg" + std::to_string(seg) + "[" + std::to_string(i) + "]");
   }
 
   // The trajectory passes through a 2m octree centered at origin ([-1,1]^3).
@@ -670,9 +668,8 @@ inline void runTestScenarioG_RepeatedStability(ContinuousContactManager& checker
 
     if (prev_count >= 0)
     {
-      EXPECT_EQ(count, prev_count) << "Contact count changed between repeated contactTest calls ("
-                                   << prev_count << " -> " << count
-                                   << "). This suggests internal state corruption.";
+      EXPECT_EQ(count, prev_count) << "Contact count changed between repeated contactTest calls (" << prev_count
+                                   << " -> " << count << "). This suggests internal state corruption.";
     }
     prev_count = count;
 
@@ -727,10 +724,7 @@ inline void runTestScenarioE_Comparison(ContinuousContactManager& checker_a,
   detail::runTestScenarioE_Comparison(checker_a, checker_b, label_a, label_b);
 }
 
-inline void runTestScenarioF_NearMiss(ContinuousContactManager& checker)
-{
-  detail::runTestScenarioF_NearMiss(checker);
-}
+inline void runTestScenarioF_NearMiss(ContinuousContactManager& checker) { detail::runTestScenarioF_NearMiss(checker); }
 
 inline void runTestScenarioG_RepeatedStability(ContinuousContactManager& checker)
 {

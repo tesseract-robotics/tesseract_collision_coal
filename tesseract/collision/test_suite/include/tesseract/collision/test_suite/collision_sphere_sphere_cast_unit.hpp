@@ -720,11 +720,9 @@ inline void runTestConvex(ContinuousContactManager& checker)
                                                                                         "nearest_point_local.z";
 
   // Distance consistency: separation between witness points must match |distance|
-  const double witness_sep = (cr2.nearest_points[static_cast<size_t>(idx[0])] -
-                               cr2.nearest_points[static_cast<size_t>(idx[1])])
-                                  .norm();
-  EXPECT_NEAR(witness_sep, std::abs(cr2.distance), 0.002)
-      << "Distance between witness points should match |distance|";
+  const double witness_sep =
+      (cr2.nearest_points[static_cast<size_t>(idx[0])] - cr2.nearest_points[static_cast<size_t>(idx[1])]).norm();
+  EXPECT_NEAR(witness_sep, std::abs(cr2.distance), 0.002) << "Distance between witness points should match |distance|";
 
   // X-coordinate of witness points (deterministic — along the separation axis)
   EXPECT_NEAR(cr2.nearest_points[static_cast<size_t>(idx[0])][0], 0.0377, 0.001) << "sphere_link nearest_point.x";
@@ -734,8 +732,8 @@ inline void runTestConvex(ContinuousContactManager& checker)
   EXPECT_NEAR(cr2.nearest_points[static_cast<size_t>(idx[0])][2], 0.25, 0.001) << "sphere_link nearest_point.z";
 
   // Both witness points must share the same Y coordinate (contact is symmetric in Y)
-  EXPECT_NEAR(cr2.nearest_points[static_cast<size_t>(idx[0])][1],
-              cr2.nearest_points[static_cast<size_t>(idx[1])][1], 0.001)
+  EXPECT_NEAR(
+      cr2.nearest_points[static_cast<size_t>(idx[0])][1], cr2.nearest_points[static_cast<size_t>(idx[1])][1], 0.001)
       << "Both witness points should have the same Y coordinate";
 
   // Verify transforms
