@@ -48,8 +48,8 @@
 #include <tesseract/common/macros.h>
 TESSERACT_COMMON_IGNORE_WARNINGS_PUSH
 #include <memory>
+#include <coal/narrowphase/minkowski_difference.h>
 #include <coal/shape/geometric_shapes.h>
-#include <coal/narrowphase/support_data.h>
 TESSERACT_COMMON_IGNORE_WARNINGS_POP
 
 #include <tesseract/collision/types.h>
@@ -75,6 +75,14 @@ public:
 
   // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
   CastHullShape* clone() const override;
+
+  coal::NODE_TYPE getNodeType() const override { return coal::GEOM_CUSTOM; }
+
+  /// @brief Delegate to the underlying shape via shape_traits lookup.
+  bool needNesterovNormalizeHeuristic() const override
+  {
+    return coal::details::getNormalizeSupportDirection(shape_.get());
+  }
 
   double computeVolume() const override;
 
