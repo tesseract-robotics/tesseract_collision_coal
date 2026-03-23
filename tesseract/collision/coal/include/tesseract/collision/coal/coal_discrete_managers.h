@@ -162,6 +162,9 @@ private:
   /** @brief Collect a single link's transform update into the batch update vectors */
   void collectTransformUpdate(Link2COW::iterator it, const Eigen::Isometry3d& pose);
 
+  /** @brief Shared implementation for enableCollisionObject / disableCollisionObject */
+  bool setCollisionObjectEnabled(const std::string& name, bool enabled);
+
   /** @brief Unregister objects from broadphase managers and invalidate cache */
   void removeObjects(const std::vector<CollisionObjectPtr>& objects, short int filter_group);
 

@@ -197,6 +197,9 @@ private:
                                   const Eigen::Isometry3d& pose1,
                                   const Eigen::Isometry3d& pose2);
 
+  /** @brief Shared implementation for enableCollisionObject / disableCollisionObject */
+  bool setCollisionObjectEnabled(const std::string& name, bool enabled);
+
   /** @brief Unregister objects from a broadphase manager and invalidate cache */
   void removeObjects(const std::vector<CollisionObjectPtr>& objects, coal::BroadPhaseCollisionManager& manager);
 

@@ -21,8 +21,8 @@ Continuous collision detection requires `GEOM_CUSTOM` support in Coal for the `C
 - **Active list management:** `active_` controls which objects are kinematic vs static. Adding a new collision object does **not** auto-add it to `active_`; removing cleans it from `active_`.
 - **CastHullShape (continuous collision):** Wraps a `coal::ShapeBase` with a cast transform (start-to-end motion). Uses support functions at both poses for swept volume — no vertex materialization. Independent GJK support hints per pose.
 - **Dual COW maps (cast manager):** `link2cow_` has regular geometry; `link2castcow_` has CastHullShape-wrapped versions.
-- **Octree handling:** Static octrees use the raw OcTree in the broadphase (Coal has native CastHullShape-vs-OcTree support). Active octrees are expanded into individual boxes per voxel, each wrapped in CastHullShape, for sweep support.
-- **Collision functor cache:** `ComputeCollision` functors and `CollisionRequest` objects cached per object pair to preserve GJK warm-start hints.
+- **Octree handling:** Static octrees use the raw OcTree in the broadphase. Active octrees are expanded into individual boxes per voxel, each wrapped in CastHullShape, for sweep support. CastHullShape cannot wrap an OcTree directly (it requires `ShapeBase`, but OcTree inherits from `CollisionGeometry`), so voxel expansion is the correct approach for swept octrees. See `DEFERRED_OCTREE_EXPANSION_BRIEF.md` for a planned optimization that defers this expansion to promotion time.
+- **Collision functor cache:** `ComputeCollision` functors and `CollisionRequest` objects cached per object pair to preserve GJK warm-start hints. Cache entries are invalidated on object enable/disable (`setCollisionObjectEnabled`) to prevent stale guesses.
 
 ### Plugin registration
 
@@ -32,14 +32,17 @@ Two factory classes (`CoalDiscreteBVHManagerFactory`, `CoalCastBVHManagerFactory
 
 1. **Test suite headers** (`test_suite/include/`) — 26 reusable `.hpp` headers defining `addCollisionObjects()` + `runTest()` for each scenario. Headers-only INTERFACE library shared across collision backends.
 2. **Integration tests** (`test/*.cpp`) — Instantiate Coal managers and call test suite `runTest()` functions. ~24 tests covering discrete (box-sphere, mesh-mesh, octomap, large dataset, multi-threaded) and continuous (cast box-box, sphere-sphere, octomap cast, multi-shape cast).
-3. **Coal-specific unit tests** (`test/coal/`) — 7 tests for internal components: CastHullShape behavior, functor caching/GJK warm-start, geometry cache, collision object wrapper AABB inflation, shape conversion.
+3. **Coal-specific unit tests** (`test/coal/`) — 8 tests for internal components: CastHullShape behavior, functor caching/GJK warm-start, geometry cache, collision object wrapper AABB inflation, shape conversion, cast gradient quality.
 
 Cast tests gated behind `TESSERACT_COLLISION_COAL_ENABLE_COAL_CAST_TESTS` CMake option (default OFF).
 
+## Performance
+
+Coal outperforms Bullet across all continuous collision benchmarks (23–171% faster depending on scenario). The advantage is largest in distance-enabled scenarios. See `tesseract_collision_benchmarks` for the benchmark suite.
+
 ## Known issues
 
-See `REVIEW.md` for a detailed code review. Key items:
-- `setCollisionObjectsTransform(pose1, pose2)` iterates two TransformMaps in lockstep assuming identical key sets — should use keyed lookup instead.
+See `REVIEW.md` for a detailed code review. Remaining items are low severity (pragma cosmetics, conservative AABB volume computation).
 
 ## Commit conventions
 

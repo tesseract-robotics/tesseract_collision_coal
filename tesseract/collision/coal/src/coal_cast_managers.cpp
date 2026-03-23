@@ -42,7 +42,6 @@ TESSERACT_COMMON_IGNORE_WARNINGS_PUSH
 #include <coal/broadphase/broadphase_dynamic_AABB_tree.h>
 TESSERACT_COMMON_IGNORE_WARNINGS_POP
 
-
 #include <tesseract/geometry/geometry.h>
 #include <tesseract/collision/coal/coal_cast_managers.h>
 #include <tesseract/collision/coal/coal_collision_geometry_cache.h>
@@ -168,38 +167,34 @@ void CoalCastBVHManager::removeObjects(const std::vector<CollisionObjectPtr>& ob
 
 bool CoalCastBVHManager::enableCollisionObject(const std::string& name)
 {
-  auto it = link2cow_.find(name);
-  if (it != link2cow_.end())
-  {
-    it->second->m_enabled = true;
-
-    // Also enable the cast version
-    auto cast_it = link2castcow_.find(name);
-    if (cast_it != link2castcow_.end())
-      cast_it->second->m_enabled = true;
-
-    return true;
-  }
-
-  return false;
+  return setCollisionObjectEnabled(name, true);
 }
 
 bool CoalCastBVHManager::disableCollisionObject(const std::string& name)
 {
+  return setCollisionObjectEnabled(name, false);
+}
+
+bool CoalCastBVHManager::setCollisionObjectEnabled(const std::string& name, bool enabled)
+{
   auto it = link2cow_.find(name);
-  if (it != link2cow_.end())
+  if (it == link2cow_.end())
+    return false;
+
+  it->second->m_enabled = enabled;
+
+  auto cast_it = link2castcow_.find(name);
+  if (cast_it != link2castcow_.end())
   {
-    it->second->m_enabled = false;
-
-    // Also disable the cast version
-    auto cast_it = link2castcow_.find(name);
-    if (cast_it != link2castcow_.end())
-      cast_it->second->m_enabled = false;
-
-    return true;
+    cast_it->second->m_enabled = enabled;
+    invalidateCacheFor(collision_cache, it->second->getCollisionObjects(), cast_it->second->getCollisionObjects());
+  }
+  else
+  {
+    invalidateCacheFor(collision_cache, it->second->getCollisionObjects());
   }
 
-  return false;
+  return true;
 }
 
 bool CoalCastBVHManager::isCollisionObjectEnabled(const std::string& name) const

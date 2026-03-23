@@ -542,8 +542,6 @@ bool CollisionCallback::collide(coal::CollisionObject* o1, coal::CollisionObject
     num_contacts = 1;
   const auto security_margin = cdata->collision_margin_data.getCollisionMargin(cd1->getName(), cd2->getName());
 
-  coal::CollisionResult col_result;
-
   // Normalize pair ordering for consistent cache lookups: Coal's broadphase
   // does not guarantee a stable (o1, o2) ordering across tree rebalances,
   // so always put the smaller pointer first to avoid duplicate cache entries.
@@ -551,41 +549,57 @@ bool CollisionCallback::collide(coal::CollisionObject* o1, coal::CollisionObject
   auto* co1 = pair_swapped ? o2 : o1;
   auto* co2 = pair_swapped ? o1 : o2;
   CollisionObjectPair object_pair = std::make_pair(co1, co2);
-  auto col_request_it = cdata->collision_cache->find(object_pair);
+  auto col_cache_it = cdata->collision_cache->find(object_pair);
 
-  if (col_request_it == cdata->collision_cache->end())
+  if (col_cache_it == cdata->collision_cache->end())
   {
+    const bool co1_is_cast = dynamic_cast<const CastHullShape*>(co1->collisionGeometry().get()) != nullptr;
+    const bool co2_is_cast = dynamic_cast<const CastHullShape*>(co2->collisionGeometry().get()) != nullptr;
+
     coal::CollisionRequest col_request;
-    // NesterovAcceleration produces contact points matching Bullet on tessellated
-    // convex hulls.  PolyakAcceleration is slightly faster but produces different
-    // (equally valid) witness points on swept convex geometry, shifting cc_time.
+    // NesterovAcceleration + DualityGap/Relative for both cast and discrete pairs.
+    // PolyakAcceleration fails cast sphere-sphere contact accuracy (compared to Bullet) regardless of
+    // criterion. DualityGap/Absolute with Nesterov misses collisions on CastHullShape.
     col_request.gjk_variant = coal::GJKVariant::NesterovAcceleration;
     col_request.gjk_convergence_criterion = coal::GJKConvergenceCriterion::DualityGap;
-    col_request.gjk_convergence_criterion_type = coal::GJKConvergenceCriterionType::Absolute;
-    col_request.distance_upper_bound = security_margin + col_request.gjk_tolerance;
-    col_request.gjk_initial_guess = coal::BoundingVolumeGuess;
-    col_request.enable_contact = cdata->req.calculate_penetration;
-    col_request.num_max_contacts = num_contacts;
-    col_request.security_margin = security_margin;
+    col_request.gjk_convergence_criterion_type = coal::GJKConvergenceCriterionType::Relative;
+    if (co1_is_cast || co2_is_cast)
+    {
+      // CachedGuess with center-to-center seed for the first call:
+      // BoundingVolumeGuess (swept-volume AABB center) causes solver failure in
+      // trajectory optimization; DefaultGuess(1,0,0) degrades contact accuracy.
+      // The warm-start cache (below) replaces this seed after the first call.
+      col_request.gjk_initial_guess = coal::CachedGuess;
+      coal::Vec3s guess = co1->getTransform().getTranslation() - co2->getTransform().getTranslation();
+      if (guess.squaredNorm() < 1e-12)
+        guess = coal::Vec3s(1, 0, 0);
+      col_request.cached_gjk_guess = guess;
+    }
+    else
+    {
+      col_request.gjk_initial_guess = coal::BoundingVolumeGuess;
+    }
+
     auto col_functor = coal::ComputeCollision(co1->collisionGeometryPtr(), co2->collisionGeometryPtr());
-    col_request_it =
-        cdata->collision_cache->try_emplace(object_pair, std::move(col_functor), std::move(col_request)).first;
-  }
-  else
-  {
-    auto& cached_request = col_request_it->second.second;
-    cached_request.enable_contact = cdata->req.calculate_penetration;
-    cached_request.num_max_contacts = num_contacts;
-    cached_request.security_margin = security_margin;
-    cached_request.distance_upper_bound = security_margin + cached_request.gjk_tolerance;
+    col_cache_it =
+        cdata->collision_cache->try_emplace(object_pair, std::move(col_request), std::move(col_functor)).first;
   }
 
-  auto& [functor, cached_request] = col_request_it->second;
+  auto& [cached_request, functor] = col_cache_it->second;
+  cached_request.enable_contact = cdata->req.calculate_penetration;
+  cached_request.num_max_contacts = num_contacts;
+  cached_request.security_margin = security_margin;
+  cached_request.distance_upper_bound = security_margin + cached_request.gjk_tolerance;
+
+  coal::CollisionResult col_result;
   functor(co1->getTransform(), co2->getTransform(), cached_request, col_result);
 
-  // Cache the GJK result for subsequent calls — transforms change
-  // incrementally so the guess stays warm.  This matches Bullet's
-  // btGjkPairDetector which caches its separating axis between calls.
+  // Warm-start: cache the GJK/EPA result for the next call on this pair.
+  // The cached separating direction (NoCollision) or penetration vector (EPA)
+  // is a better seed than recomputing from geometry each time.
+  // (Cache is invalidated on object enable/disable elsewhere.)
+  // Cached guesses are only updated if gjk_initial_guess == CachedGuess. Our first
+  // discrete collision check uses BoundingVolumeGuess, so we have to update manually.
   cached_request.gjk_initial_guess = coal::CachedGuess;
   cached_request.cached_gjk_guess = col_result.cached_gjk_guess;
   cached_request.cached_support_func_guess = col_result.cached_support_func_guess;
@@ -777,10 +791,12 @@ void invalidateCacheFor(CollisionCacheMap& cache,
   {
     const auto* first = it->first.first;
     const auto* second = it->first.second;
-    if (std::any_of(objects1.begin(), objects1.end(),
+    if (std::any_of(objects1.begin(),
+                    objects1.end(),
                     [first, second](const auto& co) { return first == co.get() || second == co.get(); }) ||
-        std::any_of(objects2.begin(), objects2.end(),
-                    [first, second](const auto& co) { return first == co.get() || second == co.get(); }))
+        std::any_of(objects2.begin(), objects2.end(), [first, second](const auto& co) {
+          return first == co.get() || second == co.get();
+        }))
       it = cache.erase(it);
     else
       ++it;

@@ -70,9 +70,9 @@ struct CollisionObjectPairHash
   std::size_t operator()(const CollisionObjectPair& p) const noexcept { return boost::hash_value(p); }
 };
 
-/** @brief Cache mapping collision object pairs to their precomputed collision functor and request */
+/** @brief Cache mapping collision object pairs to their precomputed collision request and functor */
 using CollisionCacheMap = std::unordered_map<CollisionObjectPair,
-                                             std::pair<coal::ComputeCollision, coal::CollisionRequest>,
+                                             std::pair<coal::CollisionRequest, coal::ComputeCollision>,
                                              CollisionObjectPairHash>;
 
 /** @brief Remove cache entries involving any of the given collision objects */
