@@ -226,7 +226,7 @@ inline void runTest(DiscreteContactManager& checker)
   }
   else
   {
-    // Increased tolernace because of FCL from 0.001 to 0.002
+    // Increased tolerances because of FCL from 0.001 to 0.002. Bullet and Coal are fine with 0.001
     EXPECT_NEAR(result_vector[0].nearest_points[static_cast<size_t>(idx[0])][0], 0.0, 0.002);
     EXPECT_NEAR(result_vector[0].nearest_points[static_cast<size_t>(idx[0])][1], 0.0, 0.002);
     EXPECT_NEAR(result_vector[0].nearest_points[static_cast<size_t>(idx[0])][2], 0.0594636, 0.001);

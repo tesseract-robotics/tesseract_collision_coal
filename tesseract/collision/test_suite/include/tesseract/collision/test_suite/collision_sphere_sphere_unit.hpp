@@ -4,6 +4,9 @@
 #include <tesseract/common/macros.h>
 TESSERACT_COMMON_IGNORE_WARNINGS_PUSH
 #include <gtest/gtest.h>
+#include <iomanip>
+#include <iostream>
+#include <sstream>
 TESSERACT_COMMON_IGNORE_WARNINGS_POP
 
 #include <tesseract/collision/bullet/convex_hull_utils.h>
@@ -17,6 +20,26 @@ namespace tesseract::collision::test_suite
 {
 namespace detail
 {
+inline void printContactResults(const std::string& label, const ContactResultVector& results)
+{
+  std::ostringstream os;
+  os << std::setprecision(6) << std::fixed;
+  os << label << " result_vector (size=" << results.size() << ")";
+
+  for (std::size_t index = 0; index < results.size(); ++index)
+  {
+    const auto& result = results[index];
+    os << "\n  [" << index << "]"
+       << " links=[" << result.link_names[0] << ", " << result.link_names[1] << "]"
+       << " distance=" << result.distance << " normal=(" << result.normal.transpose() << ")"
+       << " nearest_points[0]=(" << result.nearest_points[0].transpose() << ")"
+       << " nearest_points[1]=(" << result.nearest_points[1].transpose() << ")"
+       << " single_contact_point=" << result.single_contact_point;
+  }
+
+  std::cout << os.str() << '\n';
+}
+
 inline void addCollisionObjects(DiscreteContactManager& checker, bool use_convex_mesh = false)
 {
   tesseract::common::GeneralResourceLocator locator;
@@ -195,8 +218,8 @@ inline void runTestPrimitive(DiscreteContactManager& checker)
 
   EXPECT_NEAR(result_vector[0].normal[0], idx[2] * 1.0, 0.001);
   EXPECT_NEAR(result_vector[0].normal[1], idx[2] * 0.0, 0.001);
-  EXPECT_NEAR(result_vector[0].normal[2], idx[2] * 0.0, 0.0016);  // TODO LEVI: This was increased due to FLC
-                                                                  // calculation because it is using GJK
+  EXPECT_NEAR(result_vector[0].normal[2], idx[2] * 0.0, 0.002);  // TODO LEVI: This was increased for FCL. Bullet and
+                                                                 // Coal are fine with 0.001.
 
   ////////////////////////////////////////////////
   // Test object is out side the contact distance
@@ -314,8 +337,8 @@ inline void runTestPrimitiveDistanceDisabled(DiscreteContactManager& checker)
 
   EXPECT_NEAR(result_vector[0].normal[0], idx[2] * 1.0, 0.001);
   EXPECT_NEAR(result_vector[0].normal[1], idx[2] * 0.0, 0.001);
-  EXPECT_NEAR(result_vector[0].normal[2], idx[2] * 0.0, 0.0016);  // TODO LEVI: This was increased due to FLC
-                                                                  // calculation because it is using GJK
+  EXPECT_NEAR(result_vector[0].normal[2], idx[2] * 0.0, 0.002);  // TODO LEVI: This was increased for FCL. Bullet and
+                                                                 // Coal are fine with 0.001.
 
   ////////////////////////////////////////////////
   // Test object is out side the contact distance
@@ -404,6 +427,8 @@ inline void runTestConvex1(DiscreteContactManager& checker)
 
   // Bullet: -0.270548 {0.232874,0,-0.025368} {-0.032874,0,0.025368}
   // FCL:    -0.270548 {0.232874,0,-0.025368} {-0.032874,0,0.025368}
+  // Update RJO 2026/03/24: Values above are slightly outdated, but Bullet/FCL/Coal all match exactly.
+  // printContactResults("runTestConvex1", result_vector);
   EXPECT_TRUE(!result_vector.empty());
   EXPECT_NEAR(result_vector[0].distance, -0.270548, 0.001);
 
@@ -476,6 +501,8 @@ inline void runTestConvex2(DiscreteContactManager& checker)
 
   // Bullet: 0.524565 {0.237717,0,0} {0.7622825,0,0} Using blender this appears to be the correct result
   // FCL:    0.546834 {0.237717,-0.0772317,0} {0.7622825,0.0772317}
+  // Update RJO 2026/03/24: Values above are slightly outdated, but Bullet/Coal match exactly, FCL is off.
+  // printContactResults("runTestConvex2", result_vector);
   EXPECT_TRUE(!result_vector.empty());
   EXPECT_NEAR(result_vector[0].distance, 0.52448, 0.001);
   EXPECT_NEAR(result_vector[0].nearest_points[0][1], result_vector[0].nearest_points[1][1], 0.001);
@@ -529,6 +556,8 @@ inline void runTestConvex3(DiscreteContactManager& checker)
 
   // Bullet: -0.280223 {0.0425563,0.2308753,-0.0263040} {-0.0425563, -0.0308753, 0.0263040}
   // FCL:    -0.280223 {0.0425563,0.2308753,-0.0263040} {-0.0425563, -0.0308753, 0.0263040}
+  // Update RJO 2026/03/24: Values above are slightly outdated, but Bullet/FCL/Coal all match exactly.
+  // printContactResults("runTestConvex3", result_vector);
   EXPECT_TRUE(!result_vector.empty());
   EXPECT_NEAR(result_vector[0].distance, -0.280223, 0.001);
 

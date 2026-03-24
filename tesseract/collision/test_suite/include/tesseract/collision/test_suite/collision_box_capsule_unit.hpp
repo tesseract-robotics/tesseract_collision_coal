@@ -209,9 +209,10 @@ inline void runTest(DiscreteContactManager& checker)
     EXPECT_NEAR(result_vector[0].nearest_points[static_cast<size_t>(idx[1])][2], 0.625, 0.001);
   }
 
-  EXPECT_NEAR(result_vector[0].normal[0], idx[2] * 0.0, 0.0011);  // FCL Required the bump in tolerance
-  EXPECT_NEAR(result_vector[0].normal[1], idx[2] * 0.0, 0.0011);  // FCL Required the bump in tolerance
-  EXPECT_NEAR(result_vector[0].normal[2], idx[2] * 1.0, 0.0011);  // FCL Required the bump in tolerance
+  EXPECT_NEAR(result_vector[0].normal[0], idx[2] * 0.0, 0.001);
+  EXPECT_NEAR(result_vector[0].normal[1], idx[2] * 0.0, 0.0011);  // FCL Required the bump in tolerance. Bullet and Coal
+                                                                  // do not.
+  EXPECT_NEAR(result_vector[0].normal[2], idx[2] * 1.0, 0.001);
 }
 
 }  // namespace tesseract::collision::test_suite

@@ -209,8 +209,8 @@ inline void runTest(DiscreteContactManager& checker)
 
   EXPECT_NEAR(result_vector[0].normal[0], idx[2] * 1.0, 0.001);
   EXPECT_NEAR(result_vector[0].normal[1], idx[2] * 0.0, 0.001);
-  EXPECT_NEAR(result_vector[0].normal[2], idx[2] * 0.0, 0.0016);  // TODO LEVI: This was increased due to FLC
-                                                                  // calculation because it is using GJK
+  EXPECT_NEAR(result_vector[0].normal[2], idx[2] * 0.0, 0.0016);  // TODO LEVI: This was increased for FCL. Bullet and
+                                                                  // Coal are fine with 0.001.
 
   ////////////////////////////////////////////////
   // Test object is out side the contact distance
