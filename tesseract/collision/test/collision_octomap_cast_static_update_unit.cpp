@@ -106,7 +106,6 @@ TEST(TesseractCollisionUnit, BulletCastBVHActiveOctreeSubshapeIdReportsPrimitive
   test_suite::runTestActiveOctreeSubshapeIdReportsPrimitiveIdentity(checker);
 }
 
-#if defined(TESSERACT_COLLISION_COAL_ENABLE_COAL_CAST_TESTS)
 TEST(TesseractCollisionUnit, CoalCastBVHStaticOctreeCylinderContinuousTransformUpdatesBroadphase)  // NOLINT
 {
   tesseract_collision_coal::CoalCastBVHManager checker;
@@ -154,7 +153,6 @@ TEST(TesseractCollisionUnit, CoalCastBVHActiveOctreeSubshapeIdReportsPrimitiveId
   tesseract_collision_coal::CoalCastBVHManager checker;
   test_suite::runTestActiveOctreeSubshapeIdReportsPrimitiveIdentity(checker);
 }
-#endif
 
 int main(int argc, char** argv)
 {

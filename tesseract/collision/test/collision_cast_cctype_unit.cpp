@@ -46,7 +46,6 @@ TEST(TesseractCollisionUnit, BulletCastBVHCCTypeTime0)  // NOLINT
 // Coal — BVH cast manager (gated on the cast-test flag)
 // ============================================================================
 
-#if defined(TESSERACT_COLLISION_COAL_ENABLE_COAL_CAST_TESTS)
 TEST(TesseractCollisionUnit, CoalCastBVHCCTypeTime1)  // NOLINT
 {
   tesseract_collision_coal::CoalCastBVHManager checker;
@@ -58,7 +57,6 @@ TEST(TesseractCollisionUnit, CoalCastBVHCCTypeTime0)  // NOLINT
   tesseract_collision_coal::CoalCastBVHManager checker;
   test_suite::runTestCCTypeTime0(checker);
 }
-#endif
 
 int main(int argc, char** argv)
 {

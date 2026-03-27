@@ -63,13 +63,11 @@ TEST(TesseractCollisionUnit, CoalDiscreteBVHCollisionOctomapOctomapUnit)  // NOL
   test_suite::runTest(checker, 0.2, tesseract::geometry::OctreeSubType::BOX, tesseract::geometry::OctreeSubType::BOX);
 }
 
-#if defined(TESSERACT_COLLISION_COAL_ENABLE_COAL_CAST_TESTS)
 TEST(TesseractCollisionUnit, CoalContinuousBVHCollisionOctomapOctomapUnit)  // NOLINT
 {
   tesseract_collision_coal::CoalCastBVHManager checker;
   test_suite::runTest(checker, 0.2, tesseract::geometry::OctreeSubType::BOX, tesseract::geometry::OctreeSubType::BOX);
 }
-#endif
 
 int main(int argc, char** argv)
 {

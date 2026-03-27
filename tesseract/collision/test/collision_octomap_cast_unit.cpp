@@ -54,7 +54,6 @@ TEST(TesseractCollisionUnit, BulletCastBVHCollisionOctomapConvexHullUnit)  // NO
 
 // ---- Coal: static octree vs active shapes ----
 
-#if defined(TESSERACT_COLLISION_COAL_ENABLE_COAL_CAST_TESTS)
 TEST(TesseractCollisionUnit, CoalCastBVHCollisionOctomapCylinderUnit)  // NOLINT
 {
   tesseract_collision_coal::CoalCastBVHManager checker;
@@ -72,7 +71,6 @@ TEST(TesseractCollisionUnit, CoalCastBVHCollisionOctomapConvexHullUnit)  // NOLI
   tesseract_collision_coal::CoalCastBVHManager checker;
   test_suite::runTestOctomapConvexHull(checker);
 }
-#endif
 
 int main(int argc, char** argv)
 {

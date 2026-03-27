@@ -59,8 +59,6 @@ TEST(TesseractCollisionUnit, BulletCastBVHScenarioG_RepeatedStability)  // NOLIN
 // Coal — self-consistency tests
 // ============================================================================
 
-#if defined(TESSERACT_COLLISION_COAL_ENABLE_COAL_CAST_TESTS)
-
 TEST(TesseractCollisionUnit, CoalCastBVHScenarioA_RotationalSweep)  // NOLINT
 {
   tesseract_collision_coal::CoalCastBVHManager checker;
@@ -120,8 +118,6 @@ TEST(TesseractCollisionUnit, CoalVsBulletScenarioE_SubdivisionLoop)  // NOLINT
   tesseract_collision_coal::CoalCastBVHManager coal;
   test_suite::runTestScenarioE_Comparison(bullet, coal, "Bullet", "Coal");
 }
-
-#endif  // TESSERACT_COLLISION_COAL_ENABLE_COAL_CAST_TESTS
 
 int main(int argc, char** argv)
 {

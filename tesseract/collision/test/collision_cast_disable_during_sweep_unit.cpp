@@ -22,13 +22,11 @@ TEST(TesseractCollisionUnit, BulletCastBVHDisabledObjectSweep)  // NOLINT
   test_suite::runTestDisabledObjectSweepDoesNotUpdateCastState(checker);
 }
 
-#if defined(TESSERACT_COLLISION_COAL_ENABLE_COAL_CAST_TESTS)
 TEST(TesseractCollisionUnit, CoalCastBVHDisabledObjectSweep)  // NOLINT
 {
   tesseract_collision_coal::CoalCastBVHManager checker;
   test_suite::runTestDisabledObjectSweepDoesNotUpdateCastState(checker);
 }
-#endif
 
 int main(int argc, char** argv)
 {

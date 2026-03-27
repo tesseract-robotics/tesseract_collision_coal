@@ -81,11 +81,6 @@ void runContactManagersFactoryTest(const std::filesystem::path& config_path)
   {
     auto name = cm_it->first.as<std::string>();
 
-#if !defined(TESSERACT_COLLISION_COAL_ENABLE_COAL_CAST_TESTS)
-    if (name == "CoalCastBVHManager")
-      continue;
-#endif
-
     ContinuousContactManager::UPtr cm = factory.createContinuousContactManager(name);
     EXPECT_TRUE(cm != nullptr);
   }
@@ -206,11 +201,6 @@ TEST(TesseractContactManagersFactoryUnit, LoadStringPluginTest)  // NOLINT
   for (auto cm_it = continuous_plugins.begin(); cm_it != continuous_plugins.end(); ++cm_it)
   {
     auto name = cm_it->first.as<std::string>();
-
-#if !defined(TESSERACT_COLLISION_COAL_ENABLE_COAL_CAST_TESTS)
-    if (name == "CoalCastBVHManager")
-      continue;
-#endif
 
     ContinuousContactManager::UPtr cm = factory.createContinuousContactManager(name);
     EXPECT_TRUE(cm != nullptr);
@@ -429,11 +419,6 @@ TEST(TesseractContactManagersFactoryUnit, LoadOnlyContinuousPluginTest)  // NOLI
   for (auto cm_it = continuous_plugins.begin(); cm_it != continuous_plugins.end(); ++cm_it)
   {
     auto name = cm_it->first.as<std::string>();
-
-#if !defined(TESSERACT_COLLISION_COAL_ENABLE_COAL_CAST_TESTS)
-    if (name == "CoalCastBVHManager")
-      continue;
-#endif
 
     ContinuousContactManager::UPtr cm = factory.createContinuousContactManager(name);
     EXPECT_TRUE(cm != nullptr);

@@ -54,13 +54,11 @@ TEST(TesseractCollisionUnit, BulletCastBVHMultiShapeCastUnit)  // NOLINT
   test_suite::runTestContinuous(checker);
 }
 
-#if defined(TESSERACT_COLLISION_COAL_ENABLE_COAL_CAST_TESTS)
 TEST(TesseractCollisionUnit, CoalCastBVHMultiShapeCastUnit)  // NOLINT
 {
   tesseract_collision_coal::CoalCastBVHManager checker;
   test_suite::runTestContinuous(checker);
 }
-#endif
 
 int main(int argc, char** argv)
 {

@@ -34,7 +34,6 @@ TEST(TesseractCollisionUnit, BulletCastBVHCompoundMeshSubshapeIdReportsPrimitive
   test_suite::runTestCompoundMeshCastSubshapeIdReportsPrimitiveIdentity(checker);
 }
 
-#if defined(TESSERACT_COLLISION_COAL_ENABLE_COAL_CAST_TESTS)
 TEST(TesseractCollisionUnit, CoalCastBVHCompoundMeshShapeIdUsesOriginalGeometryIndex)  // NOLINT
 {
   tesseract_collision_coal::CoalCastBVHManager checker;
@@ -46,7 +45,6 @@ TEST(TesseractCollisionUnit, CoalCastBVHCompoundMeshSubshapeIdReportsPrimitiveId
   tesseract_collision_coal::CoalCastBVHManager checker;
   test_suite::runTestCompoundMeshCastSubshapeIdReportsPrimitiveIdentity(checker);
 }
-#endif
 
 int main(int argc, char** argv)
 {

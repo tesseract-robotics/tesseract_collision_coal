@@ -34,8 +34,6 @@ Two factory classes (`CoalDiscreteBVHManagerFactory`, `CoalCastBVHManagerFactory
 2. **Integration tests** (`test/*.cpp`) — Instantiate Coal managers and call test suite `runTest()` functions. ~24 tests covering discrete (box-sphere, mesh-mesh, octomap, large dataset, multi-threaded) and continuous (cast box-box, sphere-sphere, octomap cast, multi-shape cast).
 3. **Coal-specific unit tests** (`test/coal/`) — 8 tests for internal components: CastHullShape behavior, functor caching/GJK warm-start, geometry cache, collision object wrapper AABB inflation, shape conversion, cast gradient quality.
 
-Cast tests gated behind `TESSERACT_COLLISION_COAL_ENABLE_COAL_CAST_TESTS` CMake option (default OFF).
-
 ## Performance
 
 Coal outperforms Bullet across all continuous collision benchmarks (23–171% faster depending on scenario). The advantage is largest in distance-enabled scenarios. See `tesseract_collision_benchmarks` for the benchmark suite.

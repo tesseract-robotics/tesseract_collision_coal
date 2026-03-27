@@ -50,13 +50,11 @@ TEST(TesseractCollisionUnit, BulletCastBVHCollisionOctomapUsageUnit)  // NOLINT
   test_suite::runContinuousOctomapTransformOverloadUsageTest(checker, tesseract::geometry::OctreeSubType::BOX);
 }
 
-#if defined(TESSERACT_COLLISION_COAL_ENABLE_COAL_CAST_TESTS)
 TEST(TesseractCollisionUnit, CoalCastBVHCollisionOctomapUsageUnit)  // NOLINT
 {
   tesseract_collision_coal::CoalCastBVHManager checker;
   test_suite::runContinuousOctomapTransformOverloadUsageTest(checker, tesseract::geometry::OctreeSubType::BOX);
 }
-#endif
 
 int main(int argc, char** argv)
 {

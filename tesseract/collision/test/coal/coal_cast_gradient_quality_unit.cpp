@@ -4,8 +4,6 @@ TESSERACT_COMMON_IGNORE_WARNINGS_PUSH
 #include <octomap/octomap.h>
 TESSERACT_COMMON_IGNORE_WARNINGS_POP
 
-#include <algorithm>
-
 #include <tesseract/collision/coal/coal_cast_managers.h>
 #include <tesseract/collision/continuous_contact_manager.h>
 #include <tesseract/collision/common.h>
@@ -30,8 +28,6 @@ using namespace tesseract::collision;
  * ensuring a clear escape direction exists. The octree is a 2m box at the origin (voxels from -1 to 1,
  * resolution 0.5m).
  */
-#if defined(TESSERACT_COLLISION_COAL_ENABLE_COAL_CAST_TESTS)
-
 class CoalCastGradientQualityUnit : public ::testing::Test
 {
 protected:
@@ -205,8 +201,6 @@ TEST_F(CoalCastGradientQualityUnit, OctreeBoxSweepAlongY)
 
   runGradientCheck(start, end);
 }
-
-#endif  // TESSERACT_COLLISION_COAL_ENABLE_COAL_CAST_TESTS
 
 int main(int argc, char** argv)
 {
