@@ -44,6 +44,7 @@
 TESSERACT_COMMON_IGNORE_WARNINGS_PUSH
 #include <memory>
 #include <unordered_map>
+#include <unordered_set>
 #include <utility>
 #include <boost/functional/hash.hpp>
 #include <coal/broadphase/broadphase_collision_manager.h>
@@ -70,18 +71,42 @@ struct CollisionObjectPairHash
   std::size_t operator()(const CollisionObjectPair& p) const noexcept { return boost::hash_value(p); }
 };
 
-/** @brief Cache mapping collision object pairs to their precomputed collision request and functor */
-using CollisionCacheMap = std::unordered_map<CollisionObjectPair,
-                                             std::pair<coal::CollisionRequest, coal::ComputeCollision>,
-                                             CollisionObjectPairHash>;
+/** @brief Cached collision functor and GJK warm-start state for a collision object pair */
+struct CollisionCacheEntry
+{
+  coal::CollisionRequest request;
+  coal::ComputeCollision functor;
+  bool is_cast{ false };          ///< Cached at creation to avoid dynamic_cast on every re-seed.
+                                  ///< Controls GJK seed strategy: cast pairs cannot use BoundingVolumeGuess.
+  bool gjk_guess_valid{ false };  ///< False when GJK warm-start hints are stale or not yet seeded.
+                                  ///< Re-seeded lazily in collide() where actual transforms are available.
+};
 
-/** @brief Remove cache entries involving any of the given collision objects */
+/** @brief Cache mapping collision object pairs to their precomputed collision functor and warm-start state */
+using CollisionCacheMap = std::unordered_map<CollisionObjectPair, CollisionCacheEntry, CollisionObjectPairHash>;
+
+/** @brief Erase cache entries involving any of the given collision objects (for object removal) */
 void invalidateCacheFor(CollisionCacheMap& cache, const std::vector<CollisionObjectPtr>& objects);
 
-/** @brief Remove cache entries involving any object from either vector (single-pass) */
+/** @brief Erase cache entries involving any object from either vector (for object removal, single-pass) */
 void invalidateCacheFor(CollisionCacheMap& cache,
                         const std::vector<CollisionObjectPtr>& objects1,
                         const std::vector<CollisionObjectPtr>& objects2);
+
+/** @brief Mark GJK warm-start hints invalid for cache entries involving any of the given objects.
+ *  Does not erase entries — preserves the ComputeCollision functor and solver settings.
+ *  The guess is re-seeded lazily in collide() where actual transforms are available. */
+void invalidateCachedGJKGuessFor(CollisionCacheMap& cache, const std::vector<CollisionObjectPtr>& objects);
+
+/** @brief Mark GJK warm-start hints invalid for cache entries involving any object from either vector */
+void invalidateCachedGJKGuessFor(CollisionCacheMap& cache,
+                                 const std::vector<CollisionObjectPtr>& objects1,
+                                 const std::vector<CollisionObjectPtr>& objects2);
+
+/** @brief Mark GJK warm-start hints invalid using a pre-built set of raw pointers.
+ *  Use this overload when accumulating pointers from multiple sources before scanning. */
+using CollisionObjectPtrSet = std::unordered_set<const coal::CollisionObject*>;
+void invalidateCachedGJKGuessFor(CollisionCacheMap& cache, const CollisionObjectPtrSet& ptrs);
 
 enum CollisionFilterGroups : std::int8_t
 {

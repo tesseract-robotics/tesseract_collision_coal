@@ -22,7 +22,7 @@ Continuous collision detection requires `GEOM_CUSTOM` support in Coal for the `C
 - **CastHullShape (continuous collision):** Wraps a `coal::ShapeBase` with a cast transform (start-to-end motion). Uses support functions at both poses for swept volume — no vertex materialization. Independent GJK support hints per pose.
 - **Dual COW maps (cast manager):** `link2cow_` has regular geometry; `link2castcow_` has CastHullShape-wrapped versions.
 - **Octree handling:** Static octrees use the raw OcTree in the broadphase. Active octrees are expanded into individual boxes per voxel, each wrapped in CastHullShape, for sweep support. CastHullShape cannot wrap an OcTree directly (it requires `ShapeBase`, but OcTree inherits from `CollisionGeometry`), so voxel expansion is the correct approach for swept octrees. See `DEFERRED_OCTREE_EXPANSION_BRIEF.md` for a planned optimization that defers this expansion to promotion time.
-- **Collision functor cache:** `ComputeCollision` functors and `CollisionRequest` objects cached per object pair to preserve GJK warm-start hints. Cache entries are invalidated on object enable/disable (`setCollisionObjectEnabled`) to prevent stale guesses.
+- **Collision functor cache:** `ComputeCollision` functors and `CollisionRequest` objects cached per object pair to preserve GJK warm-start hints. On object enable/disable or transform update, `gjk_guess_valid` is cleared so the guess is re-seeded lazily in `collide()`. Full entry erasure (`invalidateCacheFor`) only happens on object removal.
 
 ### Plugin registration
 

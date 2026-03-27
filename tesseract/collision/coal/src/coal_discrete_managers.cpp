@@ -163,7 +163,7 @@ bool CoalDiscreteBVHManager::setCollisionObjectEnabled(const std::string& name, 
     return false;
 
   it->second->m_enabled = enabled;
-  invalidateCacheFor(collision_cache, it->second->getCollisionObjects());
+  invalidateCachedGJKGuessFor(collision_cache, it->second->getCollisionObjects());
   return true;
 }
 

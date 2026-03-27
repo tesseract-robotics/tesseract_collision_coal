@@ -56,6 +56,7 @@ TESSERACT_COMMON_IGNORE_WARNINGS_PUSH
 #include <limits>
 #include <memory>
 #include <stdexcept>
+#include <unordered_set>
 #include <utility>
 TESSERACT_COMMON_IGNORE_WARNINGS_POP
 
@@ -553,8 +554,8 @@ bool CollisionCallback::collide(coal::CollisionObject* o1, coal::CollisionObject
 
   if (col_cache_it == cdata->collision_cache->end())
   {
-    const bool co1_is_cast = dynamic_cast<const CastHullShape*>(co1->collisionGeometry().get()) != nullptr;
-    const bool co2_is_cast = dynamic_cast<const CastHullShape*>(co2->collisionGeometry().get()) != nullptr;
+    const bool is_cast = dynamic_cast<const CastHullShape*>(co1->collisionGeometry().get()) != nullptr ||
+                         dynamic_cast<const CastHullShape*>(co2->collisionGeometry().get()) != nullptr;
 
     coal::CollisionRequest col_request;
     // NesterovAcceleration + DualityGap/Relative for both cast and discrete pairs.
@@ -563,41 +564,49 @@ bool CollisionCallback::collide(coal::CollisionObject* o1, coal::CollisionObject
     col_request.gjk_variant = coal::GJKVariant::NesterovAcceleration;
     col_request.gjk_convergence_criterion = coal::GJKConvergenceCriterion::DualityGap;
     col_request.gjk_convergence_criterion_type = coal::GJKConvergenceCriterionType::Relative;
-    if (co1_is_cast || co2_is_cast)
+
+    auto col_functor = coal::ComputeCollision(co1->collisionGeometryPtr(), co2->collisionGeometryPtr());
+    col_cache_it = cdata->collision_cache
+                       ->try_emplace(object_pair, CollisionCacheEntry{ std::move(col_request), col_functor, is_cast })
+                       .first;
+  }
+
+  auto& entry = col_cache_it->second;
+  auto& cached_request = entry.request;
+
+  // Re-seed GJK guess if marked invalid (e.g. after enable/disable or transform change).
+  // Deferred to here because the correct seed depends on the actual transforms.
+  if (!entry.gjk_guess_valid)
+  {
+    // Cast pairs use center-to-center direction: BoundingVolumeGuess causes solver failure for
+    // swept volumes, and DefaultGuess(1,0,0) degrades contact accuracy.
+    if (entry.is_cast)
     {
-      // CachedGuess with center-to-center seed for the first call:
-      // BoundingVolumeGuess (swept-volume AABB center) causes solver failure in
-      // trajectory optimization; DefaultGuess(1,0,0) degrades contact accuracy.
-      // The warm-start cache (below) replaces this seed after the first call.
-      col_request.gjk_initial_guess = coal::CachedGuess;
+      cached_request.gjk_initial_guess = coal::CachedGuess;
       coal::Vec3s guess = co1->getTransform().getTranslation() - co2->getTransform().getTranslation();
       if (guess.squaredNorm() < 1e-12)
         guess = coal::Vec3s(1, 0, 0);
-      col_request.cached_gjk_guess = guess;
+      cached_request.cached_gjk_guess = guess;
     }
     else
     {
-      col_request.gjk_initial_guess = coal::BoundingVolumeGuess;
+      cached_request.gjk_initial_guess = coal::BoundingVolumeGuess;
     }
 
-    auto col_functor = coal::ComputeCollision(co1->collisionGeometryPtr(), co2->collisionGeometryPtr());
-    col_cache_it =
-        cdata->collision_cache->try_emplace(object_pair, std::move(col_request), std::move(col_functor)).first;
+    entry.gjk_guess_valid = true;
   }
 
-  auto& [cached_request, functor] = col_cache_it->second;
   cached_request.enable_contact = cdata->req.calculate_penetration;
   cached_request.num_max_contacts = num_contacts;
   cached_request.security_margin = security_margin;
   cached_request.distance_upper_bound = security_margin + cached_request.gjk_tolerance;
 
   coal::CollisionResult col_result;
-  functor(co1->getTransform(), co2->getTransform(), cached_request, col_result);
+  entry.functor(co1->getTransform(), co2->getTransform(), cached_request, col_result);
 
   // Warm-start: cache the GJK/EPA result for the next call on this pair.
   // The cached separating direction (NoCollision) or penetration vector (EPA)
   // is a better seed than recomputing from geometry each time.
-  // (Cache is invalidated on object enable/disable elsewhere.)
   // Cached guesses are only updated if gjk_initial_guess == CachedGuess. Our first
   // discrete collision check uses BoundingVolumeGuess, so we have to update manually.
   cached_request.gjk_initial_guess = coal::CachedGuess;
@@ -770,36 +779,69 @@ std::shared_ptr<CollisionObjectWrapper> CollisionObjectWrapper::clone() const
   return clone_cow;
 }
 
-void invalidateCacheFor(CollisionCacheMap& cache, const std::vector<CollisionObjectPtr>& objects)
+/// Build an unordered_set of raw pointers for O(1) membership tests.
+static std::unordered_set<const coal::CollisionObject*> buildPointerSet(const std::vector<CollisionObjectPtr>& objects)
+{
+  std::unordered_set<const coal::CollisionObject*> ptrs;
+  ptrs.reserve(objects.size());
+  for (const auto& co : objects)
+    ptrs.insert(co.get());
+  return ptrs;
+}
+
+static std::unordered_set<const coal::CollisionObject*> buildPointerSet(const std::vector<CollisionObjectPtr>& objects1,
+                                                                        const std::vector<CollisionObjectPtr>& objects2)
+{
+  std::unordered_set<const coal::CollisionObject*> ptrs;
+  ptrs.reserve(objects1.size() + objects2.size());
+  for (const auto& co : objects1)
+    ptrs.insert(co.get());
+  for (const auto& co : objects2)
+    ptrs.insert(co.get());
+  return ptrs;
+}
+
+static void invalidateCacheFor(CollisionCacheMap& cache, const CollisionObjectPtrSet& ptrs)
 {
   for (auto it = cache.begin(); it != cache.end();)
   {
-    if (std::any_of(objects.begin(), objects.end(), [&it](const auto& co) {
-          return it->first.first == co.get() || it->first.second == co.get();
-        }))
+    if (ptrs.count(it->first.first) != 0 || ptrs.count(it->first.second) != 0)
       it = cache.erase(it);
     else
       ++it;
   }
 }
 
+void invalidateCacheFor(CollisionCacheMap& cache, const std::vector<CollisionObjectPtr>& objects)
+{
+  invalidateCacheFor(cache, buildPointerSet(objects));
+}
+
 void invalidateCacheFor(CollisionCacheMap& cache,
                         const std::vector<CollisionObjectPtr>& objects1,
                         const std::vector<CollisionObjectPtr>& objects2)
 {
-  for (auto it = cache.begin(); it != cache.end();)
+  invalidateCacheFor(cache, buildPointerSet(objects1, objects2));
+}
+
+void invalidateCachedGJKGuessFor(CollisionCacheMap& cache, const std::vector<CollisionObjectPtr>& objects)
+{
+  invalidateCachedGJKGuessFor(cache, buildPointerSet(objects));
+}
+
+void invalidateCachedGJKGuessFor(CollisionCacheMap& cache,
+                                 const std::vector<CollisionObjectPtr>& objects1,
+                                 const std::vector<CollisionObjectPtr>& objects2)
+{
+  invalidateCachedGJKGuessFor(cache, buildPointerSet(objects1, objects2));
+}
+
+void invalidateCachedGJKGuessFor(CollisionCacheMap& cache, const CollisionObjectPtrSet& ptrs)
+{
+  for (auto& [pair, entry] : cache)
   {
-    const auto* first = it->first.first;
-    const auto* second = it->first.second;
-    if (std::any_of(objects1.begin(),
-                    objects1.end(),
-                    [first, second](const auto& co) { return first == co.get() || second == co.get(); }) ||
-        std::any_of(objects2.begin(), objects2.end(), [first, second](const auto& co) {
-          return first == co.get() || second == co.get();
-        }))
-      it = cache.erase(it);
-    else
-      ++it;
+    if (ptrs.count(pair.first) != 0 || ptrs.count(pair.second) != 0)
+      entry.gjk_guess_valid = false;
   }
 }
 

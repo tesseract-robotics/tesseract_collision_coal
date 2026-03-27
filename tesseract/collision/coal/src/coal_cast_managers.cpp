@@ -53,6 +53,13 @@ namespace tesseract::collision::tesseract_collision_coal
 static const CollisionShapesConst EMPTY_COLLISION_SHAPES_CONST;
 static const tesseract::common::VectorIsometry3d EMPTY_COLLISION_SHAPES_TRANSFORMS;
 
+/// Insert all raw collision object pointers from a COW into the set.
+static void insertCowPointers(CollisionObjectPtrSet& ptrs, const COW::Ptr& cow)
+{
+  for (const auto& co : cow->getCollisionObjects())
+    ptrs.insert(co.get());
+}
+
 CoalCastBVHManager::CoalCastBVHManager(std::string name) : name_(std::move(name))
 {
   static_manager_ = std::make_unique<coal::DynamicAABBTreeCollisionManager>();
@@ -187,11 +194,12 @@ bool CoalCastBVHManager::setCollisionObjectEnabled(const std::string& name, bool
   if (cast_it != link2castcow_.end())
   {
     cast_it->second->m_enabled = enabled;
-    invalidateCacheFor(collision_cache, it->second->getCollisionObjects(), cast_it->second->getCollisionObjects());
+    invalidateCachedGJKGuessFor(
+        collision_cache, it->second->getCollisionObjects(), cast_it->second->getCollisionObjects());
   }
   else
   {
-    invalidateCacheFor(collision_cache, it->second->getCollisionObjects());
+    invalidateCachedGJKGuessFor(collision_cache, it->second->getCollisionObjects());
   }
 
   return true;
@@ -257,16 +265,13 @@ void CoalCastBVHManager::setCollisionObjectsTransform(const std::string& name,
     dynamic_update_.clear();
     auto reg_it = link2cow_.find(name);
     collectCastTransformUpdate(cast_it, reg_it, pose1, pose2);
-    // Selective invalidation for single-link updates — evicts cache entries for both
-    // cast and regular objects in a single pass. The regular COW's transform also
-    // changes (synced to pose1), so its broadphase entries become stale too.
-    // The multi-link overloads use collision_cache.clear() instead since that is
-    // O(M) once vs O(N*M) for N per-link invalidations.
+    // Mark GJK warm-start hints invalid for affected object pairs. The guess is
+    // re-seeded lazily in collide() where actual transforms are available.
     if (reg_it != link2cow_.end())
-      invalidateCacheFor(
+      invalidateCachedGJKGuessFor(
           collision_cache, cast_it->second->getCollisionObjects(), reg_it->second->getCollisionObjects());
     else
-      invalidateCacheFor(collision_cache, cast_it->second->getCollisionObjects());
+      invalidateCachedGJKGuessFor(collision_cache, cast_it->second->getCollisionObjects());
     flushBatchUpdate();
   }
 }
@@ -279,16 +284,21 @@ void CoalCastBVHManager::setCollisionObjectsTransform(const std::vector<std::str
   assert(names.size() == pose2.size());
   static_update_.clear();
   dynamic_update_.clear();
+  CollisionObjectPtrSet updated_ptrs;
+  updated_ptrs.reserve(coal_co_count_);
   for (auto i = 0U; i < names.size(); ++i)
   {
     auto cast_it = link2castcow_.find(names[i]);
     if (cast_it != link2castcow_.end())
-      collectCastTransformUpdate(cast_it, link2cow_.find(names[i]), pose1[i], pose2[i]);
+    {
+      auto reg_it = link2cow_.find(names[i]);
+      collectCastTransformUpdate(cast_it, reg_it, pose1[i], pose2[i]);
+      insertCowPointers(updated_ptrs, cast_it->second);
+      if (reg_it != link2cow_.end())
+        insertCowPointers(updated_ptrs, reg_it->second);
+    }
   }
-  // Invalidate all cached GJK guesses — the cast transforms changed so the cached
-  // separating axes are no longer valid. Clearing the entire cache is O(M) once,
-  // versus O(N*M) for per-link invalidation.
-  collision_cache.clear();
+  invalidateCachedGJKGuessFor(collision_cache, updated_ptrs);
   flushBatchUpdate();
 }
 
@@ -298,6 +308,8 @@ void CoalCastBVHManager::setCollisionObjectsTransform(const tesseract::common::T
   assert(pose1.size() == pose2.size());
   static_update_.clear();
   dynamic_update_.clear();
+  CollisionObjectPtrSet updated_ptrs;
+  updated_ptrs.reserve(coal_co_count_);
   for (const auto& [name, tf1] : pose1)
   {
     auto cast_it = link2castcow_.find(name);
@@ -305,11 +317,14 @@ void CoalCastBVHManager::setCollisionObjectsTransform(const tesseract::common::T
     {
       auto it2 = pose2.find(name);
       assert(it2 != pose2.end());
-      collectCastTransformUpdate(cast_it, link2cow_.find(name), tf1, it2->second);
+      auto reg_it = link2cow_.find(name);
+      collectCastTransformUpdate(cast_it, reg_it, tf1, it2->second);
+      insertCowPointers(updated_ptrs, cast_it->second);
+      if (reg_it != link2cow_.end())
+        insertCowPointers(updated_ptrs, reg_it->second);
     }
   }
-  // Invalidate all cached GJK guesses — see comment in vector overload above.
-  collision_cache.clear();
+  invalidateCachedGJKGuessFor(collision_cache, updated_ptrs);
   flushBatchUpdate();
 }
 

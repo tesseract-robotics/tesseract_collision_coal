@@ -40,6 +40,7 @@
 #include <tesseract/common/macros.h>
 TESSERACT_COMMON_IGNORE_WARNINGS_PUSH
 #include <coal/narrowphase/support_functions.h>
+#include <coal/shape/geometric_shapes_utility.h>
 TESSERACT_COMMON_IGNORE_WARNINGS_POP
 
 #include <tesseract/collision/coal/coal_casthullshape.h>
@@ -47,38 +48,26 @@ TESSERACT_COMMON_IGNORE_WARNINGS_POP
 namespace tesseract::collision::tesseract_collision_coal
 {
 CastHullShape::CastHullShape(std::shared_ptr<coal::ShapeBase> shape, const coal::Transform3s& castTransform)
-  : shape_(std::move(shape))
-  , castTransform_(castTransform)
-  , castTransformInv_(coal::Transform3s(castTransform).inverse())
+  : shape_(std::move(shape)), castTransform_(castTransform), castTransformInv_(castTransform.inverse())
 {
+  // Ensure the underlying shape's local AABB is computed.
+  // Shapes from CollisionObjects already have this set, but freshly constructed
+  // shapes (e.g. in tests) may not.
+  shape_->computeLocalAABB();
 }
 
 void CastHullShape::computeLocalAABB()
 {
-  int hint = 0;
-  coal::details::ShapeSupportData data;
+  // Pose 0: shape's local AABB (includes its swept sphere radius).
+  aabb_local = shape_->aabb_local;
 
-  for (int i = 0; i < 3; ++i)
-  {
-    coal::Vec3s dir = coal::Vec3s::Zero();
-    coal::Vec3s s;
+  // Pose 1: shape at cast transform, via Coal's |R|*half-extents formula.
+  coal::AABB pose1_aabb;
+  coal::computeBV<coal::AABB, coal::ShapeBase>(*shape_, castTransform_, pose1_aabb);
+  aabb_local += pose1_aabb;
 
-    dir[i] = 1;
-    computeShapeSupport(dir, s, hint, data);
-    aabb_local.max_[i] = s[i];
-
-    dir[i] = -1;
-    computeShapeSupport(dir, s, hint, data);
-    aabb_local.min_[i] = s[i];
-  }
-
-  // Pad by CastHullShape's own swept-sphere radius (zero by default).
-  // Note: the underlying shape's intrinsic radius (Sphere, Capsule, etc.) is
-  // already included in the support points via WithSweptSphere mode in
-  // computeShapeSupport, so no double-counting occurs here.
-  const coal::Scalar r = getSweptSphereRadius();
-  aabb_local.min_ -= coal::Vec3s::Constant(r);
-  aabb_local.max_ += coal::Vec3s::Constant(r);
+  // Pad by CastHullShape's own swept-sphere radius (underlying shape's is already included).
+  aabb_local.expand(getSweptSphereRadius());
 
   aabb_center = aabb_local.center();
   aabb_radius = (aabb_local.min_ - aabb_center).norm();
@@ -100,7 +89,9 @@ double CastHullShape::computeVolume() const
   if (translation_length < 1e-6 && !has_rotation)
     return baseVolume;
 
-  // Compute a conservative AABB via the support function and use its volume
+  // Unlike computeLocalAABB() (which delegates to computeBV's |R|*half-extents formula),
+  // this uses support functions for a tighter AABB and thus a better volume estimate.
+  // This is not on the hot path, so the extra cost is acceptable.
   int hint = 0;
   coal::details::ShapeSupportData data;
   coal::AABB swept_aabb;
@@ -134,7 +125,7 @@ bool CastHullShape::isEqual(const coal::CollisionGeometry& _other) const
 void CastHullShape::updateCastTransform(const coal::Transform3s& castTransform)
 {
   castTransform_ = castTransform;
-  castTransformInv_ = coal::Transform3s(castTransform).inverse();
+  castTransformInv_ = castTransform.inverse();
   // Reset pose-1 hint: the new cast transform changes the direction mapping
   // for pose 1, so the previous vertex hint may no longer be relevant.
   // Pose-0 hint stays valid (same shape, same local frame).
