@@ -982,14 +982,18 @@ COW::Ptr makeCastCollisionObject(const COW::Ptr& cow)
         const auto& base_shape_pose = current_shape_poses[old_shape_index];
         int octree_subshape_index = 0;
 
+        // Reserve extra capacity for the voxel expansion.  tree->size() is O(1)
+        // and an upper bound on the number of occupied leaves.
+        const std::size_t voxel_budget = tree->size();
+        new_collision_objects.reserve(new_collision_objects.size() + voxel_budget);
+        new_shapes.reserve(new_shapes.size() + voxel_budget);
+        new_shape_poses.reserve(new_shape_poses.size() + voxel_budget);
+
         // Reuse one box shape per tree depth level (all voxels at the same depth
         // have the same size), matching Bullet's managed_shapes pattern.
         std::vector<std::shared_ptr<coal::Box>> managed_boxes(tree->getTreeDepth() + 1);
 
-        for (octomap::OcTree::iterator it = tree->begin(static_cast<unsigned char>(tree->getTreeDepth())),
-                                       end = tree->end();
-             it != end;
-             ++it)
+        for (auto it = tree->begin_leafs(), end = tree->end_leafs(); it != end; ++it)
         {
           if (!octree_geo->isNodeOccupied(&(*it)))
             continue;
