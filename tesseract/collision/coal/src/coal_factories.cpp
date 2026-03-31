@@ -25,20 +25,30 @@
 #include <tesseract/collision/coal/coal_factories.h>
 #include <tesseract/collision/coal/coal_discrete_managers.h>
 #include <tesseract/collision/coal/coal_cast_managers.h>
+#include <tesseract/collision/coal/coal_utils.h>
 #include <tesseract/collision/discrete_contact_manager.h>
 
 namespace tesseract::collision::tesseract_collision_coal
 {
-std::unique_ptr<tesseract::collision::DiscreteContactManager>
-CoalDiscreteBVHManagerFactory::create(const std::string& name, const YAML::Node& /*config*/) const
+double getGJKGuessThreshold(const YAML::Node& config)
 {
-  return std::make_unique<CoalDiscreteBVHManager>(name);
+  if (config.IsNull())
+    return kDefaultGJKGuessThreshold;
+  if (YAML::Node n = config["gjk_guess_threshold"])
+    return n.as<double>();
+  return kDefaultGJKGuessThreshold;
+}
+
+std::unique_ptr<tesseract::collision::DiscreteContactManager>
+CoalDiscreteBVHManagerFactory::create(const std::string& name, const YAML::Node& config) const
+{
+  return std::make_unique<CoalDiscreteBVHManager>(name, getGJKGuessThreshold(config));
 }
 
 std::unique_ptr<tesseract::collision::ContinuousContactManager>
-CoalCastBVHManagerFactory::create(const std::string& name, const YAML::Node& /*config*/) const
+CoalCastBVHManagerFactory::create(const std::string& name, const YAML::Node& config) const
 {
-  return std::make_unique<CoalCastBVHManager>(name);
+  return std::make_unique<CoalCastBVHManager>(name, getGJKGuessThreshold(config));
 }
 
 PLUGIN_ANCHOR_IMPL(CoalFactoriesAnchor)  // LCOV_EXCL_LINE

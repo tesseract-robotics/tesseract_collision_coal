@@ -53,14 +53,11 @@ namespace tesseract::collision::tesseract_collision_coal
 static const CollisionShapesConst EMPTY_COLLISION_SHAPES_CONST;
 static const tesseract::common::VectorIsometry3d EMPTY_COLLISION_SHAPES_TRANSFORMS;
 
-/// Insert all raw collision object pointers from a COW into the set.
-static void insertCowPointers(CollisionObjectPtrSet& ptrs, const COW::Ptr& cow)
-{
-  for (const auto& co : cow->getCollisionObjects())
-    ptrs.insert(co.get());
-}
 
-CoalCastBVHManager::CoalCastBVHManager(std::string name) : name_(std::move(name))
+CoalCastBVHManager::CoalCastBVHManager(std::string name, double gjk_guess_threshold)
+  : name_(std::move(name))
+  , gjk_guess_threshold_(gjk_guess_threshold)
+  , gjk_guess_threshold_sq_(gjk_guess_threshold * gjk_guess_threshold)
 {
   static_manager_ = std::make_unique<coal::DynamicAABBTreeCollisionManager>();
   dynamic_manager_ = std::make_unique<coal::DynamicAABBTreeCollisionManager>();
@@ -76,7 +73,7 @@ ContinuousContactManager::UPtr CoalCastBVHManager::clone() const
   // Note: addCollisionObject creates fresh CastHullShapes with identity cast
   // transforms, so any active sweep state (set via setCollisionObjectsTransform
   // with pose1/pose2) is not preserved. This matches Bullet's clone behavior.
-  auto manager = std::make_unique<CoalCastBVHManager>(name_);
+  auto manager = std::make_unique<CoalCastBVHManager>(name_, gjk_guess_threshold_);
 
   for (const auto& cow : link2cow_)
   {
@@ -189,17 +186,13 @@ bool CoalCastBVHManager::setCollisionObjectEnabled(const std::string& name, bool
     return false;
 
   it->second->m_enabled = enabled;
+  it->second->gjk_generation_++;
 
   auto cast_it = link2castcow_.find(name);
   if (cast_it != link2castcow_.end())
   {
     cast_it->second->m_enabled = enabled;
-    invalidateCachedGJKGuessFor(
-        collision_cache, it->second->getCollisionObjects(), cast_it->second->getCollisionObjects());
-  }
-  else
-  {
-    invalidateCachedGJKGuessFor(collision_cache, it->second->getCollisionObjects());
+    cast_it->second->gjk_generation_++;
   }
 
   return true;
@@ -265,13 +258,6 @@ void CoalCastBVHManager::setCollisionObjectsTransform(const std::string& name,
     dynamic_update_.clear();
     auto reg_it = link2cow_.find(name);
     collectCastTransformUpdate(cast_it, reg_it, pose1, pose2);
-    // Mark GJK warm-start hints invalid for affected object pairs. The guess is
-    // re-seeded lazily in collide() where actual transforms are available.
-    if (reg_it != link2cow_.end())
-      invalidateCachedGJKGuessFor(
-          collision_cache, cast_it->second->getCollisionObjects(), reg_it->second->getCollisionObjects());
-    else
-      invalidateCachedGJKGuessFor(collision_cache, cast_it->second->getCollisionObjects());
     flushBatchUpdate();
   }
 }
@@ -284,8 +270,6 @@ void CoalCastBVHManager::setCollisionObjectsTransform(const std::vector<std::str
   assert(names.size() == pose2.size());
   static_update_.clear();
   dynamic_update_.clear();
-  CollisionObjectPtrSet updated_ptrs;
-  updated_ptrs.reserve(coal_co_count_);
   for (auto i = 0U; i < names.size(); ++i)
   {
     auto cast_it = link2castcow_.find(names[i]);
@@ -293,12 +277,8 @@ void CoalCastBVHManager::setCollisionObjectsTransform(const std::vector<std::str
     {
       auto reg_it = link2cow_.find(names[i]);
       collectCastTransformUpdate(cast_it, reg_it, pose1[i], pose2[i]);
-      insertCowPointers(updated_ptrs, cast_it->second);
-      if (reg_it != link2cow_.end())
-        insertCowPointers(updated_ptrs, reg_it->second);
     }
   }
-  invalidateCachedGJKGuessFor(collision_cache, updated_ptrs);
   flushBatchUpdate();
 }
 
@@ -308,8 +288,6 @@ void CoalCastBVHManager::setCollisionObjectsTransform(const tesseract::common::T
   assert(pose1.size() == pose2.size());
   static_update_.clear();
   dynamic_update_.clear();
-  CollisionObjectPtrSet updated_ptrs;
-  updated_ptrs.reserve(coal_co_count_);
   for (const auto& [name, tf1] : pose1)
   {
     auto cast_it = link2castcow_.find(name);
@@ -319,12 +297,8 @@ void CoalCastBVHManager::setCollisionObjectsTransform(const tesseract::common::T
       assert(it2 != pose2.end());
       auto reg_it = link2cow_.find(name);
       collectCastTransformUpdate(cast_it, reg_it, tf1, it2->second);
-      insertCowPointers(updated_ptrs, cast_it->second);
-      if (reg_it != link2cow_.end())
-        insertCowPointers(updated_ptrs, reg_it->second);
     }
   }
-  invalidateCachedGJKGuessFor(collision_cache, updated_ptrs);
   flushBatchUpdate();
 }
 
@@ -464,12 +438,19 @@ void CoalCastBVHManager::collectTransformUpdate(Link2COW::iterator it, const Eig
   if (!transformChanged(cur_tf, pose))
     return;
 
+  const bool large_change =
+      (pose.translation() - cur_tf.translation()).squaredNorm() > gjk_guess_threshold_sq_;
+  if (large_change)
+    it->second->gjk_generation_++;
+
   it->second->setCollisionObjectsTransform(pose);
 
   // Also update the cast version if it exists
   auto cast_it = link2castcow_.find(it->first);
   if (cast_it != link2castcow_.end())
   {
+    if (large_change)
+      cast_it->second->gjk_generation_++;
     cast_it->second->setCollisionObjectsTransform(pose);
 
     if (it->second->m_collisionFilterGroup == CollisionFilterGroups::KinematicFilter)
@@ -493,6 +474,10 @@ void CoalCastBVHManager::collectCastTransformUpdate(Link2COW::iterator cast_it,
 {
   COW::Ptr& cow = cast_it->second;
 
+  const Eigen::Isometry3d& cur_tf = cow->getCollisionObjectsTransform();
+  bool large_change =
+      (pose1.translation() - cur_tf.translation()).squaredNorm() > gjk_guess_threshold_sq_;
+
   // Keep regular object aligned at the start transform
   if (reg_it != link2cow_.end())
     reg_it->second->setCollisionObjectsTransform(pose1);
@@ -502,6 +487,12 @@ void CoalCastBVHManager::collectCastTransformUpdate(Link2COW::iterator cast_it,
   if (!cow->m_enabled)
   {
     cow->setCollisionObjectsTransform(pose1);
+    if (large_change)
+    {
+      cow->gjk_generation_++;
+      if (reg_it != link2cow_.end())
+        reg_it->second->gjk_generation_++;
+    }
     return;
   }
 
@@ -511,9 +502,9 @@ void CoalCastBVHManager::collectCastTransformUpdate(Link2COW::iterator cast_it,
 
   const auto& shape_poses = cow->getCollisionGeometriesTransforms();
 
-  // Update cast transforms first so computeLocalAABB reflects the swept volume.
+  // Update cast transforms so computeLocalAABB reflects the swept volume.
   // All objects in link2castcow_ are CastHullShape-wrapped (by makeCastCollisionObject).
-  for (auto& co : cow->getCollisionObjects())
+  for (const auto& co : cow->getCollisionObjects())
   {
     auto* cast_shape = static_cast<CastHullShape*>(co->collisionGeometry().get());
     assert(cast_shape != nullptr);
@@ -527,17 +518,28 @@ void CoalCastBVHManager::collectCastTransformUpdate(Link2COW::iterator cast_it,
     const auto local_tf = coal::Transform3s(shape_pose.rotation(), shape_pose.translation());
     const auto shape_tf1 = tf1 * local_tf;
     const auto shape_tf2 = tf2 * local_tf;
-    cast_shape->updateCastTransform(shape_tf1.inverseTimes(shape_tf2));
+    const auto new_cast_tf = shape_tf1.inverseTimes(shape_tf2);
+    if (!large_change)
+    {
+      large_change = (new_cast_tf.getTranslation() - cast_shape->getCastTransform().getTranslation()).squaredNorm() >
+                     gjk_guess_threshold_sq_;
+    }
+    cast_shape->updateCastTransform(new_cast_tf);
+  }
+
+  // Bump generation counters if the transform change was significant.
+  if (large_change)
+  {
+    cow->gjk_generation_++;
+    if (reg_it != link2cow_.end())
+      reg_it->second->gjk_generation_++;
   }
 
   // Re-apply world transform so CoalCollisionObjectWrapper::updateAABB uses the
   // updated CastHullShape local AABB (swept volume).
   cow->setCollisionObjectsTransform(pose1);
 
-  // Note: GJK cache invalidation is NOT done here — callers are responsible for
-  // invalidating after all links are updated, to avoid O(N*M) repeated cache scans.
-
-  // Append to broadphase update vectors (flushed by caller)
+  // Append to broadphase update vectors (flushed by caller).
   auto& update_vec =
       (cow->m_collisionFilterGroup == CollisionFilterGroups::StaticFilter) ? static_update_ : dynamic_update_;
   cow->appendCollisionObjectsRaw(update_vec);

@@ -50,7 +50,10 @@ namespace tesseract::collision::tesseract_collision_coal
 static const CollisionShapesConst EMPTY_COLLISION_SHAPES_CONST;
 static const tesseract::common::VectorIsometry3d EMPTY_COLLISION_SHAPES_TRANSFORMS;
 
-CoalDiscreteBVHManager::CoalDiscreteBVHManager(std::string name) : name_(std::move(name))
+CoalDiscreteBVHManager::CoalDiscreteBVHManager(std::string name, double gjk_guess_threshold)
+  : name_(std::move(name))
+  , gjk_guess_threshold_(gjk_guess_threshold)
+  , gjk_guess_threshold_sq_(gjk_guess_threshold * gjk_guess_threshold)
 {
   static_manager_ = std::make_unique<coal::DynamicAABBTreeCollisionManager>();
   dynamic_manager_ = std::make_unique<coal::DynamicAABBTreeCollisionManager>();
@@ -63,7 +66,7 @@ DiscreteContactManager::UPtr CoalDiscreteBVHManager::clone() const
 {
   CoalCollisionGeometryCache::prune();
 
-  auto manager = std::make_unique<CoalDiscreteBVHManager>();
+  auto manager = std::make_unique<CoalDiscreteBVHManager>(name_, gjk_guess_threshold_);
 
   for (const auto& cow : link2cow_)
   {
@@ -163,7 +166,7 @@ bool CoalDiscreteBVHManager::setCollisionObjectEnabled(const std::string& name, 
     return false;
 
   it->second->m_enabled = enabled;
-  invalidateCachedGJKGuessFor(collision_cache, it->second->getCollisionObjects());
+  it->second->gjk_generation_++;
   return true;
 }
 
@@ -341,6 +344,8 @@ void CoalDiscreteBVHManager::collectTransformUpdate(Link2COW::iterator it, const
   const Eigen::Isometry3d& cur_tf = it->second->getCollisionObjectsTransform();
   if (transformChanged(cur_tf, pose))
   {
+    if ((pose.translation() - cur_tf.translation()).squaredNorm() > gjk_guess_threshold_sq_)
+      it->second->gjk_generation_++;
     it->second->setCollisionObjectsTransform(pose);
     auto& update_vec =
         (it->second->m_collisionFilterGroup == CollisionFilterGroups::StaticFilter) ? static_update_ : dynamic_update_;

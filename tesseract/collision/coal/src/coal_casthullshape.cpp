@@ -126,10 +126,6 @@ void CastHullShape::updateCastTransform(const coal::Transform3s& castTransform)
 {
   castTransform_ = castTransform;
   castTransformInv_ = castTransform.inverse();
-  // Reset pose-1 hint: the new cast transform changes the direction mapping
-  // for pose 1, so the previous vertex hint may no longer be relevant.
-  // Pose-0 hint stays valid (same shape, same local frame).
-  hint1_ = 0;
   computeLocalAABB();
 }
 

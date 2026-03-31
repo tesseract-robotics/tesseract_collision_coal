@@ -574,9 +574,12 @@ bool CollisionCallback::collide(coal::CollisionObject* o1, coal::CollisionObject
   auto& entry = col_cache_it->second;
   auto& cached_request = entry.request;
 
-  // Re-seed GJK guess if marked invalid (e.g. after enable/disable or transform change).
+  // Re-seed GJK guess when COW generation has changed (transform or enable/disable change).
   // Deferred to here because the correct seed depends on the actual transforms.
-  if (!entry.gjk_guess_valid)
+  // Reuse cd1/cd2 from above, applying the same swap to match cache key ordering.
+  const auto* cow1 = pair_swapped ? cd2 : cd1;
+  const auto* cow2 = pair_swapped ? cd1 : cd2;
+  if (entry.gen0 != cow1->gjk_generation_ || entry.gen1 != cow2->gjk_generation_)
   {
     // Cast pairs use center-to-center direction: BoundingVolumeGuess causes solver failure for
     // swept volumes, and DefaultGuess(1,0,0) degrades contact accuracy.
@@ -593,7 +596,8 @@ bool CollisionCallback::collide(coal::CollisionObject* o1, coal::CollisionObject
       cached_request.gjk_initial_guess = coal::BoundingVolumeGuess;
     }
 
-    entry.gjk_guess_valid = true;
+    entry.gen0 = cow1->gjk_generation_;
+    entry.gen1 = cow2->gjk_generation_;
   }
 
   cached_request.enable_contact = cdata->req.calculate_penetration;
@@ -789,59 +793,15 @@ static std::unordered_set<const coal::CollisionObject*> buildPointerSet(const st
   return ptrs;
 }
 
-static std::unordered_set<const coal::CollisionObject*> buildPointerSet(const std::vector<CollisionObjectPtr>& objects1,
-                                                                        const std::vector<CollisionObjectPtr>& objects2)
+void invalidateCacheFor(CollisionCacheMap& cache, const std::vector<CollisionObjectPtr>& objects)
 {
-  std::unordered_set<const coal::CollisionObject*> ptrs;
-  ptrs.reserve(objects1.size() + objects2.size());
-  for (const auto& co : objects1)
-    ptrs.insert(co.get());
-  for (const auto& co : objects2)
-    ptrs.insert(co.get());
-  return ptrs;
-}
-
-static void invalidateCacheFor(CollisionCacheMap& cache, const CollisionObjectPtrSet& ptrs)
-{
+  const auto ptrs = buildPointerSet(objects);
   for (auto it = cache.begin(); it != cache.end();)
   {
     if (ptrs.count(it->first.first) != 0 || ptrs.count(it->first.second) != 0)
       it = cache.erase(it);
     else
       ++it;
-  }
-}
-
-void invalidateCacheFor(CollisionCacheMap& cache, const std::vector<CollisionObjectPtr>& objects)
-{
-  invalidateCacheFor(cache, buildPointerSet(objects));
-}
-
-void invalidateCacheFor(CollisionCacheMap& cache,
-                        const std::vector<CollisionObjectPtr>& objects1,
-                        const std::vector<CollisionObjectPtr>& objects2)
-{
-  invalidateCacheFor(cache, buildPointerSet(objects1, objects2));
-}
-
-void invalidateCachedGJKGuessFor(CollisionCacheMap& cache, const std::vector<CollisionObjectPtr>& objects)
-{
-  invalidateCachedGJKGuessFor(cache, buildPointerSet(objects));
-}
-
-void invalidateCachedGJKGuessFor(CollisionCacheMap& cache,
-                                 const std::vector<CollisionObjectPtr>& objects1,
-                                 const std::vector<CollisionObjectPtr>& objects2)
-{
-  invalidateCachedGJKGuessFor(cache, buildPointerSet(objects1, objects2));
-}
-
-void invalidateCachedGJKGuessFor(CollisionCacheMap& cache, const CollisionObjectPtrSet& ptrs)
-{
-  for (auto& [pair, entry] : cache)
-  {
-    if (ptrs.count(pair.first) != 0 || ptrs.count(pair.second) != 0)
-      entry.gjk_guess_valid = false;
   }
 }
 

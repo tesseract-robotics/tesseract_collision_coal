@@ -29,6 +29,20 @@
 
 namespace tesseract::collision::tesseract_collision_coal
 {
+/**
+ * @brief The yaml config for each of the factories below is the same.
+ * @details
+ * The config and its parameters shown below are optional.
+ * The values shown below are the defaults that will be used.
+ *
+ * Example Yaml Config:
+ *
+ *    plugins:
+ *      CoalDiscreteBVHManager:
+ *        class: CoalDiscreteBVHManagerFactory
+ *        config:
+ *          gjk_guess_threshold: 0.005
+ */
 class CoalDiscreteBVHManagerFactory : public DiscreteContactManagerFactory
 {
 public:

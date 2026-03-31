@@ -71,7 +71,8 @@ public:
   using UPtr = std::unique_ptr<CoalCastBVHManager>;
   using ConstUPtr = std::unique_ptr<const CoalCastBVHManager>;
 
-  CoalCastBVHManager(std::string name = "CoalCastBVHManager");
+  CoalCastBVHManager(std::string name = "CoalCastBVHManager",
+                     double gjk_guess_threshold = kDefaultGJKGuessThreshold);
   ~CoalCastBVHManager() override = default;
   CoalCastBVHManager(const CoalCastBVHManager&) = delete;
   CoalCastBVHManager& operator=(const CoalCastBVHManager&) = delete;
@@ -176,6 +177,8 @@ private:
   std::shared_ptr<const tesseract::common::ContactAllowedValidator> validator_; /**< @brief The is allowed collision
                                                                                   function */
   std::size_t coal_co_count_{ 0 }; /**< @brief The number of coal collision objects */
+  double gjk_guess_threshold_;        /**< @brief GJK guess validity threshold (meters) */
+  double gjk_guess_threshold_sq_;     /**< @brief Squared GJK guess validity threshold */
 
   /** @brief This is used to store static collision objects to update */
   std::vector<CollisionObjectRawPtr> static_update_;
@@ -183,13 +186,14 @@ private:
   /** @brief This is used to store dynamic collision objects to update */
   std::vector<CollisionObjectRawPtr> dynamic_update_;
 
-  /** @brief Collect a single link's transform update into the batch update vectors */
+  /** @brief Collect a single link's transform update into the batch update vectors.
+   *  Bumps the COW's GJK generation counter if the change exceeds the validity threshold. */
   void collectTransformUpdate(Link2COW::iterator it, const Eigen::Isometry3d& pose);
 
   /** @brief Collect a single link's cast transform update into the batch update vectors.
    *  Updates cast shape swept volumes, world transforms, and appends to broadphase
-   *  update vectors without flushing. Does NOT invalidate the collision cache — callers
-   *  must call invalidateCacheFor() after all links are updated.
+   *  update vectors without flushing. Bumps GJK generation counters if the change
+   *  exceeds the validity threshold.
    *  @param cast_it Iterator into link2castcow_ for the link to update
    *  @param reg_it Iterator into link2cow_ for the same link (may be link2cow_.end()) */
   void collectCastTransformUpdate(Link2COW::iterator cast_it,

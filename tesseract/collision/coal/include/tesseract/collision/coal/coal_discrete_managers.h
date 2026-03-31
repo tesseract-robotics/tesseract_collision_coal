@@ -59,7 +59,8 @@ public:
   using UPtr = std::unique_ptr<CoalDiscreteBVHManager>;
   using ConstUPtr = std::unique_ptr<const CoalDiscreteBVHManager>;
 
-  CoalDiscreteBVHManager(std::string name = "CoalDiscreteBVHManager");
+  CoalDiscreteBVHManager(std::string name = "CoalDiscreteBVHManager",
+                         double gjk_guess_threshold = kDefaultGJKGuessThreshold);
   ~CoalDiscreteBVHManager() override = default;
   CoalDiscreteBVHManager(const CoalDiscreteBVHManager&) = delete;
   CoalDiscreteBVHManager& operator=(const CoalDiscreteBVHManager&) = delete;
@@ -152,6 +153,8 @@ private:
   std::shared_ptr<const tesseract::common::ContactAllowedValidator> validator_; /**< @brief The is allowed collision
                                                                                   function */
   std::size_t coal_co_count_{ 0 }; /**< @brief The number of Coal collision objects */
+  double gjk_guess_threshold_;        /**< @brief GJK guess validity threshold (meters) */
+  double gjk_guess_threshold_sq_;     /**< @brief Squared GJK guess validity threshold */
 
   /** @brief This is used to store static collision objects to update */
   std::vector<CollisionObjectRawPtr> static_update_;

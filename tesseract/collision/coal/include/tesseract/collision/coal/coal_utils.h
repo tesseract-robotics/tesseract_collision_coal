@@ -44,7 +44,6 @@
 TESSERACT_COMMON_IGNORE_WARNINGS_PUSH
 #include <memory>
 #include <unordered_map>
-#include <unordered_set>
 #include <utility>
 #include <boost/functional/hash.hpp>
 #include <coal/broadphase/broadphase_collision_manager.h>
@@ -76,37 +75,22 @@ struct CollisionCacheEntry
 {
   coal::CollisionRequest request;
   coal::ComputeCollision functor;
-  bool is_cast{ false };          ///< Cached at creation to avoid dynamic_cast on every re-seed.
-                                  ///< Controls GJK seed strategy: cast pairs cannot use BoundingVolumeGuess.
-  bool gjk_guess_valid{ false };  ///< False when GJK warm-start hints are stale or not yet seeded.
-                                  ///< Re-seeded lazily in collide() where actual transforms are available.
+  bool is_cast{ false };      ///< Cached at creation to avoid dynamic_cast on every re-seed.
+                              ///< Controls GJK seed strategy: cast pairs cannot use BoundingVolumeGuess.
+  uint32_t gen0{ 0 };         ///< COW generation when GJK guess was last seeded (shape 0).
+  uint32_t gen1{ 0 };         ///< COW generation when GJK guess was last seeded (shape 1).
 };
 
 /** @brief Cache mapping collision object pairs to their precomputed collision functor and warm-start state */
 using CollisionCacheMap = std::unordered_map<CollisionObjectPair, CollisionCacheEntry, CollisionObjectPairHash>;
 
+/// Default GJK guess validity threshold (5mm). Stale GJK warm-start guesses from larger
+/// moves can cause solver failures (zero gradients, degraded contact accuracy).
+/// Configurable per-manager via the plugin YAML config key `gjk_guess_threshold`.
+inline constexpr double kDefaultGJKGuessThreshold = 5e-3;
+
 /** @brief Erase cache entries involving any of the given collision objects (for object removal) */
 void invalidateCacheFor(CollisionCacheMap& cache, const std::vector<CollisionObjectPtr>& objects);
-
-/** @brief Erase cache entries involving any object from either vector (for object removal, single-pass) */
-void invalidateCacheFor(CollisionCacheMap& cache,
-                        const std::vector<CollisionObjectPtr>& objects1,
-                        const std::vector<CollisionObjectPtr>& objects2);
-
-/** @brief Mark GJK warm-start hints invalid for cache entries involving any of the given objects.
- *  Does not erase entries — preserves the ComputeCollision functor and solver settings.
- *  The guess is re-seeded lazily in collide() where actual transforms are available. */
-void invalidateCachedGJKGuessFor(CollisionCacheMap& cache, const std::vector<CollisionObjectPtr>& objects);
-
-/** @brief Mark GJK warm-start hints invalid for cache entries involving any object from either vector */
-void invalidateCachedGJKGuessFor(CollisionCacheMap& cache,
-                                 const std::vector<CollisionObjectPtr>& objects1,
-                                 const std::vector<CollisionObjectPtr>& objects2);
-
-/** @brief Mark GJK warm-start hints invalid using a pre-built set of raw pointers.
- *  Use this overload when accumulating pointers from multiple sources before scanning. */
-using CollisionObjectPtrSet = std::unordered_set<const coal::CollisionObject*>;
-void invalidateCachedGJKGuessFor(CollisionCacheMap& cache, const CollisionObjectPtrSet& ptrs);
 
 enum CollisionFilterGroups : std::int8_t
 {
@@ -137,6 +121,8 @@ public:
   short int m_collisionFilterGroup{ CollisionFilterGroups::StaticFilter };
   short int m_collisionFilterMask{ CollisionFilterGroups::KinematicFilter };
   bool m_enabled{ true };
+  uint32_t gjk_generation_{ 1 };  ///< Monotonic counter for GJK guess invalidation. Starts at 1 so new cache entries
+                                  ///< (initialized to 0) trigger initial GJK seeding on first use.
 
   const std::string& getName() const { return name_; }
   const int& getTypeID() const { return type_id_; }
