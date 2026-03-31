@@ -215,16 +215,29 @@ void updateCollisionObjectFilters(const std::vector<std::string>& active,
  */
 void updateCollisionObjectFilters(const std::vector<std::string>& active,
                                   const COW::Ptr& cow,
-                                  const COW::Ptr& cast_cow,
+                                  COW::Ptr& cast_cow,
                                   const std::unique_ptr<coal::BroadPhaseCollisionManager>& static_manager,
                                   const std::unique_ptr<coal::BroadPhaseCollisionManager>& dynamic_manager);
 
 /**
  * @brief Create a cast collision object from a regular collision object
  * @param cow The collision object to convert
+ * @param expand_octrees When false, octree shapes are kept as raw OcTree geometry (deferred expansion)
  * @return A new collision object with shapes converted to CastHullShapes
  */
-COW::Ptr makeCastCollisionObject(const COW::Ptr& cow);
+COW::Ptr makeCastCollisionObject(const COW::Ptr& cow, bool expand_octrees = true);
+
+/**
+ * @brief Check if a cast COW contains unexpanded octrees that need expansion for sweep support.
+ * Expanded shapes have GEOM_CUSTOM (CastHullShape); unexpanded octrees have GEOM_OCTREE.
+ */
+inline bool castCowNeedsOctreeExpansion(const COW::Ptr& cast_cow)
+{
+  for (const auto& co : cast_cow->getCollisionObjects())
+    if (co->collisionGeometry()->getNodeType() == coal::GEOM_OCTREE)
+      return true;
+  return false;
+}
 
 /**
  * @brief This is used to check if a collision check is required between the provided two collision objects

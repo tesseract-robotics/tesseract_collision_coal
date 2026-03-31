@@ -883,19 +883,18 @@ void updateCollisionObjectFilters(const std::vector<std::string>& active,
 
 void updateCollisionObjectFilters(const std::vector<std::string>& active,
                                   const COW::Ptr& cow,
-                                  const COW::Ptr& cast_cow,
+                                  COW::Ptr& cast_cow,
                                   const std::unique_ptr<coal::BroadPhaseCollisionManager>& static_manager,
                                   const std::unique_ptr<coal::BroadPhaseCollisionManager>& dynamic_manager)
 {
   const std::vector<CollisionObjectPtr>& reg_objects = cow->getCollisionObjects();
-  const std::vector<CollisionObjectPtr>& cast_objects = cast_cow->getCollisionObjects();
 
   if (!isLinkActive(active, cow->getName()))
   {
     if (cow->m_collisionFilterGroup != CollisionFilterGroups::StaticFilter)
     {
       // This link was dynamic but is now static: unregister cast from dynamic, register raw in static.
-      for (const auto& co : cast_objects)
+      for (const auto& co : cast_cow->getCollisionObjects())
         dynamic_manager->unregisterObject(co.get());
 
       for (const auto& co : reg_objects)
@@ -908,11 +907,18 @@ void updateCollisionObjectFilters(const std::vector<std::string>& active,
   {
     if (cow->m_collisionFilterGroup != CollisionFilterGroups::KinematicFilter)
     {
-      // This link was static but is now dynamic: unregister raw from static, register cast in dynamic.
+      // Static -> kinematic: expand deferred octrees, then swap broadphases.
+      if (castCowNeedsOctreeExpansion(cast_cow))
+      {
+        cast_cow = makeCastCollisionObject(cow);
+        cast_cow->setContactDistanceThreshold(cow->getContactDistanceThreshold());
+        cast_cow->setCollisionObjectsTransform(cow->getCollisionObjectsTransform());
+      }
+
       for (const auto& co : reg_objects)
         static_manager->unregisterObject(co.get());
 
-      for (const auto& co : cast_objects)
+      for (const auto& co : cast_cow->getCollisionObjects())
         dynamic_manager->registerObject(co.get());
     }
     cow->m_collisionFilterGroup = CollisionFilterGroups::KinematicFilter;
@@ -923,7 +929,7 @@ void updateCollisionObjectFilters(const std::vector<std::string>& active,
   applyCollisionFilterMask(*cast_cow);
 }
 
-COW::Ptr makeCastCollisionObject(const COW::Ptr& cow)
+COW::Ptr makeCastCollisionObject(const COW::Ptr& cow, bool expand_octrees)
 {
   auto cast_cow = cow->clone();
 
@@ -976,53 +982,68 @@ COW::Ptr makeCastCollisionObject(const COW::Ptr& cow)
     {
       if (auto octree_geo = std::dynamic_pointer_cast<coal::OcTree>(geo); octree_geo != nullptr)
       {
-        // Expand occupied octree cells into castable box sub-shapes.
-        const auto tree = octree_geo->getTree();
-        assert(tree != nullptr);
-        const auto& base_shape_pose = current_shape_poses[old_shape_index];
-        int octree_subshape_index = 0;
-
-        // Reserve extra capacity for the voxel expansion.  tree->size() is O(1)
-        // and an upper bound on the number of occupied leaves.
-        const std::size_t voxel_budget = tree->size();
-        new_collision_objects.reserve(new_collision_objects.size() + voxel_budget);
-        new_shapes.reserve(new_shapes.size() + voxel_budget);
-        new_shape_poses.reserve(new_shape_poses.size() + voxel_budget);
-
-        // Reuse one box shape per tree depth level (all voxels at the same depth
-        // have the same size), matching Bullet's managed_shapes pattern.
-        std::vector<std::shared_ptr<coal::Box>> managed_boxes(tree->getTreeDepth() + 1);
-
-        for (auto it = tree->begin_leafs(), end = tree->end_leafs(); it != end; ++it)
+        if (expand_octrees)
         {
-          if (!octree_geo->isNodeOccupied(&(*it)))
-            continue;
+          // Expand occupied octree cells into castable box sub-shapes.
+          const auto tree = octree_geo->getTree();
+          assert(tree != nullptr);
+          const auto& base_shape_pose = current_shape_poses[old_shape_index];
+          int octree_subshape_index = 0;
 
-          auto& box_shape = managed_boxes.at(it.getDepth());
-          if (box_shape == nullptr)
+          // Reserve extra capacity for the voxel expansion.  tree->size() is O(1)
+          // and an upper bound on the number of occupied leaves.
+          const std::size_t voxel_budget = tree->size();
+          new_collision_objects.reserve(new_collision_objects.size() + voxel_budget);
+          new_shapes.reserve(new_shapes.size() + voxel_budget);
+          new_shape_poses.reserve(new_shape_poses.size() + voxel_budget);
+
+          // Reuse one box shape per tree depth level (all voxels at the same depth
+          // have the same size), matching Bullet's managed_shapes pattern.
+          std::vector<std::shared_ptr<coal::Box>> managed_boxes(tree->getTreeDepth() + 1);
+
+          for (auto it = tree->begin_leafs(), end = tree->end_leafs(); it != end; ++it)
           {
-            const double size = it.getSize();
-            box_shape = std::make_shared<coal::Box>(size, size, size);
+            if (!octree_geo->isNodeOccupied(&(*it)))
+              continue;
+
+            auto& box_shape = managed_boxes.at(it.getDepth());
+            if (box_shape == nullptr)
+            {
+              const double size = it.getSize();
+              box_shape = std::make_shared<coal::Box>(size, size, size);
+            }
+            auto cast_shape = std::make_shared<CastHullShape>(box_shape, identity_tf);
+
+            Eigen::Isometry3d voxel_pose = Eigen::Isometry3d::Identity();
+            voxel_pose.translation() = Eigen::Vector3d(it.getX(), it.getY(), it.getZ());
+
+            const Eigen::Isometry3d shape_pose = base_shape_pose * voxel_pose;
+            const Eigen::Isometry3d world_pose = link_tf * shape_pose;
+
+            auto cast_co = std::make_shared<CoalCollisionObjectWrapper>(
+                cast_shape, coal::Transform3s(world_pose.rotation(), world_pose.translation()));
+            cast_co->setShapeIndex(static_cast<int>(new_shape_poses.size()));
+            cast_co->setSourceShapeIndex(static_cast<int>(old_shape_index));
+            cast_co->setSourceSubshapeIndex(octree_subshape_index++);
+            cast_co->setContactDistanceThreshold(co->getContactDistanceThreshold());
+            cast_co->setUserData(cast_cow.get());
+
+            new_collision_objects.push_back(cast_co);
+            new_shapes.push_back(current_shapes[old_shape_index]);
+            new_shape_poses.push_back(shape_pose);
           }
-          auto cast_shape = std::make_shared<CastHullShape>(box_shape, identity_tf);
-
-          Eigen::Isometry3d voxel_pose = Eigen::Isometry3d::Identity();
-          voxel_pose.translation() = Eigen::Vector3d(it.getX(), it.getY(), it.getZ());
-
-          const Eigen::Isometry3d shape_pose = base_shape_pose * voxel_pose;
-          const Eigen::Isometry3d world_pose = link_tf * shape_pose;
-
-          auto cast_co = std::make_shared<CoalCollisionObjectWrapper>(
-              cast_shape, coal::Transform3s(world_pose.rotation(), world_pose.translation()));
-          cast_co->setShapeIndex(static_cast<int>(new_shape_poses.size()));
-          cast_co->setSourceShapeIndex(static_cast<int>(old_shape_index));
-          cast_co->setSourceSubshapeIndex(octree_subshape_index++);
-          cast_co->setContactDistanceThreshold(co->getContactDistanceThreshold());
-          cast_co->setUserData(cast_cow.get());
-
-          new_collision_objects.push_back(cast_co);
+        }
+        else
+        {
+          // Deferred: keep raw OcTree. Expansion happens on promotion to active.
+          auto pass_co = std::make_shared<CoalCollisionObjectWrapper>(geo, co->getTransform());
+          pass_co->setShapeIndex(static_cast<int>(new_shape_poses.size()));
+          pass_co->setSourceShapeIndex(static_cast<int>(old_shape_index));
+          pass_co->setContactDistanceThreshold(co->getContactDistanceThreshold());
+          pass_co->setUserData(cast_cow.get());
+          new_collision_objects.push_back(pass_co);
           new_shapes.push_back(current_shapes[old_shape_index]);
-          new_shape_poses.push_back(shape_pose);
+          new_shape_poses.push_back(current_shape_poses[old_shape_index]);
         }
       }
       else

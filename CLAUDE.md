@@ -21,7 +21,7 @@ Continuous collision detection requires `GEOM_CUSTOM` support in Coal for the `C
 - **Active list management:** `active_` controls which objects are kinematic vs static. Adding a new collision object does **not** auto-add it to `active_`; removing cleans it from `active_`.
 - **CastHullShape (continuous collision):** Wraps a `coal::ShapeBase` with a cast transform (start-to-end motion). Uses support functions at both poses for swept volume — no vertex materialization. Independent GJK support hints per pose.
 - **Dual COW maps (cast manager):** `link2cow_` has regular geometry; `link2castcow_` has CastHullShape-wrapped versions.
-- **Octree handling:** Static octrees use the raw OcTree in the broadphase. Active octrees are expanded into individual boxes per voxel, each wrapped in CastHullShape, for sweep support. CastHullShape cannot wrap an OcTree directly (it requires `ShapeBase`, but OcTree inherits from `CollisionGeometry`), so voxel expansion is the correct approach for swept octrees. See `DEFERRED_OCTREE_EXPANSION_BRIEF.md` for a planned optimization that defers this expansion to promotion time.
+- **Octree handling (deferred expansion):** Static octrees keep the raw OcTree in both broadphase and `link2castcow_` — no per-voxel allocation. On promotion to active, `updateCollisionObjectFilters` (or `addCollisionObject` for the clone path) detects unexpanded octrees via `castCowNeedsOctreeExpansion()` and expands them into individual CastHullShape-wrapped boxes. Once expanded, demotion preserves the cached expansion so re-promotion is free. The `collectCastTransformUpdate` path has a `StaticFilter` early-return guard to prevent `static_cast<CastHullShape*>` on unexpanded raw OcTree geometry.
 - **Collision functor cache:** `ComputeCollision` functors and `CollisionRequest` objects cached per object pair to preserve GJK warm-start hints. Each COW has a `gjk_generation_` counter (starts at 1); cache entries store the generation of both COWs when the guess was last seeded (starts at 0). On object enable/disable or large transform change exceeding `gjk_guess_threshold` (default 5mm, configurable via plugin YAML), the counter is bumped; `collide()` detects the mismatch and re-seeds lazily. Full entry erasure (`invalidateCacheFor`) only happens on object removal.
 
 ### Plugin registration
@@ -32,7 +32,7 @@ Two factory classes (`CoalDiscreteBVHManagerFactory`, `CoalCastBVHManagerFactory
 
 1. **Test suite headers** (`test_suite/include/`) — 26 reusable `.hpp` headers defining `addCollisionObjects()` + `runTest()` for each scenario. Headers-only INTERFACE library shared across collision backends.
 2. **Integration tests** (`test/*.cpp`) — Instantiate Coal managers and call test suite `runTest()` functions. ~24 tests covering discrete (box-sphere, mesh-mesh, octomap, large dataset, multi-threaded) and continuous (cast box-box, sphere-sphere, octomap cast, multi-shape cast).
-3. **Coal-specific unit tests** (`test/coal/`) — 9 tests for internal components: CastHullShape behavior, functor caching/GJK warm-start, geometry cache, collision object wrapper AABB inflation, shape conversion, cast gradient quality, GJK guess threshold configuration.
+3. **Coal-specific unit tests** (`test/coal/`) — 10 tests for internal components: CastHullShape behavior, functor caching/GJK warm-start, geometry cache, collision object wrapper AABB inflation, shape conversion, cast gradient quality, GJK guess threshold configuration, deferred octree expansion.
 
 ## Performance
 

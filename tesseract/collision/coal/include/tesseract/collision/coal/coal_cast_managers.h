@@ -157,6 +157,9 @@ public:
    */
   void addCollisionObject(const COW::Ptr& cow);
 
+  /** @brief Get the cast collision object map (for testing deferred octree expansion) */
+  const Link2COW& getCastCollisionObjectMap() const { return link2castcow_; }
+
 private:
   std::string name_;
 

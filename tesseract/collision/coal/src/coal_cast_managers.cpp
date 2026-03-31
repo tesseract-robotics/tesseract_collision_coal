@@ -398,13 +398,12 @@ void CoalCastBVHManager::addCollisionObject(const COW::Ptr& cow)
   link2cow_[cow->getName()] = cow;
   collision_objects_.push_back(cow->getName());
 
-  // Create cast collision object
-  COW::Ptr cast_cow = makeCastCollisionObject(cow);
+  // Create cast collision object. Skip deferred octree expansion for static objects;
+  // kinematic objects (e.g. during clone) expand immediately to avoid a wasted clone.
+  const bool is_kinematic = cow->m_collisionFilterGroup != CollisionFilterGroups::StaticFilter;
+  COW::Ptr& cast_ref = (link2castcow_[cow->getName()] = makeCastCollisionObject(cow, /*expand_octrees=*/is_kinematic));
 
-  // Add it to the cast map
-  link2castcow_[cast_cow->getName()] = cast_cow;
-
-  if (cow->m_collisionFilterGroup == CollisionFilterGroups::StaticFilter)
+  if (!is_kinematic)
   {
     const std::vector<CollisionObjectPtr>& objects = cow->getCollisionObjects();
     for (const auto& co : objects)
@@ -412,14 +411,12 @@ void CoalCastBVHManager::addCollisionObject(const COW::Ptr& cow)
   }
   else
   {
-    const std::vector<CollisionObjectPtr>& cast_objects = cast_cow->getCollisionObjects();
-    for (const auto& co : cast_objects)
+    for (const auto& co : cast_ref->getCollisionObjects())
       dynamic_manager_->registerObject(co.get());
   }
 
-  /// If active links is not empty update filters to replace the active links list
   if (!active_.empty())
-    updateCollisionObjectFilters(active_, cow, cast_cow, static_manager_, dynamic_manager_);
+    updateCollisionObjectFilters(active_, cow, cast_ref, static_manager_, dynamic_manager_);
 
   // This causes a refit on the bvh tree.
   dynamic_manager_->update();
@@ -495,6 +492,12 @@ void CoalCastBVHManager::collectCastTransformUpdate(Link2COW::iterator cast_it,
     }
     return;
   }
+
+  // Static cast COWs may contain raw OcTree geometry (deferred expansion).
+  // The static_cast<CastHullShape*> below would be UB on non-CastHullShape types,
+  // and setting a sweep on a static link is semantically meaningless.
+  if (cow->m_collisionFilterGroup == CollisionFilterGroups::StaticFilter)
+    return;
 
   // Convert to coal::Transform3s format
   const auto tf1 = coal::Transform3s(pose1.rotation(), pose1.translation());
