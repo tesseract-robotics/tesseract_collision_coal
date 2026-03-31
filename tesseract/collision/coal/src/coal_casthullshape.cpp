@@ -74,7 +74,12 @@ void CastHullShape::computeLocalAABB()
 }
 
 // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
-CastHullShape* CastHullShape::clone() const { return new CastHullShape(shape_, castTransform_); }
+CastHullShape* CastHullShape::clone() const
+{
+  auto* c = new CastHullShape(shape_, castTransform_);
+  c->setSweptSphereRadius(getSweptSphereRadius());
+  return c;
+}
 
 double CastHullShape::computeVolume() const
 {

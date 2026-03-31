@@ -75,10 +75,10 @@ struct CollisionCacheEntry
 {
   coal::CollisionRequest request;
   coal::ComputeCollision functor;
-  bool is_cast{ false };      ///< Cached at creation to avoid dynamic_cast on every re-seed.
-                              ///< Controls GJK seed strategy: cast pairs cannot use BoundingVolumeGuess.
-  uint32_t gen0{ 0 };         ///< COW generation when GJK guess was last seeded (shape 0).
-  uint32_t gen1{ 0 };         ///< COW generation when GJK guess was last seeded (shape 1).
+  bool is_cast{ false };  ///< Cached at creation to avoid dynamic_cast on every re-seed.
+                          ///< Controls GJK seed strategy: cast pairs cannot use BoundingVolumeGuess.
+  uint32_t gen0{ 0 };     ///< COW generation when GJK guess was last seeded (shape 0).
+  uint32_t gen1{ 0 };     ///< COW generation when GJK guess was last seeded (shape 1).
 };
 
 /** @brief Cache mapping collision object pairs to their precomputed collision functor and warm-start state */
@@ -88,6 +88,13 @@ using CollisionCacheMap = std::unordered_map<CollisionObjectPair, CollisionCache
 /// moves can cause solver failures (zero gradients, degraded contact accuracy).
 /// Configurable per-manager via the plugin YAML config key `gjk_guess_threshold`.
 inline constexpr double kDefaultGJKGuessThreshold = 5e-3;
+
+/// Default d_arc compensation setting (disabled). When enabled, CastHullShape's swept-sphere
+/// radius is set to the arc-chord sagitta of the shape's rotation, compensating for the gap
+/// between the convex hull (chord) and the true swept arc in continuous collision checks.
+/// Only used by the cast (continuous) manager. Configurable via the plugin YAML config key
+/// `d_arc_compensation`.
+inline constexpr bool kDefaultDArcCompensation = false;
 
 /** @brief Erase cache entries involving any of the given collision objects (for object removal) */
 void invalidateCacheFor(CollisionCacheMap& cache, const std::vector<CollisionObjectPtr>& objects);

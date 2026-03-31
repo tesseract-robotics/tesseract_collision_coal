@@ -53,11 +53,11 @@ namespace tesseract::collision::tesseract_collision_coal
 static const CollisionShapesConst EMPTY_COLLISION_SHAPES_CONST;
 static const tesseract::common::VectorIsometry3d EMPTY_COLLISION_SHAPES_TRANSFORMS;
 
-
-CoalCastBVHManager::CoalCastBVHManager(std::string name, double gjk_guess_threshold)
+CoalCastBVHManager::CoalCastBVHManager(std::string name, double gjk_guess_threshold, bool d_arc_compensation)
   : name_(std::move(name))
   , gjk_guess_threshold_(gjk_guess_threshold)
   , gjk_guess_threshold_sq_(gjk_guess_threshold * gjk_guess_threshold)
+  , d_arc_compensation_(d_arc_compensation)
 {
   static_manager_ = std::make_unique<coal::DynamicAABBTreeCollisionManager>();
   dynamic_manager_ = std::make_unique<coal::DynamicAABBTreeCollisionManager>();
@@ -73,7 +73,7 @@ ContinuousContactManager::UPtr CoalCastBVHManager::clone() const
   // Note: addCollisionObject creates fresh CastHullShapes with identity cast
   // transforms, so any active sweep state (set via setCollisionObjectsTransform
   // with pose1/pose2) is not preserved. This matches Bullet's clone behavior.
-  auto manager = std::make_unique<CoalCastBVHManager>(name_, gjk_guess_threshold_);
+  auto manager = std::make_unique<CoalCastBVHManager>(name_, gjk_guess_threshold_, d_arc_compensation_);
 
   for (const auto& cow : link2cow_)
   {
@@ -435,8 +435,7 @@ void CoalCastBVHManager::collectTransformUpdate(Link2COW::iterator it, const Eig
   if (!transformChanged(cur_tf, pose))
     return;
 
-  const bool large_change =
-      (pose.translation() - cur_tf.translation()).squaredNorm() > gjk_guess_threshold_sq_;
+  const bool large_change = (pose.translation() - cur_tf.translation()).squaredNorm() > gjk_guess_threshold_sq_;
   if (large_change)
     it->second->gjk_generation_++;
 
@@ -464,6 +463,58 @@ void CoalCastBVHManager::collectTransformUpdate(Link2COW::iterator it, const Eig
   it->second->appendCollisionObjectsRaw(update_vec);
 }
 
+/// Precomputed rotation-angle scalars for d_arc computation.
+/// These depend only on the rotation angle, which is conjugation-invariant
+/// and therefore identical for all shapes on the same link — computed once
+/// from the link-level relative rotation before the per-shape loop.
+struct DArcScalars
+{
+  double sagitta_factor{ 0.0 };  ///< 1 - cos(phi/2); zero means negligible rotation.
+  double inv_2sin_phi{ 0.0 };   ///< 1 / (2*sin(phi)), for extracting the rotation axis.
+  double cot_half{ 0.0 };       ///< cos(phi/2) / sin(phi/2), for screw axis computation.
+};
+
+/// Compute the rotation-angle scalars from a link-level cast transform.
+/// All trig is avoided via half-angle identities on the rotation matrix trace.
+/// Returns zero-initialized scalars when the rotation is negligible (phi < ~1e-7 rad).
+static DArcScalars computeDArcScalars(const coal::Transform3s& link_cast_tf)
+{
+  const coal::Matrix3s& R = link_cast_tf.getRotation();
+  const double cos_phi = std::clamp((R.trace() - 1.0) * 0.5, -1.0, 1.0);
+  const double one_plus_cos = 1.0 + cos_phi;
+  if (one_plus_cos > 2.0 - 1e-14)
+    return {};
+  const double cos_half = std::sqrt(one_plus_cos * 0.5);
+  const double sin_half = std::sqrt((1.0 - cos_phi) * 0.5);
+  return { 1.0 - cos_half, 1.0 / (4.0 * sin_half * cos_half), cos_half / sin_half };
+}
+
+/// Compute the arc-chord sagitta (d_arc) for a single shape, given precomputed scalars.
+/// d_arc = r_max * (1 - cos(phi/2)), where r_max is the maximum distance from any
+/// point on the shape's bounding sphere to the screw axis.
+static double computeDArc(const coal::Transform3s& cast_tf, const coal::ShapeBase& shape, const DArcScalars& s)
+{
+  if (s.sagitta_factor == 0.0)
+    return 0.0;
+
+  // Rotation axis from skew-symmetric part of R: k_i = (R(j,k) - R(k,j)) / (2*sin(phi)).
+  const coal::Matrix3s& R = cast_tf.getRotation();
+  const coal::Vec3s k(
+      (R(2, 1) - R(1, 2)) * s.inv_2sin_phi, (R(0, 2) - R(2, 0)) * s.inv_2sin_phi, (R(1, 0) - R(0, 1)) * s.inv_2sin_phi);
+
+  // Screw axis: closest point to the origin in the shape-local frame.
+  // c = t_perp/2 + (k x t_perp) * cos(phi/2) / (2*sin(phi/2))
+  const coal::Vec3s& t = cast_tf.getTranslation();
+  const coal::Vec3s t_perp = t - t.dot(k) * k;
+  const coal::Vec3s c = 0.5 * t_perp + 0.5 * s.cot_half * k.cross(t_perp);
+
+  const coal::Vec3s pc = shape.aabb_center - c;
+  const double dist_to_axis = (pc - pc.dot(k) * k).norm();
+  const double r_max = dist_to_axis + shape.aabb_radius;
+
+  return r_max * s.sagitta_factor;
+}
+
 void CoalCastBVHManager::collectCastTransformUpdate(Link2COW::iterator cast_it,
                                                     Link2COW::iterator reg_it,
                                                     const Eigen::Isometry3d& pose1,
@@ -472,8 +523,7 @@ void CoalCastBVHManager::collectCastTransformUpdate(Link2COW::iterator cast_it,
   COW::Ptr& cow = cast_it->second;
 
   const Eigen::Isometry3d& cur_tf = cow->getCollisionObjectsTransform();
-  bool large_change =
-      (pose1.translation() - cur_tf.translation()).squaredNorm() > gjk_guess_threshold_sq_;
+  bool large_change = (pose1.translation() - cur_tf.translation()).squaredNorm() > gjk_guess_threshold_sq_;
 
   // Keep regular object aligned at the start transform
   if (reg_it != link2cow_.end())
@@ -505,6 +555,11 @@ void CoalCastBVHManager::collectCastTransformUpdate(Link2COW::iterator cast_it,
 
   const auto& shape_poses = cow->getCollisionGeometriesTransforms();
 
+  // Precompute rotation-angle scalars once per link (conjugation-invariant).
+  DArcScalars d_arc_scalars;
+  if (d_arc_compensation_)
+    d_arc_scalars = computeDArcScalars(tf1.inverseTimes(tf2));
+
   // Update cast transforms so computeLocalAABB reflects the swept volume.
   // All objects in link2castcow_ are CastHullShape-wrapped (by makeCastCollisionObject).
   for (const auto& co : cow->getCollisionObjects())
@@ -527,6 +582,8 @@ void CoalCastBVHManager::collectCastTransformUpdate(Link2COW::iterator cast_it,
       large_change = (new_cast_tf.getTranslation() - cast_shape->getCastTransform().getTranslation()).squaredNorm() >
                      gjk_guess_threshold_sq_;
     }
+    if (d_arc_compensation_)
+      cast_shape->setSweptSphereRadius(computeDArc(new_cast_tf, *cast_shape->getUnderlyingShape(), d_arc_scalars));
     cast_shape->updateCastTransform(new_cast_tf);
   }
 

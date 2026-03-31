@@ -72,7 +72,8 @@ public:
   using ConstUPtr = std::unique_ptr<const CoalCastBVHManager>;
 
   CoalCastBVHManager(std::string name = "CoalCastBVHManager",
-                     double gjk_guess_threshold = kDefaultGJKGuessThreshold);
+                     double gjk_guess_threshold = kDefaultGJKGuessThreshold,
+                     bool d_arc_compensation = kDefaultDArcCompensation);
   ~CoalCastBVHManager() override = default;
   CoalCastBVHManager(const CoalCastBVHManager&) = delete;
   CoalCastBVHManager& operator=(const CoalCastBVHManager&) = delete;
@@ -180,8 +181,9 @@ private:
   std::shared_ptr<const tesseract::common::ContactAllowedValidator> validator_; /**< @brief The is allowed collision
                                                                                   function */
   std::size_t coal_co_count_{ 0 }; /**< @brief The number of coal collision objects */
-  double gjk_guess_threshold_;        /**< @brief GJK guess validity threshold (meters) */
-  double gjk_guess_threshold_sq_;     /**< @brief Squared GJK guess validity threshold */
+  double gjk_guess_threshold_;     /**< @brief GJK guess validity threshold (meters) */
+  double gjk_guess_threshold_sq_;  /**< @brief Squared GJK guess validity threshold */
+  bool d_arc_compensation_;        /**< @brief When true, set CastHullShape swept-sphere radius to arc-sagitta */
 
   /** @brief This is used to store static collision objects to update */
   std::vector<CollisionObjectRawPtr> static_update_;

@@ -30,25 +30,28 @@
 
 namespace tesseract::collision::tesseract_collision_coal
 {
-double getGJKGuessThreshold(const YAML::Node& config)
+template <typename T>
+T getConfigValue(const YAML::Node& config, const char* key, T default_value)
 {
-  if (config.IsNull())
-    return kDefaultGJKGuessThreshold;
-  if (YAML::Node n = config["gjk_guess_threshold"])
-    return n.as<double>();
-  return kDefaultGJKGuessThreshold;
+  if (!config.IsNull())
+    if (YAML::Node n = config[key])
+      return n.as<T>();
+  return default_value;
 }
 
 std::unique_ptr<tesseract::collision::DiscreteContactManager>
 CoalDiscreteBVHManagerFactory::create(const std::string& name, const YAML::Node& config) const
 {
-  return std::make_unique<CoalDiscreteBVHManager>(name, getGJKGuessThreshold(config));
+  return std::make_unique<CoalDiscreteBVHManager>(
+      name, getConfigValue(config, "gjk_guess_threshold", kDefaultGJKGuessThreshold));
 }
 
 std::unique_ptr<tesseract::collision::ContinuousContactManager>
 CoalCastBVHManagerFactory::create(const std::string& name, const YAML::Node& config) const
 {
-  return std::make_unique<CoalCastBVHManager>(name, getGJKGuessThreshold(config));
+  return std::make_unique<CoalCastBVHManager>(name,
+                                              getConfigValue(config, "gjk_guess_threshold", kDefaultGJKGuessThreshold),
+                                              getConfigValue(config, "d_arc_compensation", kDefaultDArcCompensation));
 }
 
 PLUGIN_ANCHOR_IMPL(CoalFactoriesAnchor)  // LCOV_EXCL_LINE

@@ -632,12 +632,14 @@ bool CollisionCallback::collide(coal::CollisionObject* o1, coal::CollisionObject
 
   const Eigen::Isometry3d& tf1 = cd1->getCollisionObjectsTransform();
   const Eigen::Isometry3d& tf2 = cd2->getCollisionObjectsTransform();
+
   const std::array<Eigen::Isometry3d, 2> tf_inv = { tf1.inverse(), tf2.inverse() };
 
   // Coal result fields are in normalized (co1, co2) order; map back to original (o1, o2).
   const int idx0 = pair_swapped ? 1 : 0;
   const int idx1 = pair_swapped ? 0 : 1;
 
+  bool found = false;
   for (size_t i = 0; i < col_result.numContacts(); ++i)
   {
     const coal::Contact& coal_contact = col_result.getContact(i);
@@ -662,9 +664,12 @@ bool CollisionCallback::collide(coal::CollisionObject* o1, coal::CollisionObject
     contact.normal = pair_swapped ? coal::Vec3s(-coal_contact.normal) : coal_contact.normal;
 
     populateContinuousCollisionFields(contact, o1, o2, tf_inv);
-    const auto it = cdata->res->find(link_pair);
-    const bool found = (it != cdata->res->end() && !it->second.empty());
 
+    if (!found)
+    {
+      const auto it = cdata->res->find(link_pair);
+      found = (it != cdata->res->end() && !it->second.empty());
+    }
     processResult(*cdata, contact, link_pair, found);
   }
 

@@ -30,7 +30,7 @@
 namespace tesseract::collision::tesseract_collision_coal
 {
 /**
- * @brief The yaml config for each of the factories below is the same.
+ * @brief Factory for discrete (single-pose) collision checking.
  * @details
  * The config and its parameters shown below are optional.
  * The values shown below are the defaults that will be used.
@@ -50,6 +50,21 @@ public:
                                                  const YAML::Node& config) const override final;
 };
 
+/**
+ * @brief Factory for continuous (swept/cast) collision checking.
+ * @details
+ * The config and its parameters shown below are optional.
+ * The values shown below are the defaults that will be used.
+ *
+ * Example Yaml Config:
+ *
+ *    plugins:
+ *      CoalCastBVHManager:
+ *        class: CoalCastBVHManagerFactory
+ *        config:
+ *          gjk_guess_threshold: 0.005
+ *          d_arc_compensation: false
+ */
 class CoalCastBVHManagerFactory : public ContinuousContactManagerFactory
 {
 public:
