@@ -177,13 +177,11 @@ private:
   Link2COW link2castcow_;                      /** @brief A map of cast collision objects being managed. */
   std::vector<std::string> active_;            /** @brief A list of the active collision objects */
   std::vector<std::string> collision_objects_; /** @brief A list of the collision objects */
-  CollisionMarginData collision_margin_data_;  /** @brief The contact distance threshold */
-  std::shared_ptr<const tesseract::common::ContactAllowedValidator> validator_; /**< @brief The is allowed collision
-                                                                                  function */
-  std::size_t coal_co_count_{ 0 }; /**< @brief The number of coal collision objects */
-  double gjk_guess_threshold_;     /**< @brief GJK guess validity threshold (meters) */
-  double gjk_guess_threshold_sq_;  /**< @brief Squared GJK guess validity threshold */
-  bool d_arc_compensation_;        /**< @brief When true, set CastHullShape swept-sphere radius to arc-sagitta */
+  ContactTestDataWrapper contact_test_data_;   /**< @brief Persistent contact test data (Bullet pattern) */
+  std::size_t coal_co_count_{ 0 };             /**< @brief The number of coal collision objects */
+  double gjk_guess_threshold_;                 /**< @brief GJK guess validity threshold (meters) */
+  double gjk_guess_threshold_sq_;              /**< @brief Squared GJK guess validity threshold */
+  bool d_arc_compensation_; /**< @brief When true, set CastHullShape swept-sphere radius to arc-sagitta */
 
   /** @brief This is used to store static collision objects to update */
   std::vector<CollisionObjectRawPtr> static_update_;

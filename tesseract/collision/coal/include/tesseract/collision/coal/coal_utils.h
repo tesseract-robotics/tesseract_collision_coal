@@ -261,20 +261,7 @@ bool needsCollisionCheck(const CollisionObjectWrapper* cd1,
 
 struct ContactTestDataWrapper : ContactTestData
 {
-  ContactTestDataWrapper(CollisionMarginData collision_margin_data,
-                         std::shared_ptr<const tesseract::common::ContactAllowedValidator> validator,
-                         ContactRequest req,
-                         ContactResultMap& res,
-                         CollisionCacheMap& collision_cache)
-    : collision_cache(&collision_cache)
-  {
-    this->collision_margin_data = std::move(collision_margin_data);
-    this->validator = std::move(validator);
-    this->req = std::move(req);
-    this->res = &res;
-  }
-
-  CollisionCacheMap* collision_cache;
+  CollisionCacheMap* collision_cache{ nullptr };
 };
 
 // Disable warnings about non-virtual destructor for coal::CollisionCallBackBase

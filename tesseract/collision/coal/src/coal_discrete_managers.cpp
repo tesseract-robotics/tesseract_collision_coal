@@ -57,7 +57,8 @@ CoalDiscreteBVHManager::CoalDiscreteBVHManager(std::string name, double gjk_gues
 {
   static_manager_ = std::make_unique<coal::DynamicAABBTreeCollisionManager>();
   dynamic_manager_ = std::make_unique<coal::DynamicAABBTreeCollisionManager>();
-  collision_margin_data_ = CollisionMarginData(0);
+  contact_test_data_.collision_margin_data = CollisionMarginData(0);
+  contact_test_data_.collision_cache = &collision_cache;
 }
 
 std::string CoalDiscreteBVHManager::getName() const { return name_; }
@@ -74,8 +75,8 @@ DiscreteContactManager::UPtr CoalDiscreteBVHManager::clone() const
   }
 
   manager->setActiveCollisionObjects(active_);
-  manager->setCollisionMarginData(collision_margin_data_);
-  manager->setContactAllowedValidator(validator_);
+  manager->setCollisionMarginData(contact_test_data_.collision_margin_data);
+  manager->setContactAllowedValidator(contact_test_data_.validator);
 
   return manager;
 }
@@ -239,22 +240,25 @@ const std::vector<std::string>& CoalDiscreteBVHManager::getActiveCollisionObject
 
 void CoalDiscreteBVHManager::setCollisionMarginData(CollisionMarginData collision_margin_data)
 {
-  collision_margin_data_ = std::move(collision_margin_data);
+  contact_test_data_.collision_margin_data = std::move(collision_margin_data);
   onCollisionMarginDataChanged();
 }
 
-const CollisionMarginData& CoalDiscreteBVHManager::getCollisionMarginData() const { return collision_margin_data_; }
+const CollisionMarginData& CoalDiscreteBVHManager::getCollisionMarginData() const
+{
+  return contact_test_data_.collision_margin_data;
+}
 
 void CoalDiscreteBVHManager::setCollisionMarginPairData(const CollisionMarginPairData& pair_margin_data,
                                                         CollisionMarginPairOverrideType override_type)
 {
-  collision_margin_data_.apply(pair_margin_data, override_type);
+  contact_test_data_.collision_margin_data.apply(pair_margin_data, override_type);
   onCollisionMarginDataChanged();
 }
 
 void CoalDiscreteBVHManager::setDefaultCollisionMargin(double default_collision_margin)
 {
-  collision_margin_data_.setDefaultCollisionMargin(default_collision_margin);
+  contact_test_data_.collision_margin_data.setDefaultCollisionMargin(default_collision_margin);
   onCollisionMarginDataChanged();
 }
 
@@ -262,34 +266,36 @@ void CoalDiscreteBVHManager::setCollisionMarginPair(const std::string& name1,
                                                     const std::string& name2,
                                                     double collision_margin)
 {
-  collision_margin_data_.setCollisionMargin(name1, name2, collision_margin);
+  contact_test_data_.collision_margin_data.setCollisionMargin(name1, name2, collision_margin);
   onCollisionMarginDataChanged();
 }
 
 void CoalDiscreteBVHManager::incrementCollisionMargin(double increment)
 {
-  collision_margin_data_.incrementMargins(increment);
+  contact_test_data_.collision_margin_data.incrementMargins(increment);
   onCollisionMarginDataChanged();
 }
 
 void CoalDiscreteBVHManager::setContactAllowedValidator(
     std::shared_ptr<const tesseract::common::ContactAllowedValidator> validator)
 {
-  validator_ = std::move(validator);
+  contact_test_data_.validator = std::move(validator);
 }
 
 std::shared_ptr<const tesseract::common::ContactAllowedValidator>
 CoalDiscreteBVHManager::getContactAllowedValidator() const
 {
-  return validator_;
+  return contact_test_data_.validator;
 }
 
 void CoalDiscreteBVHManager::contactTest(ContactResultMap& collisions, const ContactRequest& request)
 {
-  ContactTestDataWrapper cdata(collision_margin_data_, validator_, request, collisions, collision_cache);
+  contact_test_data_.res = &collisions;
+  contact_test_data_.req = request;
+  contact_test_data_.done = false;
 
   CollisionCallback collisionCallback;
-  collisionCallback.cdata = &cdata;
+  collisionCallback.cdata = &contact_test_data_;
 
   // Check static-vs-dynamic first (typically the larger pair set), then
   // dynamic-vs-dynamic (self-check). Order is not significant for correctness
@@ -298,7 +304,7 @@ void CoalDiscreteBVHManager::contactTest(ContactResultMap& collisions, const Con
   if (!static_manager_->empty())
     static_manager_->collide(dynamic_manager_.get(), &collisionCallback);
 
-  if (!cdata.done && !dynamic_manager_->empty())
+  if (!contact_test_data_.done && !dynamic_manager_->empty())
     dynamic_manager_->collide(&collisionCallback);
 }
 
@@ -369,7 +375,8 @@ void CoalDiscreteBVHManager::onCollisionMarginDataChanged()
 
   for (auto& cow : link2cow_)
   {
-    cow.second->setContactDistanceThreshold(collision_margin_data_.getMaxCollisionMargin(cow.second->getName()));
+    cow.second->setContactDistanceThreshold(
+        contact_test_data_.collision_margin_data.getMaxCollisionMargin(cow.second->getName()));
     auto& update_vec =
         (cow.second->m_collisionFilterGroup == CollisionFilterGroups::StaticFilter) ? static_update_ : dynamic_update_;
     cow.second->appendCollisionObjectsRaw(update_vec);

@@ -61,7 +61,8 @@ CoalCastBVHManager::CoalCastBVHManager(std::string name, double gjk_guess_thresh
 {
   static_manager_ = std::make_unique<coal::DynamicAABBTreeCollisionManager>();
   dynamic_manager_ = std::make_unique<coal::DynamicAABBTreeCollisionManager>();
-  collision_margin_data_ = CollisionMarginData(0);
+  contact_test_data_.collision_margin_data = CollisionMarginData(0);
+  contact_test_data_.collision_cache = &collision_cache;
 }
 
 std::string CoalCastBVHManager::getName() const { return name_; }
@@ -79,13 +80,14 @@ ContinuousContactManager::UPtr CoalCastBVHManager::clone() const
   {
     COW::Ptr new_cow = cow.second->clone();
     new_cow->setCollisionObjectsTransform(cow.second->getCollisionObjectsTransform());
-    new_cow->setContactDistanceThreshold(collision_margin_data_.getMaxCollisionMargin(new_cow->getName()));
+    new_cow->setContactDistanceThreshold(
+        contact_test_data_.collision_margin_data.getMaxCollisionMargin(new_cow->getName()));
     manager->addCollisionObject(new_cow);
   }
 
   manager->setActiveCollisionObjects(active_);
-  manager->setCollisionMarginData(collision_margin_data_);
-  manager->setContactAllowedValidator(validator_);
+  manager->setCollisionMarginData(contact_test_data_.collision_margin_data);
+  manager->setContactAllowedValidator(contact_test_data_.validator);
 
   return manager;
 }
@@ -327,22 +329,25 @@ const std::vector<std::string>& CoalCastBVHManager::getActiveCollisionObjects() 
 
 void CoalCastBVHManager::setCollisionMarginData(CollisionMarginData collision_margin_data)
 {
-  collision_margin_data_ = std::move(collision_margin_data);
+  contact_test_data_.collision_margin_data = std::move(collision_margin_data);
   onCollisionMarginDataChanged();
 }
 
-const CollisionMarginData& CoalCastBVHManager::getCollisionMarginData() const { return collision_margin_data_; }
+const CollisionMarginData& CoalCastBVHManager::getCollisionMarginData() const
+{
+  return contact_test_data_.collision_margin_data;
+}
 
 void CoalCastBVHManager::setCollisionMarginPairData(const CollisionMarginPairData& pair_margin_data,
                                                     CollisionMarginPairOverrideType override_type)
 {
-  collision_margin_data_.apply(pair_margin_data, override_type);
+  contact_test_data_.collision_margin_data.apply(pair_margin_data, override_type);
   onCollisionMarginDataChanged();
 }
 
 void CoalCastBVHManager::setDefaultCollisionMargin(double default_collision_margin)
 {
-  collision_margin_data_.setDefaultCollisionMargin(default_collision_margin);
+  contact_test_data_.collision_margin_data.setDefaultCollisionMargin(default_collision_margin);
   onCollisionMarginDataChanged();
 }
 
@@ -350,33 +355,35 @@ void CoalCastBVHManager::setCollisionMarginPair(const std::string& name1,
                                                 const std::string& name2,
                                                 double collision_margin)
 {
-  collision_margin_data_.setCollisionMargin(name1, name2, collision_margin);
+  contact_test_data_.collision_margin_data.setCollisionMargin(name1, name2, collision_margin);
   onCollisionMarginDataChanged();
 }
 
 void CoalCastBVHManager::incrementCollisionMargin(double increment)
 {
-  collision_margin_data_.incrementMargins(increment);
+  contact_test_data_.collision_margin_data.incrementMargins(increment);
   onCollisionMarginDataChanged();
 }
 
 void CoalCastBVHManager::setContactAllowedValidator(
     std::shared_ptr<const tesseract::common::ContactAllowedValidator> validator)
 {
-  validator_ = std::move(validator);
+  contact_test_data_.validator = std::move(validator);
 }
 
 std::shared_ptr<const tesseract::common::ContactAllowedValidator> CoalCastBVHManager::getContactAllowedValidator() const
 {
-  return validator_;
+  return contact_test_data_.validator;
 }
 
 void CoalCastBVHManager::contactTest(ContactResultMap& collisions, const ContactRequest& request)
 {
-  ContactTestDataWrapper cdata(collision_margin_data_, validator_, request, collisions, collision_cache);
+  contact_test_data_.res = &collisions;
+  contact_test_data_.req = request;
+  contact_test_data_.done = false;
 
   CollisionCallback collisionCallback;
-  collisionCallback.cdata = &cdata;
+  collisionCallback.cdata = &contact_test_data_;
 
   // Check static-vs-dynamic first (typically the larger pair set), then
   // dynamic-vs-dynamic (self-check). Order is not significant for correctness
@@ -385,7 +392,7 @@ void CoalCastBVHManager::contactTest(ContactResultMap& collisions, const Contact
   if (!static_manager_->empty())
     static_manager_->collide(dynamic_manager_.get(), &collisionCallback);
 
-  if (!cdata.done && !dynamic_manager_->empty())
+  if (!contact_test_data_.done && !dynamic_manager_->empty())
     dynamic_manager_->collide(&collisionCallback);
 }
 
@@ -470,8 +477,8 @@ void CoalCastBVHManager::collectTransformUpdate(Link2COW::iterator it, const Eig
 struct DArcScalars
 {
   double sagitta_factor{ 0.0 };  ///< 1 - cos(phi/2); zero means negligible rotation.
-  double inv_2sin_phi{ 0.0 };   ///< 1 / (2*sin(phi)), for extracting the rotation axis.
-  double cot_half{ 0.0 };       ///< cos(phi/2) / sin(phi/2), for screw axis computation.
+  double inv_2sin_phi{ 0.0 };    ///< 1 / (2*sin(phi)), for extracting the rotation axis.
+  double cot_half{ 0.0 };        ///< cos(phi/2) / sin(phi/2), for screw axis computation.
 };
 
 /// Compute the rotation-angle scalars from a link-level cast transform.
@@ -623,7 +630,8 @@ void CoalCastBVHManager::onCollisionMarginDataChanged()
   // kinematic links use the cast version in the dynamic manager instead)
   for (auto& cow : link2cow_)
   {
-    cow.second->setContactDistanceThreshold(collision_margin_data_.getMaxCollisionMargin(cow.second->getName()));
+    cow.second->setContactDistanceThreshold(
+        contact_test_data_.collision_margin_data.getMaxCollisionMargin(cow.second->getName()));
     if (cow.second->m_collisionFilterGroup == CollisionFilterGroups::StaticFilter)
       cow.second->appendCollisionObjectsRaw(static_update_);
   }
@@ -632,7 +640,7 @@ void CoalCastBVHManager::onCollisionMarginDataChanged()
   for (auto& cast_cow : link2castcow_)
   {
     cast_cow.second->setContactDistanceThreshold(
-        collision_margin_data_.getMaxCollisionMargin(cast_cow.second->getName()));
+        contact_test_data_.collision_margin_data.getMaxCollisionMargin(cast_cow.second->getName()));
     // Only add to update if this is a dynamic object (static objects use the non-cast version)
     if (cast_cow.second->m_collisionFilterGroup == CollisionFilterGroups::KinematicFilter)
       cast_cow.second->appendCollisionObjectsRaw(dynamic_update_);
