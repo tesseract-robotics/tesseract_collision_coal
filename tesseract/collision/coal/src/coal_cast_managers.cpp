@@ -618,7 +618,15 @@ void CoalCastBVHManager::flushBatchUpdate()
     static_manager_->update(static_update_);
 
   if (!dynamic_update_.empty())
-    dynamic_manager_->update(dynamic_update_);
+  {
+    // When most dynamic objects changed, a full refit is O(n) vs O(k*log n) for
+    // per-object remove+reinsert. In trajectory optimization nearly all kinematic
+    // objects move each step, so the refit path is typically faster.
+    if (dynamic_update_.size() * 2 >= dynamic_manager_->size())
+      dynamic_manager_->update();
+    else
+      dynamic_manager_->update(dynamic_update_);
+  }
 }
 
 void CoalCastBVHManager::onCollisionMarginDataChanged()
