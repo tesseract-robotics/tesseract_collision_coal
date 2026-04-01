@@ -106,14 +106,17 @@ private:
   coal::Transform3s castTransform_;
   coal::Transform3s castTransformInv_;
 
-  /// Separate support function vertex hints for pose 0 and pose 1.
+  /// Separate support function vertex hints and data for pose 0 and pose 1.
   /// Each getSupport call uses hill-climbing from the hint, so sharing a single
   /// hint between the two poses (which query different directions) would cause
-  /// each to corrupt the other's warm-start.
+  /// each to corrupt the other's warm-start. The ShapeSupportData holds the
+  /// visited-vertex buffer reused across calls to avoid per-call allocation.
   /// @note Not thread-safe: each thread must use its own CastHullShape instance.
   /// The collision managers ensure this via per-thread clone().
   mutable int hint0_{ 0 };
   mutable int hint1_{ 0 };
+  mutable coal::details::ShapeSupportData support_data0_;
+  mutable coal::details::ShapeSupportData support_data1_;
 };
 
 }  // namespace tesseract::collision::tesseract_collision_coal
