@@ -146,17 +146,15 @@ void CastHullShape::computeShapeSupport(const coal::Vec3s& dir,
   // Each pose gets its own vertex hint and ShapeSupportData so the two
   // hill-climbing searches warm-start independently and reuse their visited
   // buffers across calls.
-  const coal::Vec3s s0 =
-      coal::details::getSupport<coal::details::SupportOptions::WithSweptSphere>(
-          shape_.get(), dir, hint0_, support_data0_);
+  const coal::Vec3s s0 = coal::details::getSupport<coal::details::SupportOptions::WithSweptSphere>(
+      shape_.get(), dir, hint0_, support_data0_);
 
   // Support at pose 1 (shape at castTransform_).
   // Rotate the query direction into the local frame of pose 1, compute support,
   // then transform the result back to the local frame of pose 0.
   const coal::Vec3s dir_local1 = castTransformInv_.getRotation() * dir;
-  const coal::Vec3s s1_local =
-      coal::details::getSupport<coal::details::SupportOptions::WithSweptSphere>(
-          shape_.get(), dir_local1, hint1_, support_data1_);
+  const coal::Vec3s s1_local = coal::details::getSupport<coal::details::SupportOptions::WithSweptSphere>(
+      shape_.get(), dir_local1, hint1_, support_data1_);
   const coal::Vec3s s1 = castTransform_.transform(s1_local);
 
   // Return the support of the convex hull of both poses (Schulman et al. 2013).

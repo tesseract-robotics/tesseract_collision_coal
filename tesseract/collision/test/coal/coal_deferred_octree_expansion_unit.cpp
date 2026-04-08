@@ -86,8 +86,7 @@ TEST_F(DeferredOctreeExpansionUnit, PromotedOctreeProducesContacts)  // NOLINT
   end.translation() = Eigen::Vector3d(0.5, 0, 0);
 
   checker_.setCollisionObjectsTransform("cyl_link", start, end);
-  checker_.setCollisionObjectsTransform("octree_link", Eigen::Isometry3d::Identity(),
-                                        Eigen::Isometry3d::Identity());
+  checker_.setCollisionObjectsTransform("octree_link", Eigen::Isometry3d::Identity(), Eigen::Isometry3d::Identity());
 
   ContactResultMap result;
   ContactRequest request(ContactTestType::ALL);
@@ -127,8 +126,7 @@ TEST_F(DeferredOctreeExpansionUnit, RePromotionSkipsReExpansion)  // NOLINT
   end.translation() = Eigen::Vector3d(0.5, 0, 0);
 
   checker_.setCollisionObjectsTransform("cyl_link", start, end);
-  checker_.setCollisionObjectsTransform("octree_link", Eigen::Isometry3d::Identity(),
-                                        Eigen::Isometry3d::Identity());
+  checker_.setCollisionObjectsTransform("octree_link", Eigen::Isometry3d::Identity(), Eigen::Isometry3d::Identity());
 
   ContactResultMap result;
   ContactRequest request(ContactTestType::ALL);
@@ -185,8 +183,7 @@ TEST_F(DeferredOctreeExpansionUnit, CloneWithActiveOctreeExpands)  // NOLINT
   end.translation() = Eigen::Vector3d(0.5, 0, 0);
 
   cast_clone->setCollisionObjectsTransform("cyl_link", start, end);
-  cast_clone->setCollisionObjectsTransform("octree_link", Eigen::Isometry3d::Identity(),
-                                           Eigen::Isometry3d::Identity());
+  cast_clone->setCollisionObjectsTransform("octree_link", Eigen::Isometry3d::Identity(), Eigen::Isometry3d::Identity());
 
   ContactResultMap result;
   ContactRequest request(ContactTestType::ALL);
