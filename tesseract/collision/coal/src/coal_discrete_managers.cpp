@@ -362,7 +362,12 @@ void CoalDiscreteBVHManager::collectTransformUpdate(Link2COW::iterator it, const
 void CoalDiscreteBVHManager::flushBatchUpdate()
 {
   if (!static_update_.empty())
-    static_manager_->update(static_update_);
+  {
+    if (static_update_.size() * 2 >= static_manager_->size())
+      static_manager_->update();
+    else
+      static_manager_->update(static_update_);
+  }
 
   if (!dynamic_update_.empty())
   {

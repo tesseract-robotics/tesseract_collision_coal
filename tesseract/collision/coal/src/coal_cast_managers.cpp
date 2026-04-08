@@ -78,11 +78,7 @@ ContinuousContactManager::UPtr CoalCastBVHManager::clone() const
 
   for (const auto& cow : link2cow_)
   {
-    COW::Ptr new_cow = cow.second->clone();
-    new_cow->setCollisionObjectsTransform(cow.second->getCollisionObjectsTransform());
-    new_cow->setContactDistanceThreshold(
-        contact_test_data_.collision_margin_data.getMaxCollisionMargin(new_cow->getName()));
-    manager->addCollisionObject(new_cow);
+    manager->addCollisionObject(cow.second->clone());
   }
 
   manager->setActiveCollisionObjects(active_);
@@ -615,7 +611,12 @@ void CoalCastBVHManager::collectCastTransformUpdate(Link2COW::iterator cast_it,
 void CoalCastBVHManager::flushBatchUpdate()
 {
   if (!static_update_.empty())
-    static_manager_->update(static_update_);
+  {
+    if (static_update_.size() * 2 >= static_manager_->size())
+      static_manager_->update();
+    else
+      static_manager_->update(static_update_);
+  }
 
   if (!dynamic_update_.empty())
   {
