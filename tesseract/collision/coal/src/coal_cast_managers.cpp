@@ -71,16 +71,13 @@ ContinuousContactManager::UPtr CoalCastBVHManager::clone() const
 {
   CoalCollisionGeometryCache::prune();
 
-  // Note: addCollisionObject creates fresh CastHullShapes with identity cast
-  // transforms, so any active sweep state (set via setCollisionObjectsTransform
-  // with pose1/pose2) is not preserved. This matches Bullet's clone behavior.
   auto manager = std::make_unique<CoalCastBVHManager>(name_, gjk_guess_threshold_, d_arc_compensation_);
 
+  Link2COW cloned_cows;
   for (const auto& cow : link2cow_)
-  {
-    manager->addCollisionObject(cow.second->clone());
-  }
+    cloned_cows[cow.first] = cow.second->clone();
 
+  manager->addCollisionObjects(cloned_cows, /*defer_update=*/true);
   manager->setActiveCollisionObjects(active_);
   manager->setCollisionMarginData(contact_test_data_.collision_margin_data);
   manager->setContactAllowedValidator(contact_test_data_.validator);
@@ -316,9 +313,7 @@ void CoalCastBVHManager::setActiveCollisionObjects(const std::vector<std::string
     updateCollisionObjectFilters(active_, cow, cast_cow, static_manager_, dynamic_manager_);
   }
 
-  // This causes a refit on the bvh tree.
-  dynamic_manager_->update();
-  static_manager_->update();
+  updateBroadphaseAndCache();
 }
 
 const std::vector<std::string>& CoalCastBVHManager::getActiveCollisionObjects() const { return active_; }
@@ -421,15 +416,59 @@ void CoalCastBVHManager::addCollisionObject(const COW::Ptr& cow)
   if (!active_.empty())
     updateCollisionObjectFilters(active_, cow, cast_ref, static_manager_, dynamic_manager_);
 
-  // This causes a refit on the bvh tree.
-  dynamic_manager_->update();
-  static_manager_->update();
+  updateBroadphaseAndCache();
+}
 
-  // Pre-reserve collision cache to avoid rehashing during contactTest.
-  // Accounts for static-vs-dynamic and dynamic-vs-dynamic (self-check) pairs.
-  const auto& n_static = static_manager_->size();
-  const auto& n_dynamic = dynamic_manager_->size();
-  collision_cache.reserve((n_static * n_dynamic) + (n_dynamic * (n_dynamic - 1) / 2));
+void CoalCastBVHManager::addCollisionObjects(const Link2COW& cows, bool defer_update)
+{
+  std::vector<coal::CollisionObject*> static_objs;
+  std::vector<coal::CollisionObject*> dynamic_objs;
+  static_objs.reserve(cows.size());
+  dynamic_objs.reserve(cows.size());
+
+  for (const auto& [name, cow] : cows)
+  {
+    coal_co_count_ += cow->getCollisionObjects().size();
+    link2cow_[name] = cow;
+    collision_objects_.push_back(name);
+
+    const bool is_kinematic = cow->m_collisionFilterGroup != CollisionFilterGroups::StaticFilter;
+    COW::Ptr& cast_ref = (link2castcow_[name] = makeCastCollisionObject(cow, /*expand_octrees=*/is_kinematic));
+
+    if (!is_kinematic)
+    {
+      for (const auto& co : cow->getCollisionObjects())
+        static_objs.push_back(co.get());
+    }
+    else
+    {
+      for (const auto& co : cast_ref->getCollisionObjects())
+        dynamic_objs.push_back(co.get());
+    }
+  }
+
+  static_update_.reserve(coal_co_count_);
+  dynamic_update_.reserve(coal_co_count_);
+
+  // Bulk init builds balanced trees via topdown construction.
+  if (!static_objs.empty())
+    static_manager_->registerObjects(static_objs);
+  if (!dynamic_objs.empty())
+    dynamic_manager_->registerObjects(dynamic_objs);
+
+  if (!defer_update)
+  {
+    if (!active_.empty())
+    {
+      for (auto& co : link2cow_)
+      {
+        COW::Ptr& cast_cow = link2castcow_[co.second->getName()];
+        updateCollisionObjectFilters(active_, co.second, cast_cow, static_manager_, dynamic_manager_);
+      }
+    }
+
+    updateBroadphaseAndCache();
+  }
 }
 
 void CoalCastBVHManager::collectTransformUpdate(Link2COW::iterator it, const Eigen::Isometry3d& pose)
@@ -630,6 +669,16 @@ void CoalCastBVHManager::flushBatchUpdate()
   }
 }
 
+void CoalCastBVHManager::updateBroadphaseAndCache()
+{
+  dynamic_manager_->update();
+  static_manager_->update();
+
+  const auto n_static = static_manager_->size();
+  const auto n_dynamic = dynamic_manager_->size();
+  collision_cache.reserve((n_static * n_dynamic) + (n_dynamic * (n_dynamic - 1) / 2));
+}
+
 void CoalCastBVHManager::onCollisionMarginDataChanged()
 {
   static_update_.clear();
@@ -639,20 +688,26 @@ void CoalCastBVHManager::onCollisionMarginDataChanged()
   // kinematic links use the cast version in the dynamic manager instead)
   for (auto& cow : link2cow_)
   {
-    cow.second->setContactDistanceThreshold(
-        contact_test_data_.collision_margin_data.getMaxCollisionMargin(cow.second->getName()));
-    if (cow.second->m_collisionFilterGroup == CollisionFilterGroups::StaticFilter)
-      cow.second->appendCollisionObjectsRaw(static_update_);
+    const double new_threshold = contact_test_data_.collision_margin_data.getMaxCollisionMargin(cow.second->getName());
+    if (new_threshold != cow.second->getContactDistanceThreshold())
+    {
+      cow.second->setContactDistanceThreshold(new_threshold);
+      if (cow.second->m_collisionFilterGroup == CollisionFilterGroups::StaticFilter)
+        cow.second->appendCollisionObjectsRaw(static_update_);
+    }
   }
 
   // Also update cast collision objects
   for (auto& cast_cow : link2castcow_)
   {
-    cast_cow.second->setContactDistanceThreshold(
-        contact_test_data_.collision_margin_data.getMaxCollisionMargin(cast_cow.second->getName()));
-    // Only add to update if this is a dynamic object (static objects use the non-cast version)
-    if (cast_cow.second->m_collisionFilterGroup == CollisionFilterGroups::KinematicFilter)
-      cast_cow.second->appendCollisionObjectsRaw(dynamic_update_);
+    const double new_threshold =
+        contact_test_data_.collision_margin_data.getMaxCollisionMargin(cast_cow.second->getName());
+    if (new_threshold != cast_cow.second->getContactDistanceThreshold())
+    {
+      cast_cow.second->setContactDistanceThreshold(new_threshold);
+      if (cast_cow.second->m_collisionFilterGroup == CollisionFilterGroups::KinematicFilter)
+        cast_cow.second->appendCollisionObjectsRaw(dynamic_update_);
+    }
   }
 
   flushBatchUpdate();

@@ -158,6 +158,14 @@ public:
    */
   void addCollisionObject(const COW::Ptr& cow);
 
+  /**
+   * @brief Bulk-add collision objects using balanced tree construction.
+   * @param cows Map of collision objects to add
+   * @param defer_update When true, skips update()/filter/cache operations — caller is responsible
+   *                     for calling setActiveCollisionObjects or similar before querying.
+   */
+  void addCollisionObjects(const Link2COW& cows, bool defer_update = false);
+
   /** @brief Get the cast collision object map (for testing deferred octree expansion) */
   const Link2COW& getCastCollisionObjectMap() const { return link2castcow_; }
 
@@ -212,6 +220,9 @@ private:
 
   /** @brief Flush accumulated batch updates to the broadphase managers */
   void flushBatchUpdate();
+
+  /** @brief Update broadphase trees and reserve collision cache */
+  void updateBroadphaseAndCache();
 
   /** @brief This function will update internal data when margin data has changed */
   void onCollisionMarginDataChanged();
