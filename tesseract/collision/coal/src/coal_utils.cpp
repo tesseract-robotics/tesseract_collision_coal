@@ -741,8 +741,16 @@ void CollisionObjectWrapper::setCollisionObjectsTransform(const Eigen::Isometry3
   world_pose_ = pose;
   for (auto& co : collision_objects_)
   {
-    auto tf = pose * shape_poses_[static_cast<std::size_t>(co->getShapeIndex())];
-    co->setTransform(coal::Transform3s(tf.rotation(), tf.translation()));
+    const auto& local = shape_poses_[static_cast<std::size_t>(co->getShapeIndex())];
+    if (local.linear().isIdentity())
+    {
+      co->setTransform(coal::Transform3s(pose.linear(), pose * local.translation()));
+    }
+    else
+    {
+      auto tf = pose * local;
+      co->setTransform(coal::Transform3s(tf.linear(), tf.translation()));
+    }
     co->updateAABB();  // This a tesseract function that updates the aabb to take into account contact distance
   }
 }
