@@ -18,7 +18,7 @@ namespace detail
 class AlwaysTrueContactAllowedValidator : public tesseract::common::ContactAllowedValidator
 {
 public:
-  bool operator()(const std::string&, const std::string&) const override { return true; }
+  bool operator()(tesseract::common::LinkId, tesseract::common::LinkId) const override { return true; }
 };
 
 template <typename ContactManagerType>
