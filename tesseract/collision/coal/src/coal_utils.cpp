@@ -68,6 +68,51 @@ TESSERACT_COMMON_IGNORE_WARNINGS_POP
 
 namespace tesseract::collision::tesseract_collision_coal
 {
+
+void computeShapeAABB(const coal::ShapeBase& s, const coal::Transform3s& tf, coal::AABB& bv)
+{
+  switch (s.getNodeType())
+  {
+    case coal::GEOM_BOX:
+      coal::computeBV<coal::AABB>(static_cast<const coal::Box&>(s), tf, bv);
+      return;
+    case coal::GEOM_SPHERE:
+      coal::computeBV<coal::AABB>(static_cast<const coal::Sphere&>(s), tf, bv);
+      return;
+    case coal::GEOM_ELLIPSOID:
+      coal::computeBV<coal::AABB>(static_cast<const coal::Ellipsoid&>(s), tf, bv);
+      return;
+    case coal::GEOM_CAPSULE:
+      coal::computeBV<coal::AABB>(static_cast<const coal::Capsule&>(s), tf, bv);
+      return;
+    case coal::GEOM_CONE:
+      coal::computeBV<coal::AABB>(static_cast<const coal::Cone&>(s), tf, bv);
+      return;
+    case coal::GEOM_CYLINDER:
+      coal::computeBV<coal::AABB>(static_cast<const coal::Cylinder&>(s), tf, bv);
+      return;
+    case coal::GEOM_CONVEX32:
+      coal::computeBV<coal::AABB>(static_cast<const coal::ConvexBase32&>(s), tf, bv);
+      return;
+    case coal::GEOM_CONVEX16:
+      coal::computeBV<coal::AABB>(static_cast<const coal::ConvexBase16&>(s), tf, bv);
+      return;
+    case coal::GEOM_TRIANGLE:
+      coal::computeBV<coal::AABB>(static_cast<const coal::TriangleP&>(s), tf, bv);
+      return;
+    case coal::GEOM_HALFSPACE:
+      coal::computeBV<coal::AABB>(static_cast<const coal::Halfspace&>(s), tf, bv);
+      return;
+    case coal::GEOM_PLANE:
+      coal::computeBV<coal::AABB>(static_cast<const coal::Plane&>(s), tf, bv);
+      return;
+    default:
+      // GEOM_CUSTOM and any future types: conservative |R|*half-extents fallback.
+      coal::computeBV<coal::AABB, coal::ShapeBase>(s, tf, bv);
+      return;
+  }
+}
+
 namespace
 {
 CollisionGeometryPtr createShapePrimitive(const tesseract::geometry::Plane::ConstPtr& geom)
@@ -627,8 +672,8 @@ bool CollisionCallback::collide(coal::CollisionObject* o1, coal::CollisionObject
   if (col_result.getContact(0).o1 != co1->collisionGeometry().get())
     col_result.swapObjects();
 
-  TESSERACT_THREAD_LOCAL tesseract::common::LinkNamesPair link_pair;
-  tesseract::common::makeOrderedLinkPair(link_pair, cd1->getName(), cd2->getName());
+  auto link_pair = tesseract::common::LinkIdPair::make(tesseract::common::LinkId::fromName(cd1->getName()),
+                                                       tesseract::common::LinkId::fromName(cd2->getName()));
 
   const Eigen::Isometry3d& tf1 = cd1->getCollisionObjectsTransform();
   const Eigen::Isometry3d& tf2 = cd2->getCollisionObjectsTransform();

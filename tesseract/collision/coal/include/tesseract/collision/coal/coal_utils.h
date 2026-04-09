@@ -96,6 +96,12 @@ inline constexpr double kDefaultGJKGuessThreshold = 5e-3;
 /// `d_arc_compensation`.
 inline constexpr bool kDefaultDArcCompensation = false;
 
+/** @brief Compute a tight AABB for any ShapeBase subclass by dispatching to the
+ *  type-specific computeBV specialization based on getNodeType().
+ *  Falls back to computeBV<AABB, ShapeBase> for unrecognized types (GEOM_CUSTOM etc.).
+ *  @pre s.computeLocalAABB() must have been called (fallback reads aabb_local). */
+void computeShapeAABB(const coal::ShapeBase& s, const coal::Transform3s& tf, coal::AABB& bv);
+
 /** @brief Erase cache entries involving any of the given collision objects (for object removal) */
 void invalidateCacheFor(CollisionCacheMap& cache, const std::vector<CollisionObjectPtr>& objects);
 
