@@ -417,7 +417,7 @@ bool needsCollisionCheck(const CollisionObjectWrapper* cd1,
 {
   return cd1->m_enabled && cd2->m_enabled && (cd2->m_collisionFilterGroup & cd1->m_collisionFilterMask) &&  // NOLINT
          (cd1->m_collisionFilterGroup & cd2->m_collisionFilterMask) &&                                      // NOLINT
-         !isContactAllowed(cd1->getName(), cd2->getName(), validator, verbose);
+         !isContactAllowed(cd1->getLinkId(), cd2->getLinkId(), validator, verbose);
 }
 
 /**
@@ -586,7 +586,7 @@ bool CollisionCallback::collide(coal::CollisionObject* o1, coal::CollisionObject
                                                               std::numeric_limits<std::size_t>::max();
   if (cdata->req.type == ContactTestType::FIRST)
     num_contacts = 1;
-  const auto security_margin = cdata->collision_margin_data.getCollisionMargin(cd1->getName(), cd2->getName());
+  const auto security_margin = cdata->collision_margin_data.getCollisionMargin(cd1->getLinkId(), cd2->getLinkId());
 
   // Normalize pair ordering for consistent cache lookups: Coal's broadphase
   // does not guarantee a stable (o1, o2) ordering across tree rebalances,
@@ -672,8 +672,7 @@ bool CollisionCallback::collide(coal::CollisionObject* o1, coal::CollisionObject
   if (col_result.getContact(0).o1 != co1->collisionGeometry().get())
     col_result.swapObjects();
 
-  auto link_pair = tesseract::common::LinkIdPair::make(tesseract::common::LinkId::fromName(cd1->getName()),
-                                                       tesseract::common::LinkId::fromName(cd2->getName()));
+  auto link_pair = tesseract::common::LinkIdPair::make(cd1->getLinkId(), cd2->getLinkId());
 
   const Eigen::Isometry3d& tf1 = cd1->getCollisionObjectsTransform();
   const Eigen::Isometry3d& tf2 = cd2->getCollisionObjectsTransform();
@@ -689,8 +688,8 @@ bool CollisionCallback::collide(coal::CollisionObject* o1, coal::CollisionObject
   {
     const coal::Contact& coal_contact = col_result.getContact(i);
     ContactResult contact;
-    contact.link_names[0] = cd1->getName();
-    contact.link_names[1] = cd2->getName();
+    contact.link_ids[0] = cd1->getLinkId();
+    contact.link_ids[1] = cd2->getLinkId();
     contact.shape_id[0] = CollisionObjectWrapper::getShapeIndex(o1);
     contact.shape_id[1] = CollisionObjectWrapper::getShapeIndex(o2);
     contact.subshape_id[0] =
@@ -725,7 +724,11 @@ CollisionObjectWrapper::CollisionObjectWrapper(std::string name,
                                                const int& type_id,
                                                CollisionShapesConst shapes,
                                                tesseract::common::VectorIsometry3d shape_poses)
-  : name_(std::move(name)), type_id_(type_id), shapes_(std::move(shapes)), shape_poses_(std::move(shape_poses))
+  : name_(std::move(name))
+  , link_id_(tesseract::common::LinkId::fromName(name_))
+  , type_id_(type_id)
+  , shapes_(std::move(shapes))
+  , shape_poses_(std::move(shape_poses))
 {
   // Preconditions guaranteed by createCoalCollisionObject() which validates before construction.
   assert(!shapes_.empty());                       // NOLINT
@@ -817,6 +820,7 @@ std::shared_ptr<CollisionObjectWrapper> CollisionObjectWrapper::clone() const
 {
   auto clone_cow = std::make_shared<CollisionObjectWrapper>();
   clone_cow->name_ = name_;
+  clone_cow->link_id_ = link_id_;
   clone_cow->type_id_ = type_id_;
   clone_cow->shapes_ = shapes_;
   clone_cow->shape_poses_ = shape_poses_;
