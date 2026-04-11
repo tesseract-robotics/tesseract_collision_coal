@@ -127,7 +127,7 @@ public:
                                     const Eigen::Isometry3d& pose1,
                                     const Eigen::Isometry3d& pose2) override final;
 
-  const std::vector<std::string>& getCollisionObjects() const override final;
+  const std::vector<tesseract::common::LinkId>& getCollisionObjects() const override final;
 
   void setActiveCollisionObjects(const std::vector<std::string>& names) override final;
 
