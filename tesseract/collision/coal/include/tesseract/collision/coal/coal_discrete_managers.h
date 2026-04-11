@@ -163,7 +163,7 @@ private:
   Link2COW link2cow_; /**< @brief A map of all (static and active) collision objects being managed, keyed by LinkId */
   std::unordered_set<tesseract::common::LinkId, tesseract::common::LinkId::Hash>
       active_ids_; /**< @brief Active collision objects by LinkId (O(1) lookup) */
-  std::vector<std::string> collision_objects_; /**< @brief A list of the collision objects */
+  std::vector<tesseract::common::LinkId> collision_objects_; /**< @brief A list of the collision objects */
   ContactTestDataWrapper contact_test_data_;   /**< @brief Persistent contact test data (Bullet pattern) */
   std::size_t coal_co_count_{ 0 };             /**< @brief The number of Coal collision objects */
   double gjk_guess_threshold_;                 /**< @brief GJK guess validity threshold (meters) */
