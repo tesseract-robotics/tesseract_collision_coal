@@ -26,7 +26,7 @@ std::unique_ptr<CoalDiscreteBVHManager> makeDiscreteSetup(double gjk_guess_thres
 
   checker->addCollisionObject("link_a", 0, shapes, poses, true);
   checker->addCollisionObject("link_b", 0, shapes, poses, true);
-  checker->setActiveCollisionObjects({ "link_a", "link_b" });
+  checker->setActiveCollisionObjects(std::vector<std::string>{ "link_a", "link_b" });
   checker->setDefaultCollisionMargin(0.0);
 
   // Place spheres so they overlap
@@ -50,7 +50,7 @@ std::unique_ptr<CoalCastBVHManager> makeCastSetup(double gjk_guess_threshold = k
 
   checker->addCollisionObject("link_a", 0, shapes, poses, true);
   checker->addCollisionObject("link_b", 0, shapes, poses, true);
-  checker->setActiveCollisionObjects({ "link_a", "link_b" });
+  checker->setActiveCollisionObjects(std::vector<std::string>{ "link_a", "link_b" });
   checker->setDefaultCollisionMargin(0.0);
 
   Eigen::Isometry3d pose_a = Eigen::Isometry3d::Identity();

@@ -59,7 +59,7 @@ inline bool hasMovingOctreeProbePair(const ContactResultVector& result_vector)
 
 inline void runStaticOctreeCylinderContinuousTransformUpdatesBroadphase(ContinuousContactManager& checker)
 {
-  checker.setActiveCollisionObjects({ "active_cylinder" });
+  checker.setActiveCollisionObjects(std::vector<std::string>{ "active_cylinder" });
   checker.setDefaultCollisionMargin(0.0);
 
   Eigen::Isometry3d static_far = Eigen::Isometry3d::Identity();
@@ -110,9 +110,9 @@ inline void runStaticOctreeCylinderActiveToggleStillCollides(ContinuousContactMa
 {
   checker.setDefaultCollisionMargin(0.0);
 
-  checker.setActiveCollisionObjects({ "active_cylinder" });
-  checker.setActiveCollisionObjects({});
-  checker.setActiveCollisionObjects({ "active_cylinder" });
+  checker.setActiveCollisionObjects(std::vector<std::string>{ "active_cylinder" });
+  checker.setActiveCollisionObjects(std::vector<std::string>{});
+  checker.setActiveCollisionObjects(std::vector<std::string>{ "active_cylinder" });
 
   tesseract::common::LinkIdTransformMap static_tf;
   static_tf[tesseract::common::LinkId::fromName("static_octree")] = Eigen::Isometry3d::Identity();
@@ -152,7 +152,7 @@ inline void runStaticOctreeCylinderActiveToggleStillCollides(ContinuousContactMa
 
 inline void runStaticOctreeCylinderShapeIdUsesOriginalGeometryIndex(ContinuousContactManager& checker)
 {
-  checker.setActiveCollisionObjects({ "active_cylinder" });
+  checker.setActiveCollisionObjects(std::vector<std::string>{ "active_cylinder" });
   checker.setDefaultCollisionMargin(0.0);
 
   Eigen::Isometry3d active_start = Eigen::Isometry3d::Identity();
@@ -194,7 +194,7 @@ inline void runStaticOctreeCylinderShapeIdUsesOriginalGeometryIndex(ContinuousCo
 
 inline void runStaticOctreeSubshapeIdReportsPrimitiveIdentity(ContinuousContactManager& checker)
 {
-  checker.setActiveCollisionObjects({ "active_cylinder" });
+  checker.setActiveCollisionObjects(std::vector<std::string>{ "active_cylinder" });
   checker.setDefaultCollisionMargin(0.0);
 
   Eigen::Isometry3d active_start = Eigen::Isometry3d::Identity();
@@ -246,7 +246,7 @@ inline void runActiveOctreeDemotionClearsSweepState(ContinuousContactManager& ch
 {
   checker.setDefaultCollisionMargin(0.0);
 
-  checker.setActiveCollisionObjects({ "moving_octree" });
+  checker.setActiveCollisionObjects(std::vector<std::string>{ "moving_octree" });
 
   Eigen::Isometry3d octree_start = Eigen::Isometry3d::Identity();
   octree_start.translation() = Eigen::Vector3d(-4.0, 0.0, 0.0);
@@ -254,7 +254,7 @@ inline void runActiveOctreeDemotionClearsSweepState(ContinuousContactManager& ch
   octree_end.translation() = Eigen::Vector3d(0.0, 0.0, 0.0);
   checker.setCollisionObjectsTransform("moving_octree", octree_start, octree_end);
 
-  checker.setActiveCollisionObjects({ "probe_cylinder" });
+  checker.setActiveCollisionObjects(std::vector<std::string>{ "probe_cylinder" });
 
   ContactResultMap result;
   checker.contactTest(result, ContactRequest(ContactTestType::CLOSEST));
@@ -272,7 +272,7 @@ inline void runActiveOctreeDemotionClearsSweepState(ContinuousContactManager& ch
 inline void runActiveOctreeDisabledSweepDoesNotUpdateCastState(ContinuousContactManager& checker)
 {
   checker.setDefaultCollisionMargin(0.0);
-  checker.setActiveCollisionObjects({ "moving_octree" });
+  checker.setActiveCollisionObjects(std::vector<std::string>{ "moving_octree" });
 
   const Eigen::Isometry3d start = Eigen::Isometry3d(Eigen::Translation3d(-4.0, 0.0, 0.0));
   const Eigen::Isometry3d end = Eigen::Isometry3d(Eigen::Translation3d(0.0, 0.0, 0.0));
@@ -310,7 +310,7 @@ inline void runActiveOctreeRoundTripActiveSetTransitions(ContinuousContactManage
   const Eigen::Isometry3d start = Eigen::Isometry3d(Eigen::Translation3d(-4.0, 0.0, 0.0));
   const Eigen::Isometry3d end = Eigen::Isometry3d(Eigen::Translation3d(0.0, 0.0, 0.0));
 
-  checker.setActiveCollisionObjects({ "moving_octree" });
+  checker.setActiveCollisionObjects(std::vector<std::string>{ "moving_octree" });
   checker.setCollisionObjectsTransform("moving_octree", start, end);
 
   ContactResultMap first_active_result;
@@ -320,7 +320,7 @@ inline void runActiveOctreeRoundTripActiveSetTransitions(ContinuousContactManage
   EXPECT_TRUE(hasMovingOctreeProbePair(first_active_vector)) << "Active octree should collide with the probe during "
                                                                 "the initial sweep.";
 
-  checker.setActiveCollisionObjects({ "probe_cylinder" });
+  checker.setActiveCollisionObjects(std::vector<std::string>{ "probe_cylinder" });
 
   ContactResultMap first_static_result;
   checker.contactTest(first_static_result, ContactRequest(ContactTestType::CLOSEST));
@@ -329,7 +329,7 @@ inline void runActiveOctreeRoundTripActiveSetTransitions(ContinuousContactManage
   EXPECT_FALSE(hasMovingOctreeProbePair(first_static_vector)) << "After demotion to static, the octree should not "
                                                                  "retain swept collision volume.";
 
-  checker.setActiveCollisionObjects({ "moving_octree" });
+  checker.setActiveCollisionObjects(std::vector<std::string>{ "moving_octree" });
   checker.setCollisionObjectsTransform("moving_octree", start);
   checker.setCollisionObjectsTransform("moving_octree", start, end);
 
@@ -340,7 +340,7 @@ inline void runActiveOctreeRoundTripActiveSetTransitions(ContinuousContactManage
   EXPECT_TRUE(hasMovingOctreeProbePair(second_active_vector)) << "Re-activating the octree and applying a new sweep "
                                                                  "should restore the expected collision.";
 
-  checker.setActiveCollisionObjects({ "probe_cylinder" });
+  checker.setActiveCollisionObjects(std::vector<std::string>{ "probe_cylinder" });
 
   ContactResultMap second_static_result;
   checker.contactTest(second_static_result, ContactRequest(ContactTestType::CLOSEST));
@@ -353,7 +353,7 @@ inline void runActiveOctreeRoundTripActiveSetTransitions(ContinuousContactManage
 inline void runActiveOctreeSubshapeIdReportsPrimitiveIdentity(ContinuousContactManager& checker)
 {
   checker.setDefaultCollisionMargin(0.0);
-  checker.setActiveCollisionObjects({ "moving_octree" });
+  checker.setActiveCollisionObjects(std::vector<std::string>{ "moving_octree" });
 
   const Eigen::Isometry3d start = Eigen::Isometry3d(Eigen::Translation3d(-4.0, 0.0, 0.0));
   const Eigen::Isometry3d end = Eigen::Isometry3d(Eigen::Translation3d(0.0, 0.0, 0.0));
