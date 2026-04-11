@@ -144,7 +144,7 @@ static void BM_SET_COLLISION_OBJECTS_TRANSFORM_VECTOR(benchmark::State& state,
   }
 }
 
-/** @brief Benchmark that checks the setCollisionObjectsTransform(const tesseract::common::TransformMap& transforms)
+/** @brief Benchmark that checks the setCollisionObjectsTransform(const LinkIdTransformMap& transforms)
  * method in discrete contact managers. Moves only a single random link*/
 static void BM_SET_COLLISION_OBJECTS_TRANSFORM_MAP(benchmark::State& state,
                                                    DiscreteBenchmarkInfo info,
@@ -161,13 +161,14 @@ static void BM_SET_COLLISION_OBJECTS_TRANSFORM_MAP(benchmark::State& state,
   info.contact_manager_->setActiveCollisionObjects(active_obj);
   info.contact_manager_->setCollisionMarginData(CollisionMarginData(0.5));
 
-  tesseract::common::TransformMap selected_link;
+  tesseract::common::LinkIdTransformMap selected_link;
   for (auto _ : state)  // NOLINT
   {
     // Including this seems necessary to insure that a distribution of links is used rather than always searching for
     // the same one. It might be worth it to manually time these as well if it's really important
     selected_link.clear();  // Need to clear or this grows and is not releastic to compare to vector version
-    selected_link[active_obj[static_cast<std::size_t>(rand()) % num_obj]] = info.obj2_poses[0];
+    const auto& name = active_obj[static_cast<std::size_t>(rand()) % num_obj];
+    selected_link[tesseract::common::LinkId::fromName(name)] = info.obj2_poses[0];
     info.contact_manager_->setCollisionObjectsTransform(selected_link);
   }
 }

@@ -25,15 +25,15 @@ TEST(CoalVsBulletUnit, ConvexHullSphereSphereSweptComparison)  // NOLINT
     checker.setActiveCollisionObjects({ "sphere_link", "sphere1_link" });
     checker.setCollisionMarginData(CollisionMarginData(0.1));
 
-    tesseract::common::TransformMap start, end;
-    start["sphere_link"] = Eigen::Isometry3d::Identity();
-    start["sphere_link"].translation() = Eigen::Vector3d(-0.2, -1.0, 0);
-    start["sphere1_link"] = Eigen::Isometry3d::Identity();
-    start["sphere1_link"].translation() = Eigen::Vector3d(0.2, 0, -1.0);
-    end["sphere_link"] = Eigen::Isometry3d::Identity();
-    end["sphere_link"].translation() = Eigen::Vector3d(-0.2, 1.0, 0);
-    end["sphere1_link"] = Eigen::Isometry3d::Identity();
-    end["sphere1_link"].translation() = Eigen::Vector3d(0.2, 0, 1.0);
+    tesseract::common::LinkIdTransformMap start, end;
+    start[tesseract::common::LinkId::fromName("sphere_link")] = Eigen::Isometry3d::Identity();
+    start[tesseract::common::LinkId::fromName("sphere_link")].translation() = Eigen::Vector3d(-0.2, -1.0, 0);
+    start[tesseract::common::LinkId::fromName("sphere1_link")] = Eigen::Isometry3d::Identity();
+    start[tesseract::common::LinkId::fromName("sphere1_link")].translation() = Eigen::Vector3d(0.2, 0, -1.0);
+    end[tesseract::common::LinkId::fromName("sphere_link")] = Eigen::Isometry3d::Identity();
+    end[tesseract::common::LinkId::fromName("sphere_link")].translation() = Eigen::Vector3d(-0.2, 1.0, 0);
+    end[tesseract::common::LinkId::fromName("sphere1_link")] = Eigen::Isometry3d::Identity();
+    end[tesseract::common::LinkId::fromName("sphere1_link")].translation() = Eigen::Vector3d(0.2, 0, 1.0);
     checker.setCollisionObjectsTransform(start, end);
 
     ContactResultMap result;
@@ -55,8 +55,8 @@ TEST(CoalVsBulletUnit, ConvexHullSphereSphereSweptComparison)  // NOLINT
   std::printf("%-15s: %s\n", "Coal", test_suite::detail::formatContactResult(coal_cr).c_str());
 
   // Find matching link indices
-  int bi0 = (bullet_cr.link_names[0] == "sphere_link") ? 0 : 1;
-  int ci0 = (coal_cr.link_names[0] == "sphere_link") ? 0 : 1;
+  int bi0 = (bullet_cr.link_ids[0].name() == "sphere_link") ? 0 : 1;
+  int ci0 = (coal_cr.link_ids[0].name() == "sphere_link") ? 0 : 1;
 
   EXPECT_NEAR(coal_cr.distance, bullet_cr.distance, 0.01) << "Penetration depth";
   EXPECT_NEAR(coal_cr.cc_time[ci0], bullet_cr.cc_time[bi0], 0.05) << "sphere_link cc_time";

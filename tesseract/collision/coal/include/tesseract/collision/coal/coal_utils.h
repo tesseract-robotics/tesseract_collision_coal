@@ -136,6 +136,7 @@ public:
                                   ///< (initialized to 0) trigger initial GJK seeding on first use.
 
   const std::string& getName() const { return name_; }
+  tesseract::common::LinkId getLinkId() const { return link_id_; }
   const int& getTypeID() const { return type_id_; }
 
   const CollisionShapesConst& getCollisionGeometries() const { return shapes_; }
@@ -172,6 +173,7 @@ public:
 
 protected:
   std::string name_;                                              // name of the collision object
+  tesseract::common::LinkId link_id_;                              // integer id derived from name_
   int type_id_{ -1 };                                             // user defined type id
   Eigen::Isometry3d world_pose_{ Eigen::Isometry3d::Identity() }; /**< @brief Collision Object World Transformation */
   CollisionShapesConst shapes_;
@@ -185,7 +187,8 @@ protected:
 CollisionGeometryPtr createShapePrimitive(const CollisionShapeConstPtr& geom);
 
 using COW = CollisionObjectWrapper;
-using Link2COW = std::map<std::string, COW::Ptr>;
+using Link2COW =
+    std::unordered_map<tesseract::common::LinkId, COW::Ptr, tesseract::common::LinkId::Hash>;
 
 COW::Ptr createCoalCollisionObject(const std::string& name,
                                    const int& type_id,

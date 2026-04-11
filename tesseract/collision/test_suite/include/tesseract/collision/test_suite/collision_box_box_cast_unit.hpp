@@ -202,7 +202,7 @@ inline void runTest(ContinuousContactManager& checker)
     // Dump full contact state for context on any failure
     SCOPED_TRACE("Contact[0] state:"
                  "\n  link_names: [" +
-                 cr.link_names[0] + ", " + cr.link_names[1] +
+                 cr.link_ids[0].name() + ", " + cr.link_ids[1].name() +
                  "]"
                  "\n  distance: " +
                  std::to_string(cr.distance) + "\n  normal: (" + std::to_string(cr.normal[0]) + ", " +

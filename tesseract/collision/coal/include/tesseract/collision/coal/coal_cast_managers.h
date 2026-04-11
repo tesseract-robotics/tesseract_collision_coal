@@ -42,6 +42,7 @@
 
 #include <tesseract/common/macros.h>
 TESSERACT_COMMON_IGNORE_WARNINGS_PUSH
+#include <unordered_set>
 #include <coal/broadphase/broadphase_collision_manager.h>
 TESSERACT_COMMON_IGNORE_WARNINGS_POP
 
@@ -110,7 +111,9 @@ public:
   void setCollisionObjectsTransform(const std::vector<std::string>& names,
                                     const tesseract::common::VectorIsometry3d& poses) override final;
 
-  void setCollisionObjectsTransform(const tesseract::common::TransformMap& transforms) override final;
+  void setCollisionObjectsTransform(const tesseract::common::LinkIdTransformMap& transforms) override final;
+
+  void setCollisionObjectsTransform(tesseract::common::LinkId id, const Eigen::Isometry3d& pose) override final;
 
   void setCollisionObjectsTransform(const std::string& name,
                                     const Eigen::Isometry3d& pose1,
@@ -120,8 +123,9 @@ public:
                                     const tesseract::common::VectorIsometry3d& pose1,
                                     const tesseract::common::VectorIsometry3d& pose2) override final;
 
-  void setCollisionObjectsTransform(const tesseract::common::TransformMap& pose1,
-                                    const tesseract::common::TransformMap& pose2) override final;
+  void setCollisionObjectsTransform(tesseract::common::LinkId id,
+                                    const Eigen::Isometry3d& pose1,
+                                    const Eigen::Isometry3d& pose2) override final;
 
   const std::vector<std::string>& getCollisionObjects() const override final;
 
@@ -184,9 +188,11 @@ private:
   /** @brief Cache for collision functors and collision requests */
   CollisionCacheMap collision_cache;
 
-  Link2COW link2cow_;                          /** @brief A map of all collision objects being managed */
-  Link2COW link2castcow_;                      /** @brief A map of cast collision objects being managed. */
-  std::vector<std::string> active_;            /** @brief A list of the active collision objects */
+  Link2COW link2cow_;     /** @brief A map of all collision objects being managed, keyed by LinkId */
+  Link2COW link2castcow_; /** @brief A map of cast collision objects being managed, keyed by LinkId */
+  std::vector<std::string> active_;            /** @brief A list of the active collision objects (string, for API) */
+  std::unordered_set<tesseract::common::LinkId, tesseract::common::LinkId::Hash>
+      active_ids_; /** @brief Active collision objects by LinkId (O(1) lookup) */
   std::vector<std::string> collision_objects_; /** @brief A list of the collision objects */
   ContactTestDataWrapper contact_test_data_;   /**< @brief Persistent contact test data (Bullet pattern) */
   std::size_t coal_co_count_{ 0 };             /**< @brief The number of coal collision objects */

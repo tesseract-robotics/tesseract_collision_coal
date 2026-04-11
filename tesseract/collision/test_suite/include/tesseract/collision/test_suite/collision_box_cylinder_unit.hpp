@@ -127,10 +127,10 @@ inline void runTest(DiscreteContactManager& checker)
   EXPECT_NEAR(checker.getCollisionMarginData().getMaxCollisionMargin(), 0.1, 1e-5);
 
   // Set the collision object transforms
-  tesseract::common::TransformMap location;
-  location["box_link"] = Eigen::Isometry3d::Identity();
-  location["cylinder_link"] = Eigen::Isometry3d::Identity();
-  location["cylinder_link"].translation()(0) = 0.2;
+  tesseract::common::LinkIdTransformMap location;
+  location[tesseract::common::LinkId::fromName("box_link")] = Eigen::Isometry3d::Identity();
+  location[tesseract::common::LinkId::fromName("cylinder_link")] = Eigen::Isometry3d::Identity();
+  location[tesseract::common::LinkId::fromName("cylinder_link")].translation()(0) = 0.2;
   checker.setCollisionObjectsTransform(location);
 
   // Perform collision check
@@ -146,7 +146,7 @@ inline void runTest(DiscreteContactManager& checker)
   EXPECT_NEAR(result_vector[0].nearest_points[0][2], result_vector[0].nearest_points[1][2], 0.001);
 
   std::vector<int> idx = { 0, 1, 1 };
-  if (result_vector[0].link_names[0] != "box_link")
+  if (result_vector[0].link_ids[0].name() != "box_link")
     idx = { 1, 0, -1 };
 
   if (result_vector[0].single_contact_point)
@@ -168,13 +168,13 @@ inline void runTest(DiscreteContactManager& checker)
   ////////////////////////////////////////////////
   // Test object is out side the contact distance
   ////////////////////////////////////////////////
-  location["cylinder_link"].translation() = Eigen::Vector3d(1, 0, 0);
+  location[tesseract::common::LinkId::fromName("cylinder_link")].translation() = Eigen::Vector3d(1, 0, 0);
   result.clear();
   result_vector.clear();
 
   // Use different method for setting transforms
   std::vector<std::string> names = { "cylinder_link" };
-  tesseract::common::VectorIsometry3d transforms = { location["cylinder_link"] };
+  tesseract::common::VectorIsometry3d transforms = { location[tesseract::common::LinkId::fromName("cylinder_link")] };
   checker.setCollisionObjectsTransform(names, transforms);
   checker.contactTest(result, ContactRequest(ContactTestType::CLOSEST));
   result.flattenCopyResults(result_vector);
@@ -198,7 +198,7 @@ inline void runTest(DiscreteContactManager& checker)
   EXPECT_NEAR(result_vector[0].nearest_points[0][2], result_vector[0].nearest_points[1][2], 0.001);
 
   idx = { 0, 1, 1 };
-  if (result_vector[0].link_names[0] != "box_link")
+  if (result_vector[0].link_ids[0].name() != "box_link")
     idx = { 1, 0, -1 };
 
   if (result_vector[0].single_contact_point)

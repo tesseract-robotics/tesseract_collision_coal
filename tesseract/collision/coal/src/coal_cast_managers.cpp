@@ -74,8 +74,8 @@ ContinuousContactManager::UPtr CoalCastBVHManager::clone() const
   auto manager = std::make_unique<CoalCastBVHManager>(name_, gjk_guess_threshold_, d_arc_compensation_);
 
   Link2COW cloned_cows;
-  for (const auto& cow : link2cow_)
-    cloned_cows[cow.first] = cow.second->clone();
+  for (const auto& [id, cow] : link2cow_)
+    cloned_cows[id] = cow->clone();
 
   manager->addCollisionObjects(cloned_cows, /*defer_update=*/true);
   manager->setActiveCollisionObjects(active_);
@@ -91,7 +91,8 @@ bool CoalCastBVHManager::addCollisionObject(const std::string& name,
                                             const tesseract::common::VectorIsometry3d& shape_poses,
                                             bool enabled)
 {
-  if (link2cow_.find(name) != link2cow_.end())
+  using tesseract::common::LinkId;
+  if (link2cow_.find(LinkId::fromName(name)) != link2cow_.end())
     removeCollisionObject(name);
 
   const COW::Ptr new_cow = createCoalCollisionObject(name, mask_id, shapes, shape_poses, enabled);
@@ -106,25 +107,27 @@ bool CoalCastBVHManager::addCollisionObject(const std::string& name,
 
 const CollisionShapesConst& CoalCastBVHManager::getCollisionObjectGeometries(const std::string& name) const
 {
-  auto cow = link2cow_.find(name);
+  auto cow = link2cow_.find(tesseract::common::LinkId::fromName(name));
   return (cow != link2cow_.end()) ? cow->second->getCollisionGeometries() : EMPTY_COLLISION_SHAPES_CONST;
 }
 
 const tesseract::common::VectorIsometry3d&
 CoalCastBVHManager::getCollisionObjectGeometriesTransforms(const std::string& name) const
 {
-  auto cow = link2cow_.find(name);
+  auto cow = link2cow_.find(tesseract::common::LinkId::fromName(name));
   return (cow != link2cow_.end()) ? cow->second->getCollisionGeometriesTransforms() : EMPTY_COLLISION_SHAPES_TRANSFORMS;
 }
 
 bool CoalCastBVHManager::hasCollisionObject(const std::string& name) const
 {
-  return (link2cow_.find(name) != link2cow_.end());
+  return (link2cow_.find(tesseract::common::LinkId::fromName(name)) != link2cow_.end());
 }
 
 bool CoalCastBVHManager::removeCollisionObject(const std::string& name)
 {
-  auto it = link2cow_.find(name);
+  using tesseract::common::LinkId;
+  const auto lid = LinkId::fromName(name);
+  auto it = link2cow_.find(lid);
   if (it != link2cow_.end())
   {
     auto it_obj = std::find(collision_objects_.begin(), collision_objects_.end(), name);
@@ -134,20 +137,21 @@ bool CoalCastBVHManager::removeCollisionObject(const std::string& name)
     coal_co_count_ -= objects.size();
     if (it->second->m_collisionFilterGroup == CollisionFilterGroups::StaticFilter)
       removeObjects(objects, *static_manager_);
-    link2cow_.erase(name);
+    link2cow_.erase(it);
 
     auto it_active = std::find(active_.begin(), active_.end(), name);
     if (it_active != active_.end())
       active_.erase(it_active);
+    active_ids_.erase(lid);
 
     // Also remove from cast map
-    auto it_cast = link2castcow_.find(name);
+    auto it_cast = link2castcow_.find(lid);
     if (it_cast != link2castcow_.end())
     {
       const std::vector<CollisionObjectPtr>& objects_cast = it_cast->second->getCollisionObjects();
       if (it_cast->second->m_collisionFilterGroup == CollisionFilterGroups::KinematicFilter)
         removeObjects(objects_cast, *dynamic_manager_);
-      link2castcow_.erase(name);
+      link2castcow_.erase(it_cast);
     }
 
     return true;
@@ -176,14 +180,15 @@ bool CoalCastBVHManager::disableCollisionObject(const std::string& name)
 
 bool CoalCastBVHManager::setCollisionObjectEnabled(const std::string& name, bool enabled)
 {
-  auto it = link2cow_.find(name);
+  const auto lid = tesseract::common::LinkId::fromName(name);
+  auto it = link2cow_.find(lid);
   if (it == link2cow_.end())
     return false;
 
   it->second->m_enabled = enabled;
   it->second->gjk_generation_++;
 
-  auto cast_it = link2castcow_.find(name);
+  auto cast_it = link2castcow_.find(lid);
   if (cast_it != link2castcow_.end())
   {
     cast_it->second->m_enabled = enabled;
@@ -195,7 +200,7 @@ bool CoalCastBVHManager::setCollisionObjectEnabled(const std::string& name, bool
 
 bool CoalCastBVHManager::isCollisionObjectEnabled(const std::string& name) const
 {
-  auto it = link2cow_.find(name);
+  auto it = link2cow_.find(tesseract::common::LinkId::fromName(name));
   if (it != link2cow_.end())
     return it->second->m_enabled;
 
@@ -204,7 +209,7 @@ bool CoalCastBVHManager::isCollisionObjectEnabled(const std::string& name) const
 
 void CoalCastBVHManager::setCollisionObjectsTransform(const std::string& name, const Eigen::Isometry3d& pose)
 {
-  auto it = link2cow_.find(name);
+  auto it = link2cow_.find(tesseract::common::LinkId::fromName(name));
   if (it != link2cow_.end())
   {
     static_update_.clear();
@@ -222,36 +227,49 @@ void CoalCastBVHManager::setCollisionObjectsTransform(const std::vector<std::str
   dynamic_update_.clear();
   for (auto i = 0U; i < names.size(); ++i)
   {
-    auto it = link2cow_.find(names[i]);
+    auto it = link2cow_.find(tesseract::common::LinkId::fromName(names[i]));
     if (it != link2cow_.end())
       collectTransformUpdate(it, poses[i]);
   }
   flushBatchUpdate();
 }
 
-void CoalCastBVHManager::setCollisionObjectsTransform(const tesseract::common::TransformMap& transforms)
+void CoalCastBVHManager::setCollisionObjectsTransform(const tesseract::common::LinkIdTransformMap& transforms)
 {
   static_update_.clear();
   dynamic_update_.clear();
-  for (const auto& transform : transforms)
+  for (const auto& [id, tf] : transforms)
   {
-    auto it = link2cow_.find(transform.first);
+    auto it = link2cow_.find(id);
     if (it != link2cow_.end())
-      collectTransformUpdate(it, transform.second);
+      collectTransformUpdate(it, tf);
   }
   flushBatchUpdate();
+}
+
+void CoalCastBVHManager::setCollisionObjectsTransform(tesseract::common::LinkId id, const Eigen::Isometry3d& pose)
+{
+  auto it = link2cow_.find(id);
+  if (it != link2cow_.end())
+  {
+    static_update_.clear();
+    dynamic_update_.clear();
+    collectTransformUpdate(it, pose);
+    flushBatchUpdate();
+  }
 }
 
 void CoalCastBVHManager::setCollisionObjectsTransform(const std::string& name,
                                                       const Eigen::Isometry3d& pose1,
                                                       const Eigen::Isometry3d& pose2)
 {
-  auto cast_it = link2castcow_.find(name);
+  const auto lid = tesseract::common::LinkId::fromName(name);
+  auto cast_it = link2castcow_.find(lid);
   if (cast_it != link2castcow_.end())
   {
     static_update_.clear();
     dynamic_update_.clear();
-    auto reg_it = link2cow_.find(name);
+    auto reg_it = link2cow_.find(lid);
     collectCastTransformUpdate(cast_it, reg_it, pose1, pose2);
     flushBatchUpdate();
   }
@@ -267,34 +285,30 @@ void CoalCastBVHManager::setCollisionObjectsTransform(const std::vector<std::str
   dynamic_update_.clear();
   for (auto i = 0U; i < names.size(); ++i)
   {
-    auto cast_it = link2castcow_.find(names[i]);
+    const auto lid = tesseract::common::LinkId::fromName(names[i]);
+    auto cast_it = link2castcow_.find(lid);
     if (cast_it != link2castcow_.end())
     {
-      auto reg_it = link2cow_.find(names[i]);
+      auto reg_it = link2cow_.find(lid);
       collectCastTransformUpdate(cast_it, reg_it, pose1[i], pose2[i]);
     }
   }
   flushBatchUpdate();
 }
 
-void CoalCastBVHManager::setCollisionObjectsTransform(const tesseract::common::TransformMap& pose1,
-                                                      const tesseract::common::TransformMap& pose2)
+void CoalCastBVHManager::setCollisionObjectsTransform(tesseract::common::LinkId id,
+                                                      const Eigen::Isometry3d& pose1,
+                                                      const Eigen::Isometry3d& pose2)
 {
-  assert(pose1.size() == pose2.size());
-  static_update_.clear();
-  dynamic_update_.clear();
-  for (const auto& [name, tf1] : pose1)
+  auto cast_it = link2castcow_.find(id);
+  if (cast_it != link2castcow_.end())
   {
-    auto cast_it = link2castcow_.find(name);
-    if (cast_it != link2castcow_.end())
-    {
-      auto it2 = pose2.find(name);
-      assert(it2 != pose2.end());
-      auto reg_it = link2cow_.find(name);
-      collectCastTransformUpdate(cast_it, reg_it, tf1, it2->second);
-    }
+    static_update_.clear();
+    dynamic_update_.clear();
+    auto reg_it = link2cow_.find(id);
+    collectCastTransformUpdate(cast_it, reg_it, pose1, pose2);
+    flushBatchUpdate();
   }
-  flushBatchUpdate();
 }
 
 const std::vector<std::string>& CoalCastBVHManager::getCollisionObjects() const { return collision_objects_; }
@@ -302,12 +316,14 @@ const std::vector<std::string>& CoalCastBVHManager::getCollisionObjects() const 
 void CoalCastBVHManager::setActiveCollisionObjects(const std::vector<std::string>& names)
 {
   active_ = names;
+  active_ids_.clear();
+  for (const auto& name : names)
+    active_ids_.insert(tesseract::common::LinkId::fromName(name));
 
-  for (auto& co : link2cow_)
+  for (auto& [id, cow] : link2cow_)
   {
-    COW::Ptr& cow = co.second;
     // Get the cast collision object
-    COW::Ptr& cast_cow = link2castcow_[cow->getName()];
+    COW::Ptr& cast_cow = link2castcow_[id];
 
     // Use the specialized function that properly handles both regular and cast objects
     updateCollisionObjectFilters(active_, cow, cast_cow, static_manager_, dynamic_manager_);
@@ -389,17 +405,18 @@ void CoalCastBVHManager::contactTest(ContactResultMap& collisions, const Contact
 
 void CoalCastBVHManager::addCollisionObject(const COW::Ptr& cow)
 {
+  const auto lid = cow->getLinkId();
   const std::size_t cnt = cow->getCollisionObjects().size();
   coal_co_count_ += cnt;
   static_update_.reserve(coal_co_count_);
   dynamic_update_.reserve(coal_co_count_);
-  link2cow_[cow->getName()] = cow;
+  link2cow_[lid] = cow;
   collision_objects_.push_back(cow->getName());
 
   // Create cast collision object. Skip deferred octree expansion for static objects;
   // kinematic objects (e.g. during clone) expand immediately to avoid a wasted clone.
   const bool is_kinematic = cow->m_collisionFilterGroup != CollisionFilterGroups::StaticFilter;
-  COW::Ptr& cast_ref = (link2castcow_[cow->getName()] = makeCastCollisionObject(cow, /*expand_octrees=*/is_kinematic));
+  COW::Ptr& cast_ref = (link2castcow_[lid] = makeCastCollisionObject(cow, /*expand_octrees=*/is_kinematic));
 
   if (!is_kinematic)
   {
@@ -426,14 +443,14 @@ void CoalCastBVHManager::addCollisionObjects(const Link2COW& cows, bool defer_up
   static_objs.reserve(cows.size());
   dynamic_objs.reserve(cows.size());
 
-  for (const auto& [name, cow] : cows)
+  for (const auto& [id, cow] : cows)
   {
     coal_co_count_ += cow->getCollisionObjects().size();
-    link2cow_[name] = cow;
-    collision_objects_.push_back(name);
+    link2cow_[id] = cow;
+    collision_objects_.push_back(cow->getName());
 
     const bool is_kinematic = cow->m_collisionFilterGroup != CollisionFilterGroups::StaticFilter;
-    COW::Ptr& cast_ref = (link2castcow_[name] = makeCastCollisionObject(cow, /*expand_octrees=*/is_kinematic));
+    COW::Ptr& cast_ref = (link2castcow_[id] = makeCastCollisionObject(cow, /*expand_octrees=*/is_kinematic));
 
     if (!is_kinematic)
     {
@@ -460,10 +477,10 @@ void CoalCastBVHManager::addCollisionObjects(const Link2COW& cows, bool defer_up
   {
     if (!active_.empty())
     {
-      for (auto& co : link2cow_)
+      for (auto& [id, cow_ref] : link2cow_)
       {
-        COW::Ptr& cast_cow = link2castcow_[co.second->getName()];
-        updateCollisionObjectFilters(active_, co.second, cast_cow, static_manager_, dynamic_manager_);
+        COW::Ptr& cast_cow = link2castcow_[id];
+        updateCollisionObjectFilters(active_, cow_ref, cast_cow, static_manager_, dynamic_manager_);
       }
     }
 
