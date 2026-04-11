@@ -130,7 +130,7 @@ bool CoalCastBVHManager::removeCollisionObject(const std::string& name)
   auto it = link2cow_.find(lid);
   if (it != link2cow_.end())
   {
-    auto it_obj = std::find(collision_objects_.begin(), collision_objects_.end(), name);
+    auto it_obj = std::find(collision_objects_.begin(), collision_objects_.end(), lid);
     if (it_obj != collision_objects_.end())
       collision_objects_.erase(it_obj);
     const std::vector<CollisionObjectPtr>& objects = it->second->getCollisionObjects();
@@ -308,7 +308,7 @@ void CoalCastBVHManager::setCollisionObjectsTransform(tesseract::common::LinkId 
   }
 }
 
-const std::vector<std::string>& CoalCastBVHManager::getCollisionObjects() const { return collision_objects_; }
+const std::vector<tesseract::common::LinkId>& CoalCastBVHManager::getCollisionObjects() const { return collision_objects_; }
 
 void CoalCastBVHManager::setActiveCollisionObjects(const std::vector<std::string>& names)
 {
@@ -431,7 +431,7 @@ void CoalCastBVHManager::addCollisionObject(const COW::Ptr& cow)
   static_update_.reserve(coal_co_count_);
   dynamic_update_.reserve(coal_co_count_);
   link2cow_[lid] = cow;
-  collision_objects_.push_back(cow->getName());
+  collision_objects_.push_back(cow->getLinkId());
 
   // Create cast collision object. Skip deferred octree expansion for static objects;
   // kinematic objects (e.g. during clone) expand immediately to avoid a wasted clone.
@@ -467,7 +467,7 @@ void CoalCastBVHManager::addCollisionObjects(const Link2COW& cows, bool defer_up
   {
     coal_co_count_ += cow->getCollisionObjects().size();
     link2cow_[id] = cow;
-    collision_objects_.push_back(cow->getName());
+    collision_objects_.push_back(cow->getLinkId());
 
     const bool is_kinematic = cow->m_collisionFilterGroup != CollisionFilterGroups::StaticFilter;
     COW::Ptr& cast_ref = (link2castcow_[id] = makeCastCollisionObject(cow, /*expand_octrees=*/is_kinematic));
