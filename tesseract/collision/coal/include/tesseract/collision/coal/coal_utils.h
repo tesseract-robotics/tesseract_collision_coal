@@ -44,6 +44,7 @@
 TESSERACT_COMMON_IGNORE_WARNINGS_PUSH
 #include <memory>
 #include <unordered_map>
+#include <unordered_set>
 #include <utility>
 #include <boost/functional/hash.hpp>
 #include <coal/broadphase/broadphase_collision_manager.h>
@@ -211,29 +212,31 @@ void applyCollisionFilterMask(COW& cow);
 
 /**
  * @brief Update collision objects filters
- * @param active The active collision objects
+ * @param active_ids Set of active collision object LinkIds
  * @param cow The collision object to update
  * @param static_manager Broadphase manager for static objects
  * @param dynamic_manager Broadphase manager for dynamic objects
  */
-void updateCollisionObjectFilters(const std::vector<std::string>& active,
-                                  const COW::Ptr& cow,
-                                  const std::unique_ptr<coal::BroadPhaseCollisionManager>& static_manager,
-                                  const std::unique_ptr<coal::BroadPhaseCollisionManager>& dynamic_manager);
+void updateCollisionObjectFilters(
+    const std::unordered_set<tesseract::common::LinkId, tesseract::common::LinkId::Hash>& active_ids,
+    const COW::Ptr& cow,
+    const std::unique_ptr<coal::BroadPhaseCollisionManager>& static_manager,
+    const std::unique_ptr<coal::BroadPhaseCollisionManager>& dynamic_manager);
 
 /**
  * @brief Update collision objects filters for continuous collision checking
- * @param active The active collision objects
+ * @param active_ids Set of active collision object LinkIds
  * @param cow The regular collision object
  * @param cast_cow The cast collision object
  * @param static_manager Broadphase manager for static objects
  * @param dynamic_manager Broadphase manager for dynamic objects
  */
-void updateCollisionObjectFilters(const std::vector<std::string>& active,
-                                  const COW::Ptr& cow,
-                                  COW::Ptr& cast_cow,
-                                  const std::unique_ptr<coal::BroadPhaseCollisionManager>& static_manager,
-                                  const std::unique_ptr<coal::BroadPhaseCollisionManager>& dynamic_manager);
+void updateCollisionObjectFilters(
+    const std::unordered_set<tesseract::common::LinkId, tesseract::common::LinkId::Hash>& active_ids,
+    const COW::Ptr& cow,
+    COW::Ptr& cast_cow,
+    const std::unique_ptr<coal::BroadPhaseCollisionManager>& static_manager,
+    const std::unique_ptr<coal::BroadPhaseCollisionManager>& dynamic_manager);
 
 /**
  * @brief Create a cast collision object from a regular collision object

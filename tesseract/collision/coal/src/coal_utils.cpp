@@ -904,14 +904,15 @@ void applyCollisionFilterMask(COW& cow)
     cow.m_collisionFilterMask = CollisionFilterGroups::StaticFilter | CollisionFilterGroups::KinematicFilter;
 }
 
-void updateCollisionObjectFilters(const std::vector<std::string>& active,
-                                  const COW::Ptr& cow,
-                                  const std::unique_ptr<coal::BroadPhaseCollisionManager>& static_manager,
-                                  const std::unique_ptr<coal::BroadPhaseCollisionManager>& dynamic_manager)
+void updateCollisionObjectFilters(
+    const std::unordered_set<tesseract::common::LinkId, tesseract::common::LinkId::Hash>& active_ids,
+    const COW::Ptr& cow,
+    const std::unique_ptr<coal::BroadPhaseCollisionManager>& static_manager,
+    const std::unique_ptr<coal::BroadPhaseCollisionManager>& dynamic_manager)
 {
   // For discrete checks we can check static to kinematic and kinematic to
   // kinematic
-  if (!isLinkActive(active, cow->getName()))
+  if (!isLinkActive(active_ids, cow->getLinkId()))
   {
     if (cow->m_collisionFilterGroup != CollisionFilterGroups::StaticFilter)
     {
@@ -943,15 +944,16 @@ void updateCollisionObjectFilters(const std::vector<std::string>& active,
   applyCollisionFilterMask(*cow);
 }
 
-void updateCollisionObjectFilters(const std::vector<std::string>& active,
-                                  const COW::Ptr& cow,
-                                  COW::Ptr& cast_cow,
-                                  const std::unique_ptr<coal::BroadPhaseCollisionManager>& static_manager,
-                                  const std::unique_ptr<coal::BroadPhaseCollisionManager>& dynamic_manager)
+void updateCollisionObjectFilters(
+    const std::unordered_set<tesseract::common::LinkId, tesseract::common::LinkId::Hash>& active_ids,
+    const COW::Ptr& cow,
+    COW::Ptr& cast_cow,
+    const std::unique_ptr<coal::BroadPhaseCollisionManager>& static_manager,
+    const std::unique_ptr<coal::BroadPhaseCollisionManager>& dynamic_manager)
 {
   const std::vector<CollisionObjectPtr>& reg_objects = cow->getCollisionObjects();
 
-  if (!isLinkActive(active, cow->getName()))
+  if (!isLinkActive(active_ids, cow->getLinkId()))
   {
     if (cow->m_collisionFilterGroup != CollisionFilterGroups::StaticFilter)
     {

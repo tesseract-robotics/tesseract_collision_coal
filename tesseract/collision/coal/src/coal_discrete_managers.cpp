@@ -74,7 +74,7 @@ DiscreteContactManager::UPtr CoalDiscreteBVHManager::clone() const
     cloned_cows[id] = cow->clone();
 
   manager->addCollisionObjects(cloned_cows, /*defer_update=*/true);
-  manager->setActiveCollisionObjects(active_);
+  manager->setActiveCollisionObjects(getActiveCollisionObjects());
   manager->setCollisionMarginData(contact_test_data_.collision_margin_data);
   manager->setContactAllowedValidator(contact_test_data_.validator);
 
@@ -133,9 +133,6 @@ bool CoalDiscreteBVHManager::removeCollisionObject(const std::string& name)
     removeObjects(objects, it->second->m_collisionFilterGroup);
     link2cow_.erase(it);
 
-    auto it_active = std::find(active_.begin(), active_.end(), name);
-    if (it_active != active_.end())
-      active_.erase(it_active);
     active_ids_.erase(LinkId::fromName(name));
 
     return true;
@@ -227,20 +224,26 @@ const std::vector<std::string>& CoalDiscreteBVHManager::getCollisionObjects() co
 
 void CoalDiscreteBVHManager::setActiveCollisionObjects(const std::vector<std::string>& names)
 {
-  active_ = names;
   active_ids_.clear();
   for (const auto& name : names)
     active_ids_.insert(tesseract::common::LinkId::fromName(name));
 
   for (auto& co : link2cow_)
   {
-    updateCollisionObjectFilters(active_, co.second, static_manager_, dynamic_manager_);
+    updateCollisionObjectFilters(active_ids_, co.second, static_manager_, dynamic_manager_);
   }
 
   updateBroadphaseAndCache();
 }
 
-const std::vector<std::string>& CoalDiscreteBVHManager::getActiveCollisionObjects() const { return active_; }
+std::vector<std::string> CoalDiscreteBVHManager::getActiveCollisionObjects() const
+{
+  std::vector<std::string> result;
+  result.reserve(active_ids_.size());
+  for (const auto& id : active_ids_)
+    result.push_back(id.name());
+  return result;
+}
 
 void CoalDiscreteBVHManager::setCollisionMarginData(CollisionMarginData collision_margin_data)
 {
@@ -335,8 +338,8 @@ void CoalDiscreteBVHManager::addCollisionObject(const COW::Ptr& cow)
   }
 
   // If active links is not empty update filters to replace the active links list
-  if (!active_.empty())
-    updateCollisionObjectFilters(active_, cow, static_manager_, dynamic_manager_);
+  if (!active_ids_.empty())
+    updateCollisionObjectFilters(active_ids_, cow, static_manager_, dynamic_manager_);
 
   updateBroadphaseAndCache();
 }
@@ -371,10 +374,10 @@ void CoalDiscreteBVHManager::addCollisionObjects(const Link2COW& cows, bool defe
 
   if (!defer_update)
   {
-    if (!active_.empty())
+    if (!active_ids_.empty())
     {
       for (auto& co : link2cow_)
-        updateCollisionObjectFilters(active_, co.second, static_manager_, dynamic_manager_);
+        updateCollisionObjectFilters(active_ids_, co.second, static_manager_, dynamic_manager_);
     }
 
     updateBroadphaseAndCache();

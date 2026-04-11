@@ -78,7 +78,7 @@ ContinuousContactManager::UPtr CoalCastBVHManager::clone() const
     cloned_cows[id] = cow->clone();
 
   manager->addCollisionObjects(cloned_cows, /*defer_update=*/true);
-  manager->setActiveCollisionObjects(active_);
+  manager->setActiveCollisionObjects(getActiveCollisionObjects());
   manager->setCollisionMarginData(contact_test_data_.collision_margin_data);
   manager->setContactAllowedValidator(contact_test_data_.validator);
 
@@ -139,9 +139,6 @@ bool CoalCastBVHManager::removeCollisionObject(const std::string& name)
       removeObjects(objects, *static_manager_);
     link2cow_.erase(it);
 
-    auto it_active = std::find(active_.begin(), active_.end(), name);
-    if (it_active != active_.end())
-      active_.erase(it_active);
     active_ids_.erase(lid);
 
     // Also remove from cast map
@@ -315,7 +312,6 @@ const std::vector<std::string>& CoalCastBVHManager::getCollisionObjects() const 
 
 void CoalCastBVHManager::setActiveCollisionObjects(const std::vector<std::string>& names)
 {
-  active_ = names;
   active_ids_.clear();
   for (const auto& name : names)
     active_ids_.insert(tesseract::common::LinkId::fromName(name));
@@ -326,13 +322,20 @@ void CoalCastBVHManager::setActiveCollisionObjects(const std::vector<std::string
     COW::Ptr& cast_cow = link2castcow_[id];
 
     // Use the specialized function that properly handles both regular and cast objects
-    updateCollisionObjectFilters(active_, cow, cast_cow, static_manager_, dynamic_manager_);
+    updateCollisionObjectFilters(active_ids_, cow, cast_cow, static_manager_, dynamic_manager_);
   }
 
   updateBroadphaseAndCache();
 }
 
-const std::vector<std::string>& CoalCastBVHManager::getActiveCollisionObjects() const { return active_; }
+std::vector<std::string> CoalCastBVHManager::getActiveCollisionObjects() const
+{
+  std::vector<std::string> result;
+  result.reserve(active_ids_.size());
+  for (const auto& id : active_ids_)
+    result.push_back(id.name());
+  return result;
+}
 
 void CoalCastBVHManager::setCollisionMarginData(CollisionMarginData collision_margin_data)
 {
@@ -430,8 +433,8 @@ void CoalCastBVHManager::addCollisionObject(const COW::Ptr& cow)
       dynamic_manager_->registerObject(co.get());
   }
 
-  if (!active_.empty())
-    updateCollisionObjectFilters(active_, cow, cast_ref, static_manager_, dynamic_manager_);
+  if (!active_ids_.empty())
+    updateCollisionObjectFilters(active_ids_, cow, cast_ref, static_manager_, dynamic_manager_);
 
   updateBroadphaseAndCache();
 }
@@ -475,12 +478,12 @@ void CoalCastBVHManager::addCollisionObjects(const Link2COW& cows, bool defer_up
 
   if (!defer_update)
   {
-    if (!active_.empty())
+    if (!active_ids_.empty())
     {
       for (auto& [id, cow_ref] : link2cow_)
       {
         COW::Ptr& cast_cow = link2castcow_[id];
-        updateCollisionObjectFilters(active_, cow_ref, cast_cow, static_manager_, dynamic_manager_);
+        updateCollisionObjectFilters(active_ids_, cow_ref, cast_cow, static_manager_, dynamic_manager_);
       }
     }
 

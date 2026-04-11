@@ -104,7 +104,7 @@ public:
 
   void setActiveCollisionObjects(const std::vector<std::string>& names) override final;
 
-  const std::vector<std::string>& getActiveCollisionObjects() const override final;
+  std::vector<std::string> getActiveCollisionObjects() const override final;
 
   void setCollisionMarginData(CollisionMarginData collision_margin_data) override final;
 
@@ -159,7 +159,6 @@ private:
   CollisionCacheMap collision_cache;
 
   Link2COW link2cow_; /**< @brief A map of all (static and active) collision objects being managed, keyed by LinkId */
-  std::vector<std::string> active_;            /**< @brief A list of the active collision objects (string, for API) */
   std::unordered_set<tesseract::common::LinkId, tesseract::common::LinkId::Hash>
       active_ids_; /**< @brief Active collision objects by LinkId (O(1) lookup) */
   std::vector<std::string> collision_objects_; /**< @brief A list of the collision objects */
