@@ -33,7 +33,7 @@ TEST(CoalCachePairUnit, RepeatedContactTestReusesCache)  // NOLINT
 
   checker.addCollisionObject("link_a", 0, shapes1, poses1, true);
   checker.addCollisionObject("link_b", 0, shapes2, poses2, true);
-  checker.setActiveCollisionObjects({ "link_a", "link_b" });
+  checker.setActiveCollisionObjects(std::vector<std::string>{ "link_a", "link_b" });
   checker.setDefaultCollisionMargin(0.0);
 
   // Place spheres so they overlap
@@ -109,7 +109,7 @@ TEST(CoalCachePairUnit, ReregisteredObjectsGiveConsistentResults)  // NOLINT
   tesseract_collision_coal::CoalDiscreteBVHManager checker1;
   checker1.addCollisionObject("link_a", 0, shapes, poses, true);
   checker1.addCollisionObject("link_b", 0, shapes, poses, true);
-  checker1.setActiveCollisionObjects({ "link_a", "link_b" });
+  checker1.setActiveCollisionObjects(std::vector<std::string>{ "link_a", "link_b" });
   checker1.setDefaultCollisionMargin(0.0);
   checker1.setCollisionObjectsTransform("link_a", pose_a);
   checker1.setCollisionObjectsTransform("link_b", pose_b);
@@ -124,7 +124,7 @@ TEST(CoalCachePairUnit, ReregisteredObjectsGiveConsistentResults)  // NOLINT
   tesseract_collision_coal::CoalDiscreteBVHManager checker2;
   checker2.addCollisionObject("link_b", 0, shapes, poses, true);
   checker2.addCollisionObject("link_a", 0, shapes, poses, true);
-  checker2.setActiveCollisionObjects({ "link_a", "link_b" });
+  checker2.setActiveCollisionObjects(std::vector<std::string>{ "link_a", "link_b" });
   checker2.setDefaultCollisionMargin(0.0);
   checker2.setCollisionObjectsTransform("link_a", pose_a);
   checker2.setCollisionObjectsTransform("link_b", pose_b);
@@ -166,7 +166,7 @@ TEST(CoalCachePairUnit, RemoveReaddProducesCorrectResults)  // NOLINT
   tesseract_collision_coal::CoalDiscreteBVHManager checker;
   checker.addCollisionObject("link_a", 0, shapes, poses, true);
   checker.addCollisionObject("link_b", 0, shapes, poses, true);
-  checker.setActiveCollisionObjects({ "link_a", "link_b" });
+  checker.setActiveCollisionObjects(std::vector<std::string>{ "link_a", "link_b" });
   checker.setDefaultCollisionMargin(0.0);
 
   Eigen::Isometry3d pose_a = Eigen::Isometry3d::Identity();
@@ -190,7 +190,7 @@ TEST(CoalCachePairUnit, RemoveReaddProducesCorrectResults)  // NOLINT
   // and may change the internal Coal object pointer, altering broadphase order.
   checker.removeCollisionObject("link_b");
   checker.addCollisionObject("link_b", 0, shapes, poses, true);
-  checker.setActiveCollisionObjects({ "link_a", "link_b" });
+  checker.setActiveCollisionObjects(std::vector<std::string>{ "link_a", "link_b" });
   checker.setCollisionObjectsTransform("link_b", pose_b);
 
   ContactResultMap result2;
@@ -290,7 +290,7 @@ TEST(CoalCachePairUnit, ActiveListPromotionEnablesContacts)  // NOLINT
     EXPECT_TRUE(result_before.empty());
 
     // Now set one object active — static-vs-kinematic pair should produce contact
-    checker.setActiveCollisionObjects({ "link_a" });
+    checker.setActiveCollisionObjects(std::vector<std::string>{ "link_a" });
 
     ContactResultMap result_after;
     checker.contactTest(result_after, ContactRequest(ContactTestType::ALL));
@@ -312,7 +312,7 @@ TEST(CoalCachePairUnit, ActiveListPromotionEnablesContacts)  // NOLINT
     EXPECT_TRUE(result_before.empty());
 
     // Set link_a active and give it a sweep transform
-    checker.setActiveCollisionObjects({ "link_a" });
+    checker.setActiveCollisionObjects(std::vector<std::string>{ "link_a" });
     Eigen::Isometry3d start = Eigen::Isometry3d::Identity();
     Eigen::Isometry3d end = Eigen::Isometry3d::Identity();
     end.translation() = Eigen::Vector3d(0.1, 0, 0);

@@ -113,7 +113,7 @@ inline std::array<int, 3> getSlots(const ContactResult& cr)
 inline void runTestCCTypeTime1(ContinuousContactManager& checker)
 {
   addCCTypeObjects(checker);
-  checker.setActiveCollisionObjects({ "moving_sphere" });
+  checker.setActiveCollisionObjects(std::vector<std::string>{ "moving_sphere" });
   checker.setDefaultCollisionMargin(0.0);
 
   // Static sphere fixed at origin
@@ -246,7 +246,7 @@ inline void runTestCCTypeTime1(ContinuousContactManager& checker)
 inline void runTestCCTypeTime0(ContinuousContactManager& checker)
 {
   addCCTypeObjects(checker);
-  checker.setActiveCollisionObjects({ "moving_sphere" });
+  checker.setActiveCollisionObjects(std::vector<std::string>{ "moving_sphere" });
   checker.setDefaultCollisionMargin(0.0);
 
   // Static sphere fixed at origin

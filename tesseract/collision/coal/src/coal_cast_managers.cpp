@@ -78,7 +78,7 @@ ContinuousContactManager::UPtr CoalCastBVHManager::clone() const
     cloned_cows[id] = cow->clone();
 
   manager->addCollisionObjects(cloned_cows, /*defer_update=*/true);
-  manager->setActiveCollisionObjects(getActiveCollisionObjects());
+  manager->setActiveCollisionObjects(std::vector<tesseract::common::LinkId>(active_ids_.begin(), active_ids_.end()));
   manager->setCollisionMarginData(contact_test_data_.collision_margin_data);
   manager->setContactAllowedValidator(contact_test_data_.validator);
 
@@ -315,6 +315,23 @@ void CoalCastBVHManager::setActiveCollisionObjects(const std::vector<std::string
   active_ids_.clear();
   for (const auto& name : names)
     active_ids_.insert(tesseract::common::LinkId::fromName(name));
+
+  for (auto& [id, cow] : link2cow_)
+  {
+    // Get the cast collision object
+    COW::Ptr& cast_cow = link2castcow_[id];
+
+    // Use the specialized function that properly handles both regular and cast objects
+    updateCollisionObjectFilters(active_ids_, cow, cast_cow, static_manager_, dynamic_manager_);
+  }
+
+  updateBroadphaseAndCache();
+}
+
+void CoalCastBVHManager::setActiveCollisionObjects(const std::vector<tesseract::common::LinkId>& ids)
+{
+  active_ids_.clear();
+  active_ids_.insert(ids.begin(), ids.end());
 
   for (auto& [id, cow] : link2cow_)
   {

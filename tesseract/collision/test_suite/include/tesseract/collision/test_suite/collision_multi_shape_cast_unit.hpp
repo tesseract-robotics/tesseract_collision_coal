@@ -73,7 +73,7 @@ inline void runTestMultiShapeCast(ContinuousContactManager& checker)
 {
   addMultiShapeCollisionObjects(checker);
 
-  checker.setActiveCollisionObjects({ "arm_link" });
+  checker.setActiveCollisionObjects(std::vector<std::string>{ "arm_link" });
   checker.setDefaultCollisionMargin(0.05);
 
   // Place obstacle at (0.5, 0.5, 0) — along the MID-SWEEP path of sub-shape A.
@@ -189,7 +189,7 @@ inline void runTestMultiShapeDiscrete(DiscreteContactManager& checker)
 
   checker.addCollisionObject("arm_link", 0, arm_shapes, arm_poses);
 
-  checker.setActiveCollisionObjects({ "arm_link" });
+  checker.setActiveCollisionObjects(std::vector<std::string>{ "arm_link" });
   checker.setDefaultCollisionMargin(0.05);
 
   // Place obstacle at (0, 1.0, 0)

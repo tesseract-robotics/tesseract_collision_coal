@@ -44,7 +44,7 @@ inline void runTestDisabledObjectSweepDoesNotUpdateCastState(ContinuousContactMa
 {
   addStaticBoxAndActiveSphere(checker);
 
-  checker.setActiveCollisionObjects({ "moving_sphere" });
+  checker.setActiveCollisionObjects(std::vector<std::string>{ "moving_sphere" });
   checker.setDefaultCollisionMargin(0.0);
 
   const Eigen::Isometry3d start = Eigen::Isometry3d(Eigen::Translation3d(-2.0, 0.0, 0.0));

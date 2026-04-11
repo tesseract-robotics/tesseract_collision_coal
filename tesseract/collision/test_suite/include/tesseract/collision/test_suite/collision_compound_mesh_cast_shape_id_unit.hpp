@@ -46,7 +46,7 @@ inline void addCompoundMeshAndActiveSphere(ContinuousContactManager& checker)
 
 inline void runCompoundMeshShapeIdUsesOriginalGeometryIndex(ContinuousContactManager& checker)
 {
-  checker.setActiveCollisionObjects({ "sphere_link" });
+  checker.setActiveCollisionObjects(std::vector<std::string>{ "sphere_link" });
   checker.setDefaultCollisionMargin(0.1);
 
   // Keep compound mesh static at identity
@@ -94,7 +94,7 @@ inline void runCompoundMeshShapeIdUsesOriginalGeometryIndex(ContinuousContactMan
 
 inline void runCompoundMeshSubshapeIdReportsPrimitiveIdentity(ContinuousContactManager& checker)
 {
-  checker.setActiveCollisionObjects({ "sphere_link" });
+  checker.setActiveCollisionObjects(std::vector<std::string>{ "sphere_link" });
   checker.setDefaultCollisionMargin(0.1);
 
   tesseract::common::LinkIdTransformMap location;

@@ -116,7 +116,7 @@ inline void runDiscreteOctomapTransformOverloadUsageTest(DiscreteContactManager&
 {
   detail::addDiscreteOctreeAndSphere(checker, subtype);
 
-  checker.setActiveCollisionObjects({ "octomap_link", "sphere_link" });
+  checker.setActiveCollisionObjects(std::vector<std::string>{ "octomap_link", "sphere_link" });
   checker.setDefaultCollisionMargin(0.0);
 
   const Eigen::Isometry3d far_pose = Eigen::Isometry3d(Eigen::Translation3d(5.0, 0.0, 0.0));
@@ -152,7 +152,7 @@ inline void runContinuousOctomapTransformOverloadUsageTest(ContinuousContactMana
 {
   detail::addContinuousOctreePair(checker, subtype);
 
-  checker.setActiveCollisionObjects({ "octomap1_link" });
+  checker.setActiveCollisionObjects(std::vector<std::string>{ "octomap1_link" });
   checker.setCollisionMarginData(CollisionMarginData(0.25));
 
   const Eigen::Isometry3d static_far = Eigen::Isometry3d(Eigen::Translation3d(5.0, 0.0, 0.0));
