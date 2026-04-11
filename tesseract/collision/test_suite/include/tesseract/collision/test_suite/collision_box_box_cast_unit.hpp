@@ -92,7 +92,7 @@ inline void addCollisionObjects(ContinuousContactManager& checker)
 
   // Verify that active list no longer contains the removed object
   {
-    const auto& active_after_remove = checker.getActiveCollisionObjects();
+    const auto active_after_remove = checker.getActiveCollisionObjects();
     EXPECT_EQ(active_after_remove.size(), 3);
     EXPECT_EQ(std::find(active_after_remove.begin(), active_after_remove.end(), "remove_box_link"),
               active_after_remove.end());
