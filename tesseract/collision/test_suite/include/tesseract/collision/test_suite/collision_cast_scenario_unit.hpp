@@ -42,7 +42,7 @@ inline std::string formatCR(const std::string& label, const ContactResult& cr)
   std::ostringstream os;
   os << std::setprecision(6) << std::fixed;
   os << "[" << label << "]"
-     << "\n  link_names: [" << cr.link_names[0] << ", " << cr.link_names[1] << "]"
+     << "\n  link_names: [" << cr.link_ids[0].name() << ", " << cr.link_ids[1].name() << "]"
      << "\n  distance: " << cr.distance << "\n  normal: (" << cr.normal.transpose() << ")"
      << "\n  nearest_points[0]: (" << cr.nearest_points[0].transpose() << ")"
      << "\n  nearest_points[1]: (" << cr.nearest_points[1].transpose() << ")"
@@ -122,12 +122,12 @@ inline int findKinContact(const ContactResultVector& results, const std::string&
 {
   for (std::size_t i = 0; i < results.size(); ++i)
   {
-    if (results[i].link_names[0] == kin_link)
+    if (results[i].link_ids[0].name() == kin_link)
     {
       kin_idx = 0;
       return static_cast<int>(i);
     }
-    if (results[i].link_names[1] == kin_link)
+    if (results[i].link_ids[1].name() == kin_link)
     {
       kin_idx = 1;
       return static_cast<int>(i);
@@ -183,9 +183,9 @@ inline void validateOctreeContactSelfConsistency(const ContactResult& cr,
   SCOPED_TRACE(label + ": " + formatCR(label, cr));
 
   std::size_t ki = std::numeric_limits<std::size_t>::max();
-  if (cr.link_names[0] == kin_link)
+  if (cr.link_ids[0].name() == kin_link)
     ki = 0;
-  else if (cr.link_names[1] == kin_link)
+  else if (cr.link_ids[1].name() == kin_link)
     ki = 1;
   ASSERT_NE(ki, std::numeric_limits<std::size_t>::max()) << label << ": kin_link not found in contact";
 
@@ -237,9 +237,9 @@ inline int findMatchingContact(const ContactResult& ref_cr,
   for (std::size_t i = 0; i < other_results.size(); ++i)
   {
     std::size_t ki = std::numeric_limits<std::size_t>::max();
-    if (other_results[i].link_names[0] == kin_link)
+    if (other_results[i].link_ids[0].name() == kin_link)
       ki = 0;
-    else if (other_results[i].link_names[1] == kin_link)
+    else if (other_results[i].link_ids[1].name() == kin_link)
       ki = 1;
     else
       continue;
@@ -424,9 +424,9 @@ inline void runTestScenarioD_ArticulatedArm(ContinuousContactManager& checker)
     const std::string label = "Result[" + std::to_string(i) + "]";
 
     // Determine which link this contact involves and use the right poses
-    if (cr.link_names[0] == "parent_link" || cr.link_names[1] == "parent_link")
+    if (cr.link_ids[0].name() == "parent_link" || cr.link_ids[1].name() == "parent_link")
       validateOctreeContactSelfConsistency(cr, "parent_link", poses.parent_pose1, poses.parent_pose2, label);
-    if (cr.link_names[0] == "child_link" || cr.link_names[1] == "child_link")
+    if (cr.link_ids[0].name() == "child_link" || cr.link_ids[1].name() == "child_link")
       validateOctreeContactSelfConsistency(cr, "child_link", poses.child_pose1, poses.child_pose2, label);
   }
 }
