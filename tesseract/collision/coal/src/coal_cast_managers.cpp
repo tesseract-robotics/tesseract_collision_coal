@@ -91,11 +91,19 @@ bool CoalCastBVHManager::addCollisionObject(const std::string& name,
                                             const tesseract::common::VectorIsometry3d& shape_poses,
                                             bool enabled)
 {
-  using tesseract::common::LinkId;
-  if (link2cow_.find(LinkId::fromName(name)) != link2cow_.end())
-    removeCollisionObject(name);
+  return addCollisionObject(tesseract::common::LinkId::fromName(name), mask_id, shapes, shape_poses, enabled);
+}
 
-  const COW::Ptr new_cow = createCoalCollisionObject(name, mask_id, shapes, shape_poses, enabled);
+bool CoalCastBVHManager::addCollisionObject(const tesseract::common::LinkId& id,
+                                            const int& mask_id,
+                                            const CollisionShapesConst& shapes,
+                                            const tesseract::common::VectorIsometry3d& shape_poses,
+                                            bool enabled)
+{
+  if (link2cow_.find(id) != link2cow_.end())
+    removeCollisionObject(id);
+
+  const COW::Ptr new_cow = createCoalCollisionObject(id.name(), mask_id, shapes, shape_poses, enabled);
   if (new_cow != nullptr)
   {
     addCollisionObject(new_cow);
@@ -107,30 +115,50 @@ bool CoalCastBVHManager::addCollisionObject(const std::string& name,
 
 const CollisionShapesConst& CoalCastBVHManager::getCollisionObjectGeometries(const std::string& name) const
 {
-  auto cow = link2cow_.find(tesseract::common::LinkId::fromName(name));
+  return getCollisionObjectGeometries(tesseract::common::LinkId::fromName(name));
+}
+
+const CollisionShapesConst&
+CoalCastBVHManager::getCollisionObjectGeometries(const tesseract::common::LinkId& id) const
+{
+  auto cow = link2cow_.find(id);
   return (cow != link2cow_.end()) ? cow->second->getCollisionGeometries() : EMPTY_COLLISION_SHAPES_CONST;
 }
 
 const tesseract::common::VectorIsometry3d&
 CoalCastBVHManager::getCollisionObjectGeometriesTransforms(const std::string& name) const
 {
-  auto cow = link2cow_.find(tesseract::common::LinkId::fromName(name));
+  return getCollisionObjectGeometriesTransforms(tesseract::common::LinkId::fromName(name));
+}
+
+const tesseract::common::VectorIsometry3d&
+CoalCastBVHManager::getCollisionObjectGeometriesTransforms(const tesseract::common::LinkId& id) const
+{
+  auto cow = link2cow_.find(id);
   return (cow != link2cow_.end()) ? cow->second->getCollisionGeometriesTransforms() : EMPTY_COLLISION_SHAPES_TRANSFORMS;
 }
 
 bool CoalCastBVHManager::hasCollisionObject(const std::string& name) const
 {
-  return (link2cow_.find(tesseract::common::LinkId::fromName(name)) != link2cow_.end());
+  return hasCollisionObject(tesseract::common::LinkId::fromName(name));
+}
+
+bool CoalCastBVHManager::hasCollisionObject(const tesseract::common::LinkId& id) const
+{
+  return (link2cow_.find(id) != link2cow_.end());
 }
 
 bool CoalCastBVHManager::removeCollisionObject(const std::string& name)
 {
-  using tesseract::common::LinkId;
-  const auto lid = LinkId::fromName(name);
-  auto it = link2cow_.find(lid);
+  return removeCollisionObject(tesseract::common::LinkId::fromName(name));
+}
+
+bool CoalCastBVHManager::removeCollisionObject(const tesseract::common::LinkId& id)
+{
+  auto it = link2cow_.find(id);
   if (it != link2cow_.end())
   {
-    auto it_obj = std::find(collision_objects_.begin(), collision_objects_.end(), lid);
+    auto it_obj = std::find(collision_objects_.begin(), collision_objects_.end(), id);
     if (it_obj != collision_objects_.end())
       collision_objects_.erase(it_obj);
     const std::vector<CollisionObjectPtr>& objects = it->second->getCollisionObjects();
@@ -139,10 +167,10 @@ bool CoalCastBVHManager::removeCollisionObject(const std::string& name)
       removeObjects(objects, *static_manager_);
     link2cow_.erase(it);
 
-    active_ids_.erase(lid);
+    active_ids_.erase(id);
 
     // Also remove from cast map
-    auto it_cast = link2castcow_.find(lid);
+    auto it_cast = link2castcow_.find(id);
     if (it_cast != link2castcow_.end())
     {
       const std::vector<CollisionObjectPtr>& objects_cast = it_cast->second->getCollisionObjects();
@@ -167,25 +195,39 @@ void CoalCastBVHManager::removeObjects(const std::vector<CollisionObjectPtr>& ob
 
 bool CoalCastBVHManager::enableCollisionObject(const std::string& name)
 {
-  return setCollisionObjectEnabled(name, true);
+  return enableCollisionObject(tesseract::common::LinkId::fromName(name));
+}
+
+bool CoalCastBVHManager::enableCollisionObject(const tesseract::common::LinkId& id)
+{
+  return setCollisionObjectEnabled(id, true);
 }
 
 bool CoalCastBVHManager::disableCollisionObject(const std::string& name)
 {
-  return setCollisionObjectEnabled(name, false);
+  return disableCollisionObject(tesseract::common::LinkId::fromName(name));
+}
+
+bool CoalCastBVHManager::disableCollisionObject(const tesseract::common::LinkId& id)
+{
+  return setCollisionObjectEnabled(id, false);
 }
 
 bool CoalCastBVHManager::setCollisionObjectEnabled(const std::string& name, bool enabled)
 {
-  const auto lid = tesseract::common::LinkId::fromName(name);
-  auto it = link2cow_.find(lid);
+  return setCollisionObjectEnabled(tesseract::common::LinkId::fromName(name), enabled);
+}
+
+bool CoalCastBVHManager::setCollisionObjectEnabled(const tesseract::common::LinkId& id, bool enabled)
+{
+  auto it = link2cow_.find(id);
   if (it == link2cow_.end())
     return false;
 
   it->second->m_enabled = enabled;
   it->second->gjk_generation_++;
 
-  auto cast_it = link2castcow_.find(lid);
+  auto cast_it = link2castcow_.find(id);
   if (cast_it != link2castcow_.end())
   {
     cast_it->second->m_enabled = enabled;
@@ -197,7 +239,12 @@ bool CoalCastBVHManager::setCollisionObjectEnabled(const std::string& name, bool
 
 bool CoalCastBVHManager::isCollisionObjectEnabled(const std::string& name) const
 {
-  auto it = link2cow_.find(tesseract::common::LinkId::fromName(name));
+  return isCollisionObjectEnabled(tesseract::common::LinkId::fromName(name));
+}
+
+bool CoalCastBVHManager::isCollisionObjectEnabled(const tesseract::common::LinkId& id) const
+{
+  auto it = link2cow_.find(id);
   if (it != link2cow_.end())
     return it->second->m_enabled;
 
@@ -206,14 +253,7 @@ bool CoalCastBVHManager::isCollisionObjectEnabled(const std::string& name) const
 
 void CoalCastBVHManager::setCollisionObjectsTransform(const std::string& name, const Eigen::Isometry3d& pose)
 {
-  auto it = link2cow_.find(tesseract::common::LinkId::fromName(name));
-  if (it != link2cow_.end())
-  {
-    static_update_.clear();
-    dynamic_update_.clear();
-    collectTransformUpdate(it, pose);
-    flushBatchUpdate();
-  }
+  setCollisionObjectsTransform(tesseract::common::LinkId::fromName(name), pose);
 }
 
 void CoalCastBVHManager::setCollisionObjectsTransform(const std::vector<std::string>& names,
@@ -261,16 +301,7 @@ void CoalCastBVHManager::setCollisionObjectsTransform(const std::string& name,
                                                       const Eigen::Isometry3d& pose1,
                                                       const Eigen::Isometry3d& pose2)
 {
-  const auto lid = tesseract::common::LinkId::fromName(name);
-  auto cast_it = link2castcow_.find(lid);
-  if (cast_it != link2castcow_.end())
-  {
-    static_update_.clear();
-    dynamic_update_.clear();
-    auto reg_it = link2cow_.find(lid);
-    collectCastTransformUpdate(cast_it, reg_it, pose1, pose2);
-    flushBatchUpdate();
-  }
+  setCollisionObjectsTransform(tesseract::common::LinkId::fromName(name), pose1, pose2);
 }
 
 void CoalCastBVHManager::setCollisionObjectsTransform(const std::vector<std::string>& names,
