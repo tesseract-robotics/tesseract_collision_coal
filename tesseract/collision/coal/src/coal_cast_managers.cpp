@@ -725,7 +725,7 @@ void CoalCastBVHManager::onCollisionMarginDataChanged()
   // kinematic links use the cast version in the dynamic manager instead)
   for (auto& cow : link2cow_)
   {
-    const double new_threshold = contact_test_data_.collision_margin_data.getMaxCollisionMargin(cow.second->getName());
+    const double new_threshold = contact_test_data_.collision_margin_data.getMaxCollisionMargin(cow.second->getLinkId());
     if (new_threshold != cow.second->getContactDistanceThreshold())
     {
       cow.second->setContactDistanceThreshold(new_threshold);
@@ -738,7 +738,7 @@ void CoalCastBVHManager::onCollisionMarginDataChanged()
   for (auto& cast_cow : link2castcow_)
   {
     const double new_threshold =
-        contact_test_data_.collision_margin_data.getMaxCollisionMargin(cast_cow.second->getName());
+        contact_test_data_.collision_margin_data.getMaxCollisionMargin(cast_cow.second->getLinkId());
     if (new_threshold != cast_cow.second->getContactDistanceThreshold())
     {
       cast_cow.second->setContactDistanceThreshold(new_threshold);
