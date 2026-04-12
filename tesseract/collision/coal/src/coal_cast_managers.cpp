@@ -244,7 +244,8 @@ void CoalCastBVHManager::setCollisionObjectsTransform(const tesseract::common::L
   flushBatchUpdate();
 }
 
-void CoalCastBVHManager::setCollisionObjectsTransform(tesseract::common::LinkId id, const Eigen::Isometry3d& pose)
+void CoalCastBVHManager::setCollisionObjectsTransform(const tesseract::common::LinkId& id,
+                                                      const Eigen::Isometry3d& pose)
 {
   auto it = link2cow_.find(id);
   if (it != link2cow_.end())
@@ -293,7 +294,7 @@ void CoalCastBVHManager::setCollisionObjectsTransform(const std::vector<std::str
   flushBatchUpdate();
 }
 
-void CoalCastBVHManager::setCollisionObjectsTransform(tesseract::common::LinkId id,
+void CoalCastBVHManager::setCollisionObjectsTransform(const tesseract::common::LinkId& id,
                                                       const Eigen::Isometry3d& pose1,
                                                       const Eigen::Isometry3d& pose2)
 {
