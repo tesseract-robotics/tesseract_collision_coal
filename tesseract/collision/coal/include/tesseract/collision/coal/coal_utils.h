@@ -127,7 +127,7 @@ public:
   using ConstPtr = std::shared_ptr<const CollisionObjectWrapper>;
 
   CollisionObjectWrapper() = default;
-  CollisionObjectWrapper(std::string name,
+  CollisionObjectWrapper(const std::string& name,
                          const int& type_id,
                          CollisionShapesConst shapes,
                          tesseract::common::VectorIsometry3d shape_poses);
@@ -138,8 +138,8 @@ public:
   uint32_t gjk_generation_{ 1 };  ///< Monotonic counter for GJK guess invalidation. Starts at 1 so new cache entries
                                   ///< (initialized to 0) trigger initial GJK seeding on first use.
 
-  const std::string& getName() const { return name_; }
-  tesseract::common::LinkId getLinkId() const { return link_id_; }
+  const std::string& getName() const { return link_id_.name(); }
+  const tesseract::common::LinkId& getLinkId() const { return link_id_; }
   const int& getTypeID() const { return type_id_; }
 
   const CollisionShapesConst& getCollisionGeometries() const { return shapes_; }
@@ -175,8 +175,7 @@ public:
   static int getShapeIndex(const coal::CollisionObject* co);
 
 protected:
-  std::string name_;                                              // name of the collision object
-  tesseract::common::LinkId link_id_;                              // integer id derived from name_
+  tesseract::common::LinkId link_id_;                              // id derived from name, also carries the name string
   int type_id_{ -1 };                                             // user defined type id
   Eigen::Isometry3d world_pose_{ Eigen::Isometry3d::Identity() }; /**< @brief Collision Object World Transformation */
   CollisionShapesConst shapes_;

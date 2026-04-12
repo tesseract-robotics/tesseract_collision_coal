@@ -720,12 +720,11 @@ bool CollisionCallback::collide(coal::CollisionObject* o1, coal::CollisionObject
   return cdata->done;
 }
 
-CollisionObjectWrapper::CollisionObjectWrapper(std::string name,
+CollisionObjectWrapper::CollisionObjectWrapper(const std::string& name,
                                                const int& type_id,
                                                CollisionShapesConst shapes,
                                                tesseract::common::VectorIsometry3d shape_poses)
-  : name_(std::move(name))
-  , link_id_(tesseract::common::LinkId::fromName(name_))
+  : link_id_(tesseract::common::LinkId::fromName(name))
   , type_id_(type_id)
   , shapes_(std::move(shapes))
   , shape_poses_(std::move(shape_poses))
@@ -733,7 +732,7 @@ CollisionObjectWrapper::CollisionObjectWrapper(std::string name,
   // Preconditions guaranteed by createCoalCollisionObject() which validates before construction.
   assert(!shapes_.empty());                       // NOLINT
   assert(!shape_poses_.empty());                  // NOLINT
-  assert(!name_.empty());                         // NOLINT
+  assert(!link_id_.name().empty());                // NOLINT
   assert(shapes_.size() == shape_poses_.size());  // NOLINT
 
   collision_geometries_.reserve(shapes_.size());
@@ -819,7 +818,6 @@ void CollisionObjectWrapper::appendCollisionObjectsRaw(std::vector<CollisionObje
 std::shared_ptr<CollisionObjectWrapper> CollisionObjectWrapper::clone() const
 {
   auto clone_cow = std::make_shared<CollisionObjectWrapper>();
-  clone_cow->name_ = name_;
   clone_cow->link_id_ = link_id_;
   clone_cow->type_id_ = type_id_;
   clone_cow->shapes_ = shapes_;
