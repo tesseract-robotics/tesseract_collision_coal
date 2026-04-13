@@ -714,7 +714,7 @@ bool CollisionCallback::collide(coal::CollisionObject* o1, coal::CollisionObject
       const auto it = cdata->res->find(link_pair);
       found = (it != cdata->res->end() && !it->second.empty());
     }
-    processResult(*cdata, std::move(contact), link_pair, found, security_margin);
+    processResult(*cdata, contact, link_pair, found);
   }
 
   return cdata->done;
