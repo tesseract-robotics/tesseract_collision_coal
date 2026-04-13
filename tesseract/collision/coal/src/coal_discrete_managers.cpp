@@ -70,11 +70,11 @@ DiscreteContactManager::UPtr CoalDiscreteBVHManager::clone() const
   auto manager = std::make_unique<CoalDiscreteBVHManager>(name_, gjk_guess_threshold_);
 
   Link2COW cloned_cows;
-  for (const auto& cow : link2cow_)
-    cloned_cows[cow.first] = cow.second->clone();
+  for (const auto& [id, cow] : link2cow_)
+    cloned_cows[id] = cow->clone();
 
   manager->addCollisionObjects(cloned_cows, /*defer_update=*/true);
-  manager->setActiveCollisionObjects(active_);
+  manager->setActiveCollisionObjects(std::vector<tesseract::common::LinkId>(active_ids_.begin(), active_ids_.end()));
   manager->setCollisionMarginData(contact_test_data_.collision_margin_data);
   manager->setContactAllowedValidator(contact_test_data_.validator);
 
@@ -87,10 +87,19 @@ bool CoalDiscreteBVHManager::addCollisionObject(const std::string& name,
                                                 const tesseract::common::VectorIsometry3d& shape_poses,
                                                 bool enabled)
 {
-  if (link2cow_.find(name) != link2cow_.end())
-    removeCollisionObject(name);
+  return addCollisionObject(tesseract::common::LinkId::fromName(name), mask_id, shapes, shape_poses, enabled);
+}
 
-  const COW::Ptr new_cow = createCoalCollisionObject(name, mask_id, shapes, shape_poses, enabled);
+bool CoalDiscreteBVHManager::addCollisionObject(const tesseract::common::LinkId& id,
+                                                const int& mask_id,
+                                                const CollisionShapesConst& shapes,
+                                                const tesseract::common::VectorIsometry3d& shape_poses,
+                                                bool enabled)
+{
+  if (link2cow_.find(id) != link2cow_.end())
+    removeCollisionObject(id);
+
+  const COW::Ptr new_cow = createCoalCollisionObject(id.name(), mask_id, shapes, shape_poses, enabled);
   if (new_cow != nullptr)
   {
     addCollisionObject(new_cow);
@@ -102,38 +111,58 @@ bool CoalDiscreteBVHManager::addCollisionObject(const std::string& name,
 
 const CollisionShapesConst& CoalDiscreteBVHManager::getCollisionObjectGeometries(const std::string& name) const
 {
-  auto cow = link2cow_.find(name);
+  return getCollisionObjectGeometries(tesseract::common::LinkId::fromName(name));
+}
+
+const CollisionShapesConst&
+CoalDiscreteBVHManager::getCollisionObjectGeometries(const tesseract::common::LinkId& id) const
+{
+  auto cow = link2cow_.find(id);
   return (cow != link2cow_.end()) ? cow->second->getCollisionGeometries() : EMPTY_COLLISION_SHAPES_CONST;
 }
 
 const tesseract::common::VectorIsometry3d&
 CoalDiscreteBVHManager::getCollisionObjectGeometriesTransforms(const std::string& name) const
 {
-  auto cow = link2cow_.find(name);
+  return getCollisionObjectGeometriesTransforms(tesseract::common::LinkId::fromName(name));
+}
+
+const tesseract::common::VectorIsometry3d&
+CoalDiscreteBVHManager::getCollisionObjectGeometriesTransforms(const tesseract::common::LinkId& id) const
+{
+  auto cow = link2cow_.find(id);
   return (cow != link2cow_.end()) ? cow->second->getCollisionGeometriesTransforms() : EMPTY_COLLISION_SHAPES_TRANSFORMS;
 }
 
 bool CoalDiscreteBVHManager::hasCollisionObject(const std::string& name) const
 {
-  return (link2cow_.find(name) != link2cow_.end());
+  return hasCollisionObject(tesseract::common::LinkId::fromName(name));
+}
+
+bool CoalDiscreteBVHManager::hasCollisionObject(const tesseract::common::LinkId& id) const
+{
+  return (link2cow_.find(id) != link2cow_.end());
 }
 
 bool CoalDiscreteBVHManager::removeCollisionObject(const std::string& name)
 {
-  auto it = link2cow_.find(name);
+  return removeCollisionObject(tesseract::common::LinkId::fromName(name));
+}
+
+bool CoalDiscreteBVHManager::removeCollisionObject(const tesseract::common::LinkId& id)
+{
+  auto it = link2cow_.find(id);
   if (it != link2cow_.end())
   {
-    auto it_obj = std::find(collision_objects_.begin(), collision_objects_.end(), name);
+    auto it_obj = std::find(collision_objects_.begin(), collision_objects_.end(), id);
     if (it_obj != collision_objects_.end())
       collision_objects_.erase(it_obj);
     const std::vector<CollisionObjectPtr>& objects = it->second->getCollisionObjects();
     coal_co_count_ -= objects.size();
     removeObjects(objects, it->second->m_collisionFilterGroup);
-    link2cow_.erase(name);
+    link2cow_.erase(it);
 
-    auto it_active = std::find(active_.begin(), active_.end(), name);
-    if (it_active != active_.end())
-      active_.erase(it_active);
+    active_ids_.erase(id);
 
     return true;
   }
@@ -152,17 +181,32 @@ void CoalDiscreteBVHManager::removeObjects(const std::vector<CollisionObjectPtr>
 
 bool CoalDiscreteBVHManager::enableCollisionObject(const std::string& name)
 {
-  return setCollisionObjectEnabled(name, true);
+  return enableCollisionObject(tesseract::common::LinkId::fromName(name));
+}
+
+bool CoalDiscreteBVHManager::enableCollisionObject(const tesseract::common::LinkId& id)
+{
+  return setCollisionObjectEnabled(id, true);
 }
 
 bool CoalDiscreteBVHManager::disableCollisionObject(const std::string& name)
 {
-  return setCollisionObjectEnabled(name, false);
+  return disableCollisionObject(tesseract::common::LinkId::fromName(name));
+}
+
+bool CoalDiscreteBVHManager::disableCollisionObject(const tesseract::common::LinkId& id)
+{
+  return setCollisionObjectEnabled(id, false);
 }
 
 bool CoalDiscreteBVHManager::setCollisionObjectEnabled(const std::string& name, bool enabled)
 {
-  auto it = link2cow_.find(name);
+  return setCollisionObjectEnabled(tesseract::common::LinkId::fromName(name), enabled);
+}
+
+bool CoalDiscreteBVHManager::setCollisionObjectEnabled(const tesseract::common::LinkId& id, bool enabled)
+{
+  auto it = link2cow_.find(id);
   if (it == link2cow_.end())
     return false;
 
@@ -173,7 +217,12 @@ bool CoalDiscreteBVHManager::setCollisionObjectEnabled(const std::string& name, 
 
 bool CoalDiscreteBVHManager::isCollisionObjectEnabled(const std::string& name) const
 {
-  auto it = link2cow_.find(name);
+  return isCollisionObjectEnabled(tesseract::common::LinkId::fromName(name));
+}
+
+bool CoalDiscreteBVHManager::isCollisionObjectEnabled(const tesseract::common::LinkId& id) const
+{
+  auto it = link2cow_.find(id);
   if (it != link2cow_.end())
     return it->second->m_enabled;
 
@@ -182,7 +231,13 @@ bool CoalDiscreteBVHManager::isCollisionObjectEnabled(const std::string& name) c
 
 void CoalDiscreteBVHManager::setCollisionObjectsTransform(const std::string& name, const Eigen::Isometry3d& pose)
 {
-  auto it = link2cow_.find(name);
+  setCollisionObjectsTransform(tesseract::common::LinkId::fromName(name), pose);
+}
+
+void CoalDiscreteBVHManager::setCollisionObjectsTransform(const tesseract::common::LinkId& id,
+                                                          const Eigen::Isometry3d& pose)
+{
+  auto it = link2cow_.find(id);
   if (it != link2cow_.end())
   {
     static_update_.clear();
@@ -200,41 +255,63 @@ void CoalDiscreteBVHManager::setCollisionObjectsTransform(const std::vector<std:
   dynamic_update_.clear();
   for (auto i = 0U; i < names.size(); ++i)
   {
-    auto it = link2cow_.find(names[i]);
+    auto it = link2cow_.find(tesseract::common::LinkId::fromName(names[i]));
     if (it != link2cow_.end())
       collectTransformUpdate(it, poses[i]);
   }
   flushBatchUpdate();
 }
 
-void CoalDiscreteBVHManager::setCollisionObjectsTransform(const tesseract::common::TransformMap& transforms)
+void CoalDiscreteBVHManager::setCollisionObjectsTransform(const tesseract::common::LinkIdTransformMap& transforms)
 {
   static_update_.clear();
   dynamic_update_.clear();
-  for (const auto& transform : transforms)
+  for (const auto& [id, tf] : transforms)
   {
-    auto it = link2cow_.find(transform.first);
+    auto it = link2cow_.find(id);
     if (it != link2cow_.end())
-      collectTransformUpdate(it, transform.second);
+      collectTransformUpdate(it, tf);
   }
   flushBatchUpdate();
 }
 
-const std::vector<std::string>& CoalDiscreteBVHManager::getCollisionObjects() const { return collision_objects_; }
+const std::vector<tesseract::common::LinkId>& CoalDiscreteBVHManager::getCollisionObjects() const { return collision_objects_; }
 
 void CoalDiscreteBVHManager::setActiveCollisionObjects(const std::vector<std::string>& names)
 {
-  active_ = names;
+  active_ids_.clear();
+  for (const auto& name : names)
+    active_ids_.insert(tesseract::common::LinkId::fromName(name));
 
   for (auto& co : link2cow_)
   {
-    updateCollisionObjectFilters(active_, co.second, static_manager_, dynamic_manager_);
+    updateCollisionObjectFilters(active_ids_, co.second, static_manager_, dynamic_manager_);
   }
 
   updateBroadphaseAndCache();
 }
 
-const std::vector<std::string>& CoalDiscreteBVHManager::getActiveCollisionObjects() const { return active_; }
+void CoalDiscreteBVHManager::setActiveCollisionObjects(const std::vector<tesseract::common::LinkId>& ids)
+{
+  active_ids_.clear();
+  active_ids_.insert(ids.begin(), ids.end());
+
+  for (auto& co : link2cow_)
+  {
+    updateCollisionObjectFilters(active_ids_, co.second, static_manager_, dynamic_manager_);
+  }
+
+  updateBroadphaseAndCache();
+}
+
+std::vector<std::string> CoalDiscreteBVHManager::getActiveCollisionObjects() const
+{
+  std::vector<std::string> result;
+  result.reserve(active_ids_.size());
+  for (const auto& id : active_ids_)
+    result.push_back(id.name());
+  return result;
+}
 
 void CoalDiscreteBVHManager::setCollisionMarginData(CollisionMarginData collision_margin_data)
 {
@@ -312,8 +389,8 @@ void CoalDiscreteBVHManager::addCollisionObject(const COW::Ptr& cow)
   coal_co_count_ += cnt;
   static_update_.reserve(coal_co_count_);
   dynamic_update_.reserve(coal_co_count_);
-  link2cow_[cow->getName()] = cow;
-  collision_objects_.push_back(cow->getName());
+  link2cow_[cow->getLinkId()] = cow;
+  collision_objects_.push_back(cow->getLinkId());
 
   const std::vector<CollisionObjectPtr>& objects = cow->getCollisionObjects();
   if (cow->m_collisionFilterGroup == CollisionFilterGroups::StaticFilter)
@@ -329,8 +406,8 @@ void CoalDiscreteBVHManager::addCollisionObject(const COW::Ptr& cow)
   }
 
   // If active links is not empty update filters to replace the active links list
-  if (!active_.empty())
-    updateCollisionObjectFilters(active_, cow, static_manager_, dynamic_manager_);
+  if (!active_ids_.empty())
+    updateCollisionObjectFilters(active_ids_, cow, static_manager_, dynamic_manager_);
 
   updateBroadphaseAndCache();
 }
@@ -342,12 +419,12 @@ void CoalDiscreteBVHManager::addCollisionObjects(const Link2COW& cows, bool defe
   static_objs.reserve(cows.size());
   dynamic_objs.reserve(cows.size());
 
-  for (const auto& [name, cow] : cows)
+  for (const auto& [id, cow] : cows)
   {
     const auto& objects = cow->getCollisionObjects();
     coal_co_count_ += objects.size();
-    link2cow_[name] = cow;
-    collision_objects_.push_back(name);
+    link2cow_[id] = cow;
+    collision_objects_.push_back(cow->getLinkId());
 
     auto& target = (cow->m_collisionFilterGroup == CollisionFilterGroups::StaticFilter) ? static_objs : dynamic_objs;
     for (const auto& co : objects)
@@ -365,10 +442,10 @@ void CoalDiscreteBVHManager::addCollisionObjects(const Link2COW& cows, bool defe
 
   if (!defer_update)
   {
-    if (!active_.empty())
+    if (!active_ids_.empty())
     {
       for (auto& co : link2cow_)
-        updateCollisionObjectFilters(active_, co.second, static_manager_, dynamic_manager_);
+        updateCollisionObjectFilters(active_ids_, co.second, static_manager_, dynamic_manager_);
     }
 
     updateBroadphaseAndCache();
@@ -428,7 +505,7 @@ void CoalDiscreteBVHManager::onCollisionMarginDataChanged()
 
   for (auto& cow : link2cow_)
   {
-    const double new_threshold = contact_test_data_.collision_margin_data.getMaxCollisionMargin(cow.second->getName());
+    const double new_threshold = contact_test_data_.collision_margin_data.getMaxCollisionMargin(cow.second->getLinkId());
     if (new_threshold != cow.second->getContactDistanceThreshold())
     {
       cow.second->setContactDistanceThreshold(new_threshold);

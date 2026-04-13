@@ -59,9 +59,9 @@ inline void addCollisionObjects(T& checker)
   const auto& co = checker.getCollisionObjects();
   for (std::size_t i = 0; i < co.size(); ++i)
   {
-    EXPECT_TRUE(checker.getCollisionObjectGeometries(co[i]).size() == 1);
-    EXPECT_TRUE(checker.getCollisionObjectGeometriesTransforms(co[i]).size() == 1);
-    const auto& cgt = checker.getCollisionObjectGeometriesTransforms(co[i]);
+    EXPECT_TRUE(checker.getCollisionObjectGeometries(co[i].name()).size() == 1);
+    EXPECT_TRUE(checker.getCollisionObjectGeometriesTransforms(co[i].name()).size() == 1);
+    const auto& cgt = checker.getCollisionObjectGeometriesTransforms(co[i].name());
     if (i == 0)
     {
       EXPECT_TRUE(cgt[0].isApprox(octomap_pose, 1e-5));
@@ -89,9 +89,9 @@ inline void runTestCompound(DiscreteContactManager& checker)
   EXPECT_NEAR(checker.getCollisionMarginData().getMaxCollisionMargin(), 0.25, 1e-5);
 
   // Set the collision object transforms
-  tesseract::common::TransformMap location;
-  location["octomap1_link"] = Eigen::Isometry3d::Identity();
-  location["octomap2_link"] = Eigen::Isometry3d::Identity();
+  tesseract::common::LinkIdTransformMap location;
+  location[tesseract::common::LinkId::fromName("octomap1_link")] = Eigen::Isometry3d::Identity();
+  location[tesseract::common::LinkId::fromName("octomap2_link")] = Eigen::Isometry3d::Identity();
   checker.setCollisionObjectsTransform(location);
 
   // Perform collision check
@@ -127,8 +127,8 @@ inline void runTestCompound(ContinuousContactManager& checker)
   checker.setCollisionMarginPair("octomap1_link", "octomap2_link", 0.25);
 
   // Set the collision object transforms
-  tesseract::common::TransformMap location;
-  location["octomap2_link"] = Eigen::Isometry3d::Identity();
+  tesseract::common::LinkIdTransformMap location;
+  location[tesseract::common::LinkId::fromName("octomap2_link")] = Eigen::Isometry3d::Identity();
   checker.setCollisionObjectsTransform(location);
 
   // Set the collision object transforms

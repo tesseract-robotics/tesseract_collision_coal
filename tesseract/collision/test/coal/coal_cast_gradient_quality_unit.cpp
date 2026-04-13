@@ -57,7 +57,7 @@ protected:
     ASSERT_EQ(checker_.getCollisionObjects().size(), 2);
 
     // Only the box is active
-    checker_.setActiveCollisionObjects({ "box_link" });
+    checker_.setActiveCollisionObjects(std::vector<std::string>{ "box_link" });
     checker_.setDefaultCollisionMargin(0.0);
   }
 
@@ -92,7 +92,7 @@ protected:
       if (cr.distance >= 0.0)
         continue;
 
-      const std::size_t ki = (cr.link_names[0] == active_link) ? 0 : 1;
+      const std::size_t ki = (cr.link_ids[0].name() == active_link) ? 0 : 1;
       // Normal points from shape[0] to shape[1].
       // For ki==0: move in +normal to increase distance (push shape[0] away from shape[1])
       // For ki==1: move in -normal to increase distance (push shape[1] away from shape[0])
@@ -111,8 +111,8 @@ protected:
   void runGradientCheck(const Eigen::Isometry3d& start, const Eigen::Isometry3d& end)
   {
     // Set static octree pose
-    tesseract::common::TransformMap location;
-    location["octomap_link"] = Eigen::Isometry3d::Identity();
+    tesseract::common::LinkIdTransformMap location;
+    location[tesseract::common::LinkId::fromName("octomap_link")] = Eigen::Isometry3d::Identity();
     checker_.setCollisionObjectsTransform(location);
 
     // Set sweep poses

@@ -7,6 +7,7 @@ TESSERACT_COMMON_IGNORE_WARNINGS_POP
 #include <tesseract/collision/coal/coal_cast_managers.h>
 #include <tesseract/collision/coal/coal_utils.h>
 #include <tesseract/collision/common.h>
+#include <tesseract/common/types.h>
 #include <tesseract/geometry/geometries.h>
 #include <tesseract/common/resource_locator.h>
 
@@ -56,17 +57,17 @@ TEST_F(DeferredOctreeExpansionUnit, StaticOctreeNotExpandedOnAdd)  // NOLINT
 {
   // Both objects start static — octree cast COW should contain raw OcTree (deferred).
   const auto& cast_map = checker_.getCastCollisionObjectMap();
-  auto it = cast_map.find("octree_link");
+  auto it = cast_map.find(tesseract::common::LinkId::fromName("octree_link"));
   ASSERT_NE(it, cast_map.end());
   EXPECT_TRUE(castCowNeedsOctreeExpansion(it->second));
 }
 
 TEST_F(DeferredOctreeExpansionUnit, PromotionExpandsOctree)  // NOLINT
 {
-  checker_.setActiveCollisionObjects({ "octree_link", "cyl_link" });
+  checker_.setActiveCollisionObjects(std::vector<std::string>{ "octree_link", "cyl_link" });
 
   const auto& cast_map = checker_.getCastCollisionObjectMap();
-  auto it = cast_map.find("octree_link");
+  auto it = cast_map.find(tesseract::common::LinkId::fromName("octree_link"));
   ASSERT_NE(it, cast_map.end());
   EXPECT_FALSE(castCowNeedsOctreeExpansion(it->second));
 
@@ -77,7 +78,7 @@ TEST_F(DeferredOctreeExpansionUnit, PromotionExpandsOctree)  // NOLINT
 
 TEST_F(DeferredOctreeExpansionUnit, PromotedOctreeProducesContacts)  // NOLINT
 {
-  checker_.setActiveCollisionObjects({ "octree_link", "cyl_link" });
+  checker_.setActiveCollisionObjects(std::vector<std::string>{ "octree_link", "cyl_link" });
 
   // Sweep cylinder through the octree
   Eigen::Isometry3d start = Eigen::Isometry3d::Identity();
@@ -97,12 +98,12 @@ TEST_F(DeferredOctreeExpansionUnit, PromotedOctreeProducesContacts)  // NOLINT
 TEST_F(DeferredOctreeExpansionUnit, DemotionPreservesExpansion)  // NOLINT
 {
   // Promote, then demote
-  checker_.setActiveCollisionObjects({ "octree_link", "cyl_link" });
-  checker_.setActiveCollisionObjects({});
+  checker_.setActiveCollisionObjects(std::vector<std::string>{ "octree_link", "cyl_link" });
+  checker_.setActiveCollisionObjects(std::vector<std::string>{});
 
   // Expanded cast COW should be cached — not reverted to raw OcTree.
   const auto& cast_map = checker_.getCastCollisionObjectMap();
-  auto it = cast_map.find("octree_link");
+  auto it = cast_map.find(tesseract::common::LinkId::fromName("octree_link"));
   ASSERT_NE(it, cast_map.end());
   EXPECT_FALSE(castCowNeedsOctreeExpansion(it->second));
 }
@@ -110,12 +111,12 @@ TEST_F(DeferredOctreeExpansionUnit, DemotionPreservesExpansion)  // NOLINT
 TEST_F(DeferredOctreeExpansionUnit, RePromotionSkipsReExpansion)  // NOLINT
 {
   // Promote -> demote -> re-promote
-  checker_.setActiveCollisionObjects({ "octree_link", "cyl_link" });
-  checker_.setActiveCollisionObjects({});
-  checker_.setActiveCollisionObjects({ "octree_link", "cyl_link" });
+  checker_.setActiveCollisionObjects(std::vector<std::string>{ "octree_link", "cyl_link" });
+  checker_.setActiveCollisionObjects(std::vector<std::string>{});
+  checker_.setActiveCollisionObjects(std::vector<std::string>{ "octree_link", "cyl_link" });
 
   const auto& cast_map = checker_.getCastCollisionObjectMap();
-  auto it = cast_map.find("octree_link");
+  auto it = cast_map.find(tesseract::common::LinkId::fromName("octree_link"));
   ASSERT_NE(it, cast_map.end());
   EXPECT_FALSE(castCowNeedsOctreeExpansion(it->second));
 
@@ -146,7 +147,7 @@ TEST_F(DeferredOctreeExpansionUnit, DualPoseTransformOnStaticOctreeIsHarmless)  
   EXPECT_NO_THROW(checker_.setCollisionObjectsTransform("octree_link", pose1, pose2));
 
   // Promote cylinder, sweep it, verify the static octree still produces contacts.
-  checker_.setActiveCollisionObjects({ "cyl_link" });
+  checker_.setActiveCollisionObjects(std::vector<std::string>{ "cyl_link" });
 
   Eigen::Isometry3d cyl_start = Eigen::Isometry3d::Identity();
   cyl_start.translation() = Eigen::Vector3d(2.0, 0, 0);
@@ -165,14 +166,14 @@ TEST_F(DeferredOctreeExpansionUnit, CloneWithActiveOctreeExpands)  // NOLINT
 {
   // Promote octree, then clone. The clone's addCollisionObject kinematic branch
   // should expand the deferred octree.
-  checker_.setActiveCollisionObjects({ "octree_link", "cyl_link" });
+  checker_.setActiveCollisionObjects(std::vector<std::string>{ "octree_link", "cyl_link" });
 
   auto clone = checker_.clone();
   auto* cast_clone = dynamic_cast<CoalCastBVHManager*>(clone.get());
   ASSERT_NE(cast_clone, nullptr);
 
   const auto& cast_map = cast_clone->getCastCollisionObjectMap();
-  auto it = cast_map.find("octree_link");
+  auto it = cast_map.find(tesseract::common::LinkId::fromName("octree_link"));
   ASSERT_NE(it, cast_map.end());
   EXPECT_FALSE(castCowNeedsOctreeExpansion(it->second));
 

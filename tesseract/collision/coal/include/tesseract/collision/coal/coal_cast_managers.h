@@ -42,6 +42,7 @@
 
 #include <tesseract/common/macros.h>
 TESSERACT_COMMON_IGNORE_WARNINGS_PUSH
+#include <unordered_set>
 #include <coal/broadphase/broadphase_collision_manager.h>
 TESSERACT_COMMON_IGNORE_WARNINGS_POP
 
@@ -90,27 +91,51 @@ public:
                           const tesseract::common::VectorIsometry3d& shape_poses,
                           bool enabled = true) override final;
 
+  bool addCollisionObject(const tesseract::common::LinkId& id,
+                          const int& mask_id,
+                          const CollisionShapesConst& shapes,
+                          const tesseract::common::VectorIsometry3d& shape_poses,
+                          bool enabled = true) override final;
+
   const CollisionShapesConst& getCollisionObjectGeometries(const std::string& name) const override final;
+
+  const CollisionShapesConst& getCollisionObjectGeometries(const tesseract::common::LinkId& id) const override final;
 
   const tesseract::common::VectorIsometry3d&
   getCollisionObjectGeometriesTransforms(const std::string& name) const override final;
 
+  const tesseract::common::VectorIsometry3d&
+  getCollisionObjectGeometriesTransforms(const tesseract::common::LinkId& id) const override final;
+
   bool hasCollisionObject(const std::string& name) const override final;
+
+  bool hasCollisionObject(const tesseract::common::LinkId& id) const override final;
 
   bool removeCollisionObject(const std::string& name) override final;
 
+  bool removeCollisionObject(const tesseract::common::LinkId& id) override final;
+
   bool enableCollisionObject(const std::string& name) override final;
+
+  bool enableCollisionObject(const tesseract::common::LinkId& id) override final;
 
   bool disableCollisionObject(const std::string& name) override final;
 
+  bool disableCollisionObject(const tesseract::common::LinkId& id) override final;
+
   bool isCollisionObjectEnabled(const std::string& name) const override final;
+
+  bool isCollisionObjectEnabled(const tesseract::common::LinkId& id) const override final;
 
   void setCollisionObjectsTransform(const std::string& name, const Eigen::Isometry3d& pose) override final;
 
   void setCollisionObjectsTransform(const std::vector<std::string>& names,
                                     const tesseract::common::VectorIsometry3d& poses) override final;
 
-  void setCollisionObjectsTransform(const tesseract::common::TransformMap& transforms) override final;
+  void setCollisionObjectsTransform(const tesseract::common::LinkIdTransformMap& transforms) override final;
+
+  void setCollisionObjectsTransform(const tesseract::common::LinkId& id,
+                                    const Eigen::Isometry3d& pose) override final;
 
   void setCollisionObjectsTransform(const std::string& name,
                                     const Eigen::Isometry3d& pose1,
@@ -120,14 +145,17 @@ public:
                                     const tesseract::common::VectorIsometry3d& pose1,
                                     const tesseract::common::VectorIsometry3d& pose2) override final;
 
-  void setCollisionObjectsTransform(const tesseract::common::TransformMap& pose1,
-                                    const tesseract::common::TransformMap& pose2) override final;
+  void setCollisionObjectsTransform(const tesseract::common::LinkId& id,
+                                    const Eigen::Isometry3d& pose1,
+                                    const Eigen::Isometry3d& pose2) override final;
 
-  const std::vector<std::string>& getCollisionObjects() const override final;
+  const std::vector<tesseract::common::LinkId>& getCollisionObjects() const override final;
 
   void setActiveCollisionObjects(const std::vector<std::string>& names) override final;
 
-  const std::vector<std::string>& getActiveCollisionObjects() const override final;
+  void setActiveCollisionObjects(const std::vector<tesseract::common::LinkId>& ids) override final;
+
+  std::vector<std::string> getActiveCollisionObjects() const override final;
 
   void setCollisionMarginData(CollisionMarginData collision_margin_data) override final;
 
@@ -169,6 +197,9 @@ public:
   /** @brief Get the cast collision object map (for testing deferred octree expansion) */
   const Link2COW& getCastCollisionObjectMap() const { return link2castcow_; }
 
+  /** @brief Get the dynamic broadphase manager (for benchmarking/diagnostics) */
+  const coal::BroadPhaseCollisionManager& getDynamicBroadPhaseManager() const { return *dynamic_manager_; }
+
 private:
   std::string name_;
 
@@ -181,10 +212,11 @@ private:
   /** @brief Cache for collision functors and collision requests */
   CollisionCacheMap collision_cache;
 
-  Link2COW link2cow_;                          /** @brief A map of all collision objects being managed */
-  Link2COW link2castcow_;                      /** @brief A map of cast collision objects being managed. */
-  std::vector<std::string> active_;            /** @brief A list of the active collision objects */
-  std::vector<std::string> collision_objects_; /** @brief A list of the collision objects */
+  Link2COW link2cow_;     /** @brief A map of all collision objects being managed, keyed by LinkId */
+  Link2COW link2castcow_; /** @brief A map of cast collision objects being managed, keyed by LinkId */
+  std::unordered_set<tesseract::common::LinkId, tesseract::common::LinkId::Hash>
+      active_ids_; /** @brief Active collision objects by LinkId (O(1) lookup) */
+  std::vector<tesseract::common::LinkId> collision_objects_; /** @brief A list of the collision objects */
   ContactTestDataWrapper contact_test_data_;   /**< @brief Persistent contact test data (Bullet pattern) */
   std::size_t coal_co_count_{ 0 };             /**< @brief The number of coal collision objects */
   double gjk_guess_threshold_;                 /**< @brief GJK guess validity threshold (meters) */
@@ -214,6 +246,7 @@ private:
 
   /** @brief Shared implementation for enableCollisionObject / disableCollisionObject */
   bool setCollisionObjectEnabled(const std::string& name, bool enabled);
+  bool setCollisionObjectEnabled(const tesseract::common::LinkId& id, bool enabled);
 
   /** @brief Unregister objects from a broadphase manager and invalidate cache */
   void removeObjects(const std::vector<CollisionObjectPtr>& objects, coal::BroadPhaseCollisionManager& manager);

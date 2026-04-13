@@ -26,7 +26,7 @@ inline std::string formatOctomapContactResult(const ContactResult& cr)
   std::ostringstream os;
   os << std::setprecision(6) << std::fixed;
   os << "Contact result:"
-     << "\n  link_names: [" << cr.link_names[0] << ", " << cr.link_names[1] << "]"
+     << "\n  link_names: [" << cr.link_ids[0].name() << ", " << cr.link_ids[1].name() << "]"
      << "\n  distance: " << cr.distance << "\n  normal: (" << cr.normal[0] << ", " << cr.normal[1] << ", "
      << cr.normal[2] << ")"
      << "\n  nearest_points[0]: (" << cr.nearest_points[0][0] << ", " << cr.nearest_points[0][1] << ", "
@@ -82,10 +82,10 @@ inline void checkOctomapCastResult(const ContactResult& cr,
                                    const Eigen::Vector3d& sweep_dir)
 {
   // Determine which slot holds the kinematic shape and which holds the static octree.
-  EXPECT_TRUE(cr.link_names[0] == kin_link || cr.link_names[1] == kin_link)
+  EXPECT_TRUE(cr.link_ids[0].name() == kin_link || cr.link_ids[1].name() == kin_link)
       << "Expected kinematic link '" << kin_link << "' in contact result, "
-      << "got [" << cr.link_names[0] << ", " << cr.link_names[1] << "]";
-  const std::size_t ki = (cr.link_names[0] == kin_link) ? 0 : 1;
+      << "got [" << cr.link_ids[0].name() << ", " << cr.link_ids[1].name() << "]";
+  const std::size_t ki = (cr.link_ids[0].name() == kin_link) ? 0 : 1;
   const std::size_t si = 1 - ki;
 
   // -----------------------------------------------------------------------
@@ -297,8 +297,8 @@ inline void runOctomapCylinderCastTest(ContinuousContactManager& checker, Contac
   EXPECT_NEAR(checker.getCollisionMarginData().getMaxCollisionMargin(), 0.1, 1e-5);
 
   // Set the static octree transform
-  tesseract::common::TransformMap location;
-  location["octomap_link"] = Eigen::Isometry3d::Identity();
+  tesseract::common::LinkIdTransformMap location;
+  location[tesseract::common::LinkId::fromName("octomap_link")] = Eigen::Isometry3d::Identity();
   checker.setCollisionObjectsTransform(location);
 
   // Sweep the cylinder from outside (-2, 0, 0) through the octree to (0, 0, 0).
@@ -325,8 +325,8 @@ inline void runOctomapCylinderCastTest(ContinuousContactManager& checker, Contac
   bool found_pair = false;
   for (const auto& cr : result_vector)
   {
-    if ((cr.link_names[0] == "octomap_link" && cr.link_names[1] == "cylinder_link") ||
-        (cr.link_names[0] == "cylinder_link" && cr.link_names[1] == "octomap_link"))
+    if ((cr.link_ids[0].name() == "octomap_link" && cr.link_ids[1].name() == "cylinder_link") ||
+        (cr.link_ids[0].name() == "cylinder_link" && cr.link_ids[1].name() == "octomap_link"))
     {
       found_pair = true;
       SCOPED_TRACE(formatOctomapContactResult(cr));
@@ -348,8 +348,8 @@ inline void runOctomapSphereCastTest(ContinuousContactManager& checker, ContactT
   EXPECT_NEAR(checker.getCollisionMarginData().getMaxCollisionMargin(), 0.1, 1e-5);
 
   // Set the static octree transform
-  tesseract::common::TransformMap location;
-  location["octomap_link"] = Eigen::Isometry3d::Identity();
+  tesseract::common::LinkIdTransformMap location;
+  location[tesseract::common::LinkId::fromName("octomap_link")] = Eigen::Isometry3d::Identity();
   checker.setCollisionObjectsTransform(location);
 
   // Sweep the sphere from outside (0, 0, 2) down into the octree at (0, 0, 0).
@@ -374,8 +374,8 @@ inline void runOctomapSphereCastTest(ContinuousContactManager& checker, ContactT
   bool found_pair = false;
   for (const auto& cr : result_vector)
   {
-    if ((cr.link_names[0] == "octomap_link" && cr.link_names[1] == "sphere_link") ||
-        (cr.link_names[0] == "sphere_link" && cr.link_names[1] == "octomap_link"))
+    if ((cr.link_ids[0].name() == "octomap_link" && cr.link_ids[1].name() == "sphere_link") ||
+        (cr.link_ids[0].name() == "sphere_link" && cr.link_ids[1].name() == "octomap_link"))
     {
       found_pair = true;
       SCOPED_TRACE(formatOctomapContactResult(cr));
@@ -447,8 +447,8 @@ inline void runOctomapConvexHullCastTest(ContinuousContactManager& checker, Cont
   EXPECT_NEAR(checker.getCollisionMarginData().getMaxCollisionMargin(), 0.1, 1e-5);
 
   // Set the static octree transform
-  tesseract::common::TransformMap location;
-  location["octomap_link"] = Eigen::Isometry3d::Identity();
+  tesseract::common::LinkIdTransformMap location;
+  location[tesseract::common::LinkId::fromName("octomap_link")] = Eigen::Isometry3d::Identity();
   checker.setCollisionObjectsTransform(location);
 
   // Sweep the convex hull from outside (-2, 0, 0) through the octree to (0, 0, 0).
@@ -473,8 +473,8 @@ inline void runOctomapConvexHullCastTest(ContinuousContactManager& checker, Cont
   bool found_pair = false;
   for (const auto& cr : result_vector)
   {
-    if ((cr.link_names[0] == "octomap_link" && cr.link_names[1] == "convex_link") ||
-        (cr.link_names[0] == "convex_link" && cr.link_names[1] == "octomap_link"))
+    if ((cr.link_ids[0].name() == "octomap_link" && cr.link_ids[1].name() == "convex_link") ||
+        (cr.link_ids[0].name() == "convex_link" && cr.link_ids[1].name() == "octomap_link"))
     {
       found_pair = true;
       SCOPED_TRACE(formatOctomapContactResult(cr));

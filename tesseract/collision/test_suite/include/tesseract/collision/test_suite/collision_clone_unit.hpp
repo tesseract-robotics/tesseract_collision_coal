@@ -102,9 +102,9 @@ inline void addCollisionObjects(DiscreteContactManager& checker)
   EXPECT_TRUE(checker.getCollisionObjects().size() == 3);
   for (const auto& co : checker.getCollisionObjects())
   {
-    EXPECT_TRUE(checker.getCollisionObjectGeometries(co).size() == 1);
-    EXPECT_TRUE(checker.getCollisionObjectGeometriesTransforms(co).size() == 1);
-    for (const auto& cgt : checker.getCollisionObjectGeometriesTransforms(co))
+    EXPECT_TRUE(checker.getCollisionObjectGeometries(co.name()).size() == 1);
+    EXPECT_TRUE(checker.getCollisionObjectGeometriesTransforms(co.name()).size() == 1);
+    for (const auto& cgt : checker.getCollisionObjectGeometriesTransforms(co.name()))
     {
       EXPECT_TRUE(cgt.isApprox(Eigen::Isometry3d::Identity(), 1e-5));
     }
@@ -141,10 +141,10 @@ runTest(DiscreteContactManager& checker, double dist_tol = 0.001, double nearest
   checker.setCollisionMarginPair("sphere_link", "sphere1_link", 0.1);
 
   // Test when object is inside another
-  tesseract::common::TransformMap location;
-  location["sphere_link"] = Eigen::Isometry3d::Identity();
-  location["sphere1_link"] = Eigen::Isometry3d::Identity();
-  location["sphere1_link"].translation()(0) = 0.2;
+  tesseract::common::LinkIdTransformMap location;
+  location[tesseract::common::LinkId::fromName("sphere_link")] = Eigen::Isometry3d::Identity();
+  location[tesseract::common::LinkId::fromName("sphere1_link")] = Eigen::Isometry3d::Identity();
+  location[tesseract::common::LinkId::fromName("sphere1_link")].translation()(0) = 0.2;
   checker.setCollisionObjectsTransform(location);
 
   // Perform collision check
@@ -155,7 +155,7 @@ runTest(DiscreteContactManager& checker, double dist_tol = 0.001, double nearest
   result.flattenMoveResults(result_vector);
 
   std::vector<int> idx = { 0, 1, 1 };
-  if (result_vector[0].link_names[0] != "sphere_link")
+  if (result_vector[0].link_ids[0].name() != "sphere_link")
     idx = { 1, 0, -1 };
 
   // Clone and perform collision check
@@ -168,7 +168,7 @@ runTest(DiscreteContactManager& checker, double dist_tol = 0.001, double nearest
   cloned_result.flattenMoveResults(cloned_result_vector);
 
   std::vector<int> cloned_idx = { 0, 1, 1 };
-  if (cloned_result_vector[0].link_names[0] != "sphere_link")
+  if (cloned_result_vector[0].link_ids[0].name() != "sphere_link")
     cloned_idx = { 1, 0, -1 };
 
   EXPECT_FALSE(cloned_checker->isCollisionObjectEnabled("thin_box_link"));

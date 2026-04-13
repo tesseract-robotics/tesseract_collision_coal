@@ -60,9 +60,9 @@ inline void addCollisionObjects(DiscreteContactManager& checker)
   EXPECT_TRUE(checker.getCollisionObjects().size() == 2);
   for (const auto& co : checker.getCollisionObjects())
   {
-    EXPECT_TRUE(checker.getCollisionObjectGeometries(co).size() == 1);
-    EXPECT_TRUE(checker.getCollisionObjectGeometriesTransforms(co).size() == 1);
-    for (const auto& cgt : checker.getCollisionObjectGeometriesTransforms(co))
+    EXPECT_TRUE(checker.getCollisionObjectGeometries(co.name()).size() == 1);
+    EXPECT_TRUE(checker.getCollisionObjectGeometriesTransforms(co.name()).size() == 1);
+    for (const auto& cgt : checker.getCollisionObjectGeometriesTransforms(co.name()))
     {
       EXPECT_TRUE(cgt.isApprox(Eigen::Isometry3d::Identity(), 1e-5));
     }
@@ -94,10 +94,10 @@ inline void runTest(DiscreteContactManager& checker, const std::string& file_pat
   checker.setCollisionMarginPair("octomap_link", "plane_link", 0.1);
 
   // Set the collision object transforms
-  tesseract::common::TransformMap location;
-  location["octomap_link"] = Eigen::Isometry3d::Identity();
-  location["plane_link"] = Eigen::Isometry3d::Identity();
-  location["plane_link"].translation() = Eigen::Vector3d(0, 0, 0);
+  tesseract::common::LinkIdTransformMap location;
+  location[tesseract::common::LinkId::fromName("octomap_link")] = Eigen::Isometry3d::Identity();
+  location[tesseract::common::LinkId::fromName("plane_link")] = Eigen::Isometry3d::Identity();
+  location[tesseract::common::LinkId::fromName("plane_link")].translation() = Eigen::Vector3d(0, 0, 0);
   checker.setCollisionObjectsTransform(location);
 
   // Perform collision check
@@ -118,7 +118,7 @@ inline void runTest(DiscreteContactManager& checker, const std::string& file_pat
   for (auto& r : result_vector)
   {
     int idx = 0;
-    if (r.link_names[0] != "plane_link")
+    if (r.link_ids[0].name() != "plane_link")
       idx = 1;
 
     mesh_vertices_color[static_cast<std::size_t>(

@@ -92,7 +92,7 @@ inline void addCollisionObjects(ContinuousContactManager& checker)
 
   // Verify that active list no longer contains the removed object
   {
-    const auto& active_after_remove = checker.getActiveCollisionObjects();
+    const auto active_after_remove = checker.getActiveCollisionObjects();
     EXPECT_EQ(active_after_remove.size(), 3);
     EXPECT_EQ(std::find(active_after_remove.begin(), active_after_remove.end(), "remove_box_link"),
               active_after_remove.end());
@@ -118,9 +118,9 @@ inline void addCollisionObjects(ContinuousContactManager& checker)
   const auto& co = checker.getCollisionObjects();
   for (std::size_t i = 0; i < co.size(); ++i)
   {
-    EXPECT_TRUE(checker.getCollisionObjectGeometries(co[i]).size() == 1);
-    EXPECT_TRUE(checker.getCollisionObjectGeometriesTransforms(co[i]).size() == 1);
-    const auto& cgt = checker.getCollisionObjectGeometriesTransforms(co[i]);
+    EXPECT_TRUE(checker.getCollisionObjectGeometries(co[i].name()).size() == 1);
+    EXPECT_TRUE(checker.getCollisionObjectGeometriesTransforms(co[i].name()).size() == 1);
+    const auto& cgt = checker.getCollisionObjectGeometriesTransforms(co[i].name());
     if (i != 2)
     {
       EXPECT_TRUE(cgt[0].isApprox(Eigen::Isometry3d::Identity(), 1e-5));
@@ -147,7 +147,7 @@ inline void runTest(ContinuousContactManager& checker)
   //////////////////////////////////////
   // Test when object is inside another
   //////////////////////////////////////
-  checker.setActiveCollisionObjects({ "moving_box_link", "static_box_link" });
+  checker.setActiveCollisionObjects(std::vector<std::string>{ "moving_box_link", "static_box_link" });
 
   std::vector<std::string> active_links{ "moving_box_link" };
   checker.setActiveCollisionObjects(active_links);
@@ -202,7 +202,7 @@ inline void runTest(ContinuousContactManager& checker)
     // Dump full contact state for context on any failure
     SCOPED_TRACE("Contact[0] state:"
                  "\n  link_names: [" +
-                 cr.link_names[0] + ", " + cr.link_names[1] +
+                 cr.link_ids[0].name() + ", " + cr.link_ids[1].name() +
                  "]"
                  "\n  distance: " +
                  std::to_string(cr.distance) + "\n  normal: (" + std::to_string(cr.normal[0]) + ", " +

@@ -73,7 +73,7 @@ inline void runTestMultiShapeCast(ContinuousContactManager& checker)
 {
   addMultiShapeCollisionObjects(checker);
 
-  checker.setActiveCollisionObjects({ "arm_link" });
+  checker.setActiveCollisionObjects(std::vector<std::string>{ "arm_link" });
   checker.setDefaultCollisionMargin(0.05);
 
   // Place obstacle at (0.5, 0.5, 0) — along the MID-SWEEP path of sub-shape A.
@@ -110,7 +110,7 @@ inline void runTestMultiShapeCast(ContinuousContactManager& checker)
   // This confirms the cc_transform recovery correctly accounts for
   // non-identity local offsets.
   const auto& cr = result_vector[0];
-  std::size_t arm_idx = (cr.link_names[0] == "arm_link") ? 0 : 1;
+  std::size_t arm_idx = (cr.link_ids[0].name() == "arm_link") ? 0 : 1;
 
   // cc_transform should be the link transform at t=1 (pose2)
   EXPECT_TRUE(cr.cc_transform[arm_idx].isApprox(pose2, 0.01)) << "arm_link cc_transform should match end pose (90 deg "
@@ -189,7 +189,7 @@ inline void runTestMultiShapeDiscrete(DiscreteContactManager& checker)
 
   checker.addCollisionObject("arm_link", 0, arm_shapes, arm_poses);
 
-  checker.setActiveCollisionObjects({ "arm_link" });
+  checker.setActiveCollisionObjects(std::vector<std::string>{ "arm_link" });
   checker.setDefaultCollisionMargin(0.05);
 
   // Place obstacle at (0, 1.0, 0)

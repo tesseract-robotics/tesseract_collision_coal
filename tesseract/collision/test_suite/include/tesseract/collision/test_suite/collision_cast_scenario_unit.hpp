@@ -42,7 +42,7 @@ inline std::string formatCR(const std::string& label, const ContactResult& cr)
   std::ostringstream os;
   os << std::setprecision(6) << std::fixed;
   os << "[" << label << "]"
-     << "\n  link_names: [" << cr.link_names[0] << ", " << cr.link_names[1] << "]"
+     << "\n  link_names: [" << cr.link_ids[0].name() << ", " << cr.link_ids[1].name() << "]"
      << "\n  distance: " << cr.distance << "\n  normal: (" << cr.normal.transpose() << ")"
      << "\n  nearest_points[0]: (" << cr.nearest_points[0].transpose() << ")"
      << "\n  nearest_points[1]: (" << cr.nearest_points[1].transpose() << ")"
@@ -118,17 +118,26 @@ inline void addMultiShapeLink(ContinuousContactManager& checker,
 /// Find first contact result involving the given kinematic link, return its index
 /// in the ContactResultVector (-1 if not found).  Also determines which slot holds
 /// the kinematic link.
-inline int findKinContact(const ContactResultVector& results, const std::string& kin_link, std::size_t& kin_idx)
+/// @param env_link If non-empty, only match contacts where the OTHER link is env_link.
+///                 This prevents matching kinematic-vs-kinematic contacts.
+inline int findKinContact(const ContactResultVector& results,
+                          const std::string& kin_link,
+                          std::size_t& kin_idx,
+                          const std::string& env_link = "")
 {
   for (std::size_t i = 0; i < results.size(); ++i)
   {
-    if (results[i].link_names[0] == kin_link)
+    if (results[i].link_ids[0].name() == kin_link)
     {
+      if (!env_link.empty() && results[i].link_ids[1].name() != env_link)
+        continue;
       kin_idx = 0;
       return static_cast<int>(i);
     }
-    if (results[i].link_names[1] == kin_link)
+    if (results[i].link_ids[1].name() == kin_link)
     {
+      if (!env_link.empty() && results[i].link_ids[0].name() != env_link)
+        continue;
       kin_idx = 1;
       return static_cast<int>(i);
     }
@@ -183,9 +192,9 @@ inline void validateOctreeContactSelfConsistency(const ContactResult& cr,
   SCOPED_TRACE(label + ": " + formatCR(label, cr));
 
   std::size_t ki = std::numeric_limits<std::size_t>::max();
-  if (cr.link_names[0] == kin_link)
+  if (cr.link_ids[0].name() == kin_link)
     ki = 0;
-  else if (cr.link_names[1] == kin_link)
+  else if (cr.link_ids[1].name() == kin_link)
     ki = 1;
   ASSERT_NE(ki, std::numeric_limits<std::size_t>::max()) << label << ": kin_link not found in contact";
 
@@ -224,11 +233,13 @@ inline void validateOctreeContactSelfConsistency(const ContactResult& cr,
 
 /// For a given reference contact involving kin_link, find the best-matching contact
 /// in the other backend's results by closest outward normal from the kinematic link.
+/// @param env_link If non-empty, only consider contacts where the other link is env_link.
 inline int findMatchingContact(const ContactResult& ref_cr,
                                std::size_t ref_ki,
                                const ContactResultVector& other_results,
                                const std::string& kin_link,
-                               std::size_t& other_ki)
+                               std::size_t& other_ki,
+                               const std::string& env_link = "")
 {
   const Eigen::Vector3d ref_outward = (ref_ki == 0 ? 1.0 : -1.0) * ref_cr.normal;
 
@@ -237,10 +248,18 @@ inline int findMatchingContact(const ContactResult& ref_cr,
   for (std::size_t i = 0; i < other_results.size(); ++i)
   {
     std::size_t ki = std::numeric_limits<std::size_t>::max();
-    if (other_results[i].link_names[0] == kin_link)
+    if (other_results[i].link_ids[0].name() == kin_link)
+    {
+      if (!env_link.empty() && other_results[i].link_ids[1].name() != env_link)
+        continue;
       ki = 0;
-    else if (other_results[i].link_names[1] == kin_link)
+    }
+    else if (other_results[i].link_ids[1].name() == kin_link)
+    {
+      if (!env_link.empty() && other_results[i].link_ids[0].name() != env_link)
+        continue;
       ki = 1;
+    }
     else
       continue;
 
@@ -298,7 +317,7 @@ inline void runTestScenarioA_RotationalSweep(ContinuousContactManager& checker)
 {
   addOctree(checker, "octomap_link");
   addBoxLink(checker, "kin_link", Eigen::Vector3d(0.1, 0.1, 0.1));
-  checker.setActiveCollisionObjects({ "kin_link" });
+  checker.setActiveCollisionObjects(std::vector<std::string>{ "kin_link" });
   checker.setDefaultCollisionMargin(0.1);
   checker.setCollisionObjectsTransform("octomap_link", Eigen::Isometry3d::Identity());
 
@@ -326,7 +345,7 @@ inline void runTestScenarioB_MultiShapeSweep(ContinuousContactManager& checker)
   addOctree(checker, "octomap_link");
   addMultiShapeLink(
       checker, "arm_link", Eigen::Vector3d(0.1, 0.1, 0.1), Eigen::Vector3d(0.5, 0, 0), Eigen::Vector3d(-0.5, 0, 0));
-  checker.setActiveCollisionObjects({ "arm_link" });
+  checker.setActiveCollisionObjects(std::vector<std::string>{ "arm_link" });
   checker.setDefaultCollisionMargin(0.1);
   checker.setCollisionObjectsTransform("octomap_link", Eigen::Isometry3d::Identity());
 
@@ -354,7 +373,7 @@ inline void runTestScenarioC_LargeMargin(ContinuousContactManager& checker)
 
   addOctree(checker, "octomap_link");
   addBoxLink(checker, "kin_link", Eigen::Vector3d(0.1, 0.1, 0.1));
-  checker.setActiveCollisionObjects({ "kin_link" });
+  checker.setActiveCollisionObjects(std::vector<std::string>{ "kin_link" });
   checker.setDefaultCollisionMargin(margin);
   checker.setCollisionObjectsTransform("octomap_link", Eigen::Isometry3d::Identity());
 
@@ -390,7 +409,7 @@ inline ArticulatedArmPoses setupArticulatedArm(ContinuousContactManager& checker
   addOctree(checker, "octomap_link");
   addBoxLink(checker, "parent_link", Eigen::Vector3d(0.15, 0.15, 0.15));
   addBoxLink(checker, "child_link", Eigen::Vector3d(0.1, 0.1, 0.1));
-  checker.setActiveCollisionObjects({ "parent_link", "child_link" });
+  checker.setActiveCollisionObjects(std::vector<std::string>{ "parent_link", "child_link" });
   checker.setDefaultCollisionMargin(0.1);
   checker.setCollisionObjectsTransform("octomap_link", Eigen::Isometry3d::Identity());
 
@@ -424,9 +443,9 @@ inline void runTestScenarioD_ArticulatedArm(ContinuousContactManager& checker)
     const std::string label = "Result[" + std::to_string(i) + "]";
 
     // Determine which link this contact involves and use the right poses
-    if (cr.link_names[0] == "parent_link" || cr.link_names[1] == "parent_link")
+    if (cr.link_ids[0].name() == "parent_link" || cr.link_ids[1].name() == "parent_link")
       validateOctreeContactSelfConsistency(cr, "parent_link", poses.parent_pose1, poses.parent_pose2, label);
-    if (cr.link_names[0] == "child_link" || cr.link_names[1] == "child_link")
+    if (cr.link_ids[0].name() == "child_link" || cr.link_ids[1].name() == "child_link")
       validateOctreeContactSelfConsistency(cr, "child_link", poses.child_pose1, poses.child_pose2, label);
   }
 }
@@ -446,12 +465,17 @@ inline void runTestScenarioD_Comparison(ContinuousContactManager& checker_a,
   auto results_a = runContact(checker_a);
   auto results_b = runContact(checker_b);
 
-  // Both must agree on which links have contacts
+  // Compare only kinematic-vs-environment contacts (not kinematic-vs-kinematic).
+  // Both backends produce identical contacts, but ContactResultMap iteration order
+  // is non-deterministic, so findKinContact must filter by the environment link.
+  const std::string env_link = "octomap_link";
+
+  // Both must agree on which links have contacts with the environment
   for (const auto& link : { "parent_link", "child_link" })
   {
     std::size_t a_ki = 0, b_ki = 0;
-    bool a_has = (findKinContact(results_a, link, a_ki) >= 0);
-    bool b_has = (findKinContact(results_b, link, b_ki) >= 0);
+    bool a_has = (findKinContact(results_a, link, a_ki, env_link) >= 0);
+    bool b_has = (findKinContact(results_b, link, b_ki, env_link) >= 0);
     if (a_has && !b_has)
       ADD_FAILURE() << label_a << " found contact for " << link << " but " << label_b << " did not";
     if (!a_has && b_has)
@@ -462,13 +486,13 @@ inline void runTestScenarioD_Comparison(ContinuousContactManager& checker_a,
   for (const auto& link : { "parent_link", "child_link" })
   {
     std::size_t a_ki = 0;
-    int ai = findKinContact(results_a, link, a_ki);
+    int ai = findKinContact(results_a, link, a_ki, env_link);
     if (ai < 0)
       continue;
 
     const auto& acr = results_a[static_cast<std::size_t>(ai)];
     std::size_t b_ki = 0;
-    int bi = findMatchingContact(acr, a_ki, results_b, link, b_ki);
+    int bi = findMatchingContact(acr, a_ki, results_b, link, b_ki, env_link);
     if (bi < 0)
       continue;
 
@@ -504,7 +528,7 @@ inline void runTestScenarioE_SubdivisionLoop(ContinuousContactManager& checker)
 
   addOctree(checker, "octomap_link");
   addBoxLink(checker, "kin_link", Eigen::Vector3d(0.15, 0.15, 0.15));
-  checker.setActiveCollisionObjects({ "kin_link" });
+  checker.setActiveCollisionObjects(std::vector<std::string>{ "kin_link" });
   checker.setDefaultCollisionMargin(0.25);
   checker.setCollisionObjectsTransform("octomap_link", Eigen::Isometry3d::Identity());
 
@@ -564,7 +588,7 @@ inline void runTestScenarioE_Comparison(ContinuousContactManager& checker_a,
   auto setup = [&](ContinuousContactManager& checker) {
     addOctree(checker, "octomap_link");
     addBoxLink(checker, "kin_link", Eigen::Vector3d(0.15, 0.15, 0.15));
-    checker.setActiveCollisionObjects({ "kin_link" });
+    checker.setActiveCollisionObjects(std::vector<std::string>{ "kin_link" });
     checker.setDefaultCollisionMargin(0.25);
     checker.setCollisionObjectsTransform("octomap_link", Eigen::Isometry3d::Identity());
   };
@@ -620,7 +644,7 @@ inline void runTestScenarioF_NearMiss(ContinuousContactManager& checker)
 
   addOctree(checker, "octomap_link");
   addBoxLink(checker, "kin_link", Eigen::Vector3d(0.1, 0.1, 0.1));
-  checker.setActiveCollisionObjects({ "kin_link" });
+  checker.setActiveCollisionObjects(std::vector<std::string>{ "kin_link" });
   checker.setDefaultCollisionMargin(margin);
   checker.setCollisionObjectsTransform("octomap_link", Eigen::Isometry3d::Identity());
 
@@ -650,7 +674,7 @@ inline void runTestScenarioG_RepeatedStability(ContinuousContactManager& checker
 {
   addOctree(checker, "octomap_link");
   addBoxLink(checker, "kin_link", Eigen::Vector3d(0.1, 0.1, 0.1));
-  checker.setActiveCollisionObjects({ "kin_link" });
+  checker.setActiveCollisionObjects(std::vector<std::string>{ "kin_link" });
   checker.setDefaultCollisionMargin(0.1);
   checker.setCollisionObjectsTransform("octomap_link", Eigen::Isometry3d::Identity());
 

@@ -46,12 +46,12 @@ inline void addCompoundMeshAndActiveSphere(ContinuousContactManager& checker)
 
 inline void runCompoundMeshShapeIdUsesOriginalGeometryIndex(ContinuousContactManager& checker)
 {
-  checker.setActiveCollisionObjects({ "sphere_link" });
+  checker.setActiveCollisionObjects(std::vector<std::string>{ "sphere_link" });
   checker.setDefaultCollisionMargin(0.1);
 
   // Keep compound mesh static at identity
-  tesseract::common::TransformMap location;
-  location["compound_link"] = Eigen::Isometry3d::Identity();
+  tesseract::common::LinkIdTransformMap location;
+  location[tesseract::common::LinkId::fromName("compound_link")] = Eigen::Isometry3d::Identity();
   checker.setCollisionObjectsTransform(location);
 
   // Sweep sphere into the compound mesh volume.
@@ -75,12 +75,12 @@ inline void runCompoundMeshShapeIdUsesOriginalGeometryIndex(ContinuousContactMan
   bool found_pair = false;
   for (const auto& cr : result_vector)
   {
-    if ((cr.link_names[0] == "compound_link" && cr.link_names[1] == "sphere_link") ||
-        (cr.link_names[0] == "sphere_link" && cr.link_names[1] == "compound_link"))
+    if ((cr.link_ids[0].name() == "compound_link" && cr.link_ids[1].name() == "sphere_link") ||
+        (cr.link_ids[0].name() == "sphere_link" && cr.link_ids[1].name() == "compound_link"))
     {
       found_pair = true;
-      const int compound_shape_id = (cr.link_names[0] == "compound_link") ? cr.shape_id[0] : cr.shape_id[1];
-      const int sphere_shape_id = (cr.link_names[0] == "sphere_link") ? cr.shape_id[0] : cr.shape_id[1];
+      const int compound_shape_id = (cr.link_ids[0].name() == "compound_link") ? cr.shape_id[0] : cr.shape_id[1];
+      const int sphere_shape_id = (cr.link_ids[0].name() == "sphere_link") ? cr.shape_id[0] : cr.shape_id[1];
 
       EXPECT_EQ(compound_shape_id, 0) << "Compound mesh should report original geometry index 0, but got "
                                       << compound_shape_id;
@@ -94,11 +94,11 @@ inline void runCompoundMeshShapeIdUsesOriginalGeometryIndex(ContinuousContactMan
 
 inline void runCompoundMeshSubshapeIdReportsPrimitiveIdentity(ContinuousContactManager& checker)
 {
-  checker.setActiveCollisionObjects({ "sphere_link" });
+  checker.setActiveCollisionObjects(std::vector<std::string>{ "sphere_link" });
   checker.setDefaultCollisionMargin(0.1);
 
-  tesseract::common::TransformMap location;
-  location["compound_link"] = Eigen::Isometry3d::Identity();
+  tesseract::common::LinkIdTransformMap location;
+  location[tesseract::common::LinkId::fromName("compound_link")] = Eigen::Isometry3d::Identity();
   checker.setCollisionObjectsTransform(location);
 
   Eigen::Isometry3d start_pos = Eigen::Isometry3d::Identity();
@@ -122,12 +122,12 @@ inline void runCompoundMeshSubshapeIdReportsPrimitiveIdentity(ContinuousContactM
   bool found_compound_subshape = false;
   for (const auto& cr : result_vector)
   {
-    if ((cr.link_names[0] == "compound_link" && cr.link_names[1] == "sphere_link") ||
-        (cr.link_names[0] == "sphere_link" && cr.link_names[1] == "compound_link"))
+    if ((cr.link_ids[0].name() == "compound_link" && cr.link_ids[1].name() == "sphere_link") ||
+        (cr.link_ids[0].name() == "sphere_link" && cr.link_ids[1].name() == "compound_link"))
     {
       found_pair = true;
-      const std::size_t compound_idx = (cr.link_names[0] == "compound_link") ? 0U : 1U;
-      const std::size_t sphere_idx = (cr.link_names[0] == "sphere_link") ? 0U : 1U;
+      const std::size_t compound_idx = (cr.link_ids[0].name() == "compound_link") ? 0U : 1U;
+      const std::size_t sphere_idx = (cr.link_ids[0].name() == "sphere_link") ? 0U : 1U;
 
       EXPECT_EQ(cr.shape_id[compound_idx], 0)
           << "Compound mesh should report original geometry index 0, but got " << cr.shape_id[compound_idx];

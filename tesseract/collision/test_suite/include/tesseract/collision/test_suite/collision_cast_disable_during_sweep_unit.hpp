@@ -34,7 +34,7 @@ inline void addStaticBoxAndActiveSphere(ContinuousContactManager& checker)
 inline bool hasPairInResults(const ContactResultVector& results, const std::string& a, const std::string& b)
 {
   return std::any_of(results.begin(), results.end(), [&a, &b](const ContactResult& cr) {
-    return ((cr.link_names[0] == a && cr.link_names[1] == b) || (cr.link_names[0] == b && cr.link_names[1] == a));
+    return ((cr.link_ids[0].name() == a && cr.link_ids[1].name() == b) || (cr.link_ids[0].name() == b && cr.link_ids[1].name() == a));
   });
 }
 
@@ -44,7 +44,7 @@ inline void runTestDisabledObjectSweepDoesNotUpdateCastState(ContinuousContactMa
 {
   addStaticBoxAndActiveSphere(checker);
 
-  checker.setActiveCollisionObjects({ "moving_sphere" });
+  checker.setActiveCollisionObjects(std::vector<std::string>{ "moving_sphere" });
   checker.setDefaultCollisionMargin(0.0);
 
   const Eigen::Isometry3d start = Eigen::Isometry3d(Eigen::Translation3d(-2.0, 0.0, 0.0));
