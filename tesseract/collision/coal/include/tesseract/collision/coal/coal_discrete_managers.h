@@ -169,9 +169,6 @@ public:
    */
   void addCollisionObjects(const Link2COW& cows, bool defer_update = false);
 
-  /** @brief Get the dynamic broadphase manager (for benchmarking/diagnostics) */
-  const coal::BroadPhaseCollisionManager& getDynamicBroadPhaseManager() const { return *dynamic_manager_; }
-
 private:
   std::string name_;
 

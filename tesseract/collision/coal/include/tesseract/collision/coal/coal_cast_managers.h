@@ -197,9 +197,6 @@ public:
   /** @brief Get the cast collision object map (for testing deferred octree expansion) */
   const Link2COW& getCastCollisionObjectMap() const { return link2castcow_; }
 
-  /** @brief Get the dynamic broadphase manager (for benchmarking/diagnostics) */
-  const coal::BroadPhaseCollisionManager& getDynamicBroadPhaseManager() const { return *dynamic_manager_; }
-
 private:
   std::string name_;
 
