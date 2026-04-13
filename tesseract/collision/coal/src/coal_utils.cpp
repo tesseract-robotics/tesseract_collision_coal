@@ -586,7 +586,8 @@ bool CollisionCallback::collide(coal::CollisionObject* o1, coal::CollisionObject
                                                               std::numeric_limits<std::size_t>::max();
   if (cdata->req.type == ContactTestType::FIRST)
     num_contacts = 1;
-  const auto security_margin = cdata->collision_margin_data.getCollisionMargin(cd1->getLinkId(), cd2->getLinkId());
+  auto link_pair = tesseract::common::LinkIdPair::make(cd1->getLinkId(), cd2->getLinkId());
+  const auto security_margin = cdata->collision_margin_data.getCollisionMargin(link_pair);
 
   // Normalize pair ordering for consistent cache lookups: Coal's broadphase
   // does not guarantee a stable (o1, o2) ordering across tree rebalances,
@@ -672,8 +673,6 @@ bool CollisionCallback::collide(coal::CollisionObject* o1, coal::CollisionObject
   if (col_result.getContact(0).o1 != co1->collisionGeometry().get())
     col_result.swapObjects();
 
-  auto link_pair = tesseract::common::LinkIdPair::make(cd1->getLinkId(), cd2->getLinkId());
-
   const Eigen::Isometry3d& tf1 = cd1->getCollisionObjectsTransform();
   const Eigen::Isometry3d& tf2 = cd2->getCollisionObjectsTransform();
 
@@ -707,14 +706,15 @@ bool CollisionCallback::collide(coal::CollisionObject* o1, coal::CollisionObject
     contact.distance = coal_contact.penetration_depth;
     contact.normal = pair_swapped ? coal::Vec3s(-coal_contact.normal) : coal_contact.normal;
 
-    populateContinuousCollisionFields(contact, o1, o2, tf_inv);
+    if (entry.is_cast)
+      populateContinuousCollisionFields(contact, o1, o2, tf_inv);
 
     if (!found)
     {
       const auto it = cdata->res->find(link_pair);
       found = (it != cdata->res->end() && !it->second.empty());
     }
-    processResult(*cdata, contact, link_pair, found);
+    processResult(*cdata, std::move(contact), link_pair, found, security_margin);
   }
 
   return cdata->done;
