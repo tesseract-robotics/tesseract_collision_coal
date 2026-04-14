@@ -83,16 +83,16 @@ public:
 
   // Bring base class string overloads into scope (prevents name hiding by ID overloads)
   using ContinuousContactManager::addCollisionObject;
+  using ContinuousContactManager::disableCollisionObject;
+  using ContinuousContactManager::enableCollisionObject;
+  using ContinuousContactManager::getActiveCollisionObjectNames;
   using ContinuousContactManager::getCollisionObjectGeometries;
   using ContinuousContactManager::getCollisionObjectGeometriesTransforms;
   using ContinuousContactManager::hasCollisionObject;
-  using ContinuousContactManager::removeCollisionObject;
-  using ContinuousContactManager::enableCollisionObject;
-  using ContinuousContactManager::disableCollisionObject;
   using ContinuousContactManager::isCollisionObjectEnabled;
-  using ContinuousContactManager::setCollisionObjectsTransform;
+  using ContinuousContactManager::removeCollisionObject;
   using ContinuousContactManager::setActiveCollisionObjects;
-  using ContinuousContactManager::getActiveCollisionObjects;
+  using ContinuousContactManager::setCollisionObjectsTransform;
 
   std::string getName() const override final;
 
@@ -119,8 +119,7 @@ public:
 
   bool isCollisionObjectEnabled(const tesseract::common::LinkId& id) const override final;
 
-  void setCollisionObjectsTransform(const tesseract::common::LinkId& id,
-                                    const Eigen::Isometry3d& pose) override final;
+  void setCollisionObjectsTransform(const tesseract::common::LinkId& id, const Eigen::Isometry3d& pose) override final;
 
   void setCollisionObjectsTransform(const tesseract::common::LinkIdTransformMap& transforms) override final;
 
@@ -150,8 +149,8 @@ public:
 
   void incrementCollisionMargin(double increment) override final;
 
-  void setCollisionMarginPair(const std::string& name1,
-                              const std::string& name2,
+  void setCollisionMarginPair(const tesseract::common::LinkId& id1,
+                              const tesseract::common::LinkId& id2,
                               double collision_margin) override final;
 
   void setContactAllowedValidator(
@@ -192,13 +191,14 @@ private:
 
   Link2COW link2cow_;     /** @brief A map of all collision objects being managed, keyed by LinkId */
   Link2COW link2castcow_; /** @brief A map of cast collision objects being managed, keyed by LinkId */
-  std::unordered_set<tesseract::common::LinkId, tesseract::common::LinkId::Hash>
-      active_ids_; /** @brief Active collision objects by LinkId (O(1) lookup) */
+  std::unordered_set<tesseract::common::LinkId, tesseract::common::LinkId::Hash> active_ids_; /** @brief Active
+                                                                                                 collision objects by
+                                                                                                 LinkId (O(1) lookup) */
   std::vector<tesseract::common::LinkId> collision_objects_; /** @brief A list of the collision objects */
-  ContactTestDataWrapper contact_test_data_;   /**< @brief Persistent contact test data (Bullet pattern) */
-  std::size_t coal_co_count_{ 0 };             /**< @brief The number of coal collision objects */
-  double gjk_guess_threshold_;                 /**< @brief GJK guess validity threshold (meters) */
-  double gjk_guess_threshold_sq_;              /**< @brief Squared GJK guess validity threshold */
+  ContactTestDataWrapper contact_test_data_; /**< @brief Persistent contact test data (Bullet pattern) */
+  std::size_t coal_co_count_{ 0 };           /**< @brief The number of coal collision objects */
+  double gjk_guess_threshold_;               /**< @brief GJK guess validity threshold (meters) */
+  double gjk_guess_threshold_sq_;            /**< @brief Squared GJK guess validity threshold */
   bool d_arc_compensation_; /**< @brief When true, set CastHullShape swept-sphere radius to arc-sagitta */
 
   /** @brief This is used to store static collision objects to update */

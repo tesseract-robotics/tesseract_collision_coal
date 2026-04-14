@@ -94,7 +94,7 @@ bool CoalCastBVHManager::addCollisionObject(const tesseract::common::LinkId& id,
   if (link2cow_.find(id) != link2cow_.end())
     removeCollisionObject(id);
 
-  const COW::Ptr new_cow = createCoalCollisionObject(id.name(), mask_id, shapes, shape_poses, enabled);
+  const COW::Ptr new_cow = createCoalCollisionObject(id, mask_id, shapes, shape_poses, enabled);
   if (new_cow != nullptr)
   {
     addCollisionObject(new_cow);
@@ -104,8 +104,7 @@ bool CoalCastBVHManager::addCollisionObject(const tesseract::common::LinkId& id,
   return false;
 }
 
-const CollisionShapesConst&
-CoalCastBVHManager::getCollisionObjectGeometries(const tesseract::common::LinkId& id) const
+const CollisionShapesConst& CoalCastBVHManager::getCollisionObjectGeometries(const tesseract::common::LinkId& id) const
 {
   auto cow = link2cow_.find(id);
   return (cow != link2cow_.end()) ? cow->second->getCollisionGeometries() : EMPTY_COLLISION_SHAPES_CONST;
@@ -242,7 +241,10 @@ void CoalCastBVHManager::setCollisionObjectsTransform(const tesseract::common::L
   }
 }
 
-const std::vector<tesseract::common::LinkId>& CoalCastBVHManager::getCollisionObjects() const { return collision_objects_; }
+const std::vector<tesseract::common::LinkId>& CoalCastBVHManager::getCollisionObjects() const
+{
+  return collision_objects_;
+}
 
 void CoalCastBVHManager::setActiveCollisionObjects(const std::vector<tesseract::common::LinkId>& ids)
 {
@@ -303,11 +305,11 @@ void CoalCastBVHManager::setDefaultCollisionMargin(double default_collision_marg
   onCollisionMarginDataChanged();
 }
 
-void CoalCastBVHManager::setCollisionMarginPair(const std::string& name1,
-                                                const std::string& name2,
+void CoalCastBVHManager::setCollisionMarginPair(const tesseract::common::LinkId& id1,
+                                                const tesseract::common::LinkId& id2,
                                                 double collision_margin)
 {
-  contact_test_data_.collision_margin_data.setCollisionMargin(name1, name2, collision_margin);
+  contact_test_data_.collision_margin_data.setCollisionMargin(id1, id2, collision_margin);
   onCollisionMarginDataChanged();
 }
 
@@ -650,7 +652,8 @@ void CoalCastBVHManager::onCollisionMarginDataChanged()
   // kinematic links use the cast version in the dynamic manager instead)
   for (auto& cow : link2cow_)
   {
-    const double new_threshold = contact_test_data_.collision_margin_data.getMaxCollisionMargin(cow.second->getLinkId());
+    const double new_threshold =
+        contact_test_data_.collision_margin_data.getMaxCollisionMargin(cow.second->getLinkId());
     if (new_threshold != cow.second->getContactDistanceThreshold())
     {
       cow.second->setContactDistanceThreshold(new_threshold);

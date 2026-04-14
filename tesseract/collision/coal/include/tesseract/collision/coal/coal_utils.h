@@ -125,7 +125,7 @@ public:
   using ConstPtr = std::shared_ptr<const CollisionObjectWrapper>;
 
   CollisionObjectWrapper() = default;
-  CollisionObjectWrapper(const std::string& name,
+  CollisionObjectWrapper(tesseract::common::LinkId id,
                          const int& type_id,
                          CollisionShapesConst shapes,
                          tesseract::common::VectorIsometry3d shape_poses);
@@ -136,7 +136,6 @@ public:
   uint32_t gjk_generation_{ 1 };  ///< Monotonic counter for GJK guess invalidation. Starts at 1 so new cache entries
                                   ///< (initialized to 0) trigger initial GJK seeding on first use.
 
-  const std::string& getName() const { return link_id_.name(); }
   const tesseract::common::LinkId& getLinkId() const { return link_id_; }
   const int& getTypeID() const { return type_id_; }
 
@@ -190,7 +189,7 @@ using COW = CollisionObjectWrapper;
 using Link2COW =
     std::unordered_map<tesseract::common::LinkId, COW::Ptr, tesseract::common::LinkId::Hash>;
 
-COW::Ptr createCoalCollisionObject(const std::string& name,
+COW::Ptr createCoalCollisionObject(const tesseract::common::LinkId& id,
                                    const int& type_id,
                                    const CollisionShapesConst& shapes,
                                    const tesseract::common::VectorIsometry3d& shape_poses,

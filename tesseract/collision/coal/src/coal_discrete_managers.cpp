@@ -90,7 +90,7 @@ bool CoalDiscreteBVHManager::addCollisionObject(const tesseract::common::LinkId&
   if (link2cow_.find(id) != link2cow_.end())
     removeCollisionObject(id);
 
-  const COW::Ptr new_cow = createCoalCollisionObject(id.name(), mask_id, shapes, shape_poses, enabled);
+  const COW::Ptr new_cow = createCoalCollisionObject(id, mask_id, shapes, shape_poses, enabled);
   if (new_cow != nullptr)
   {
     addCollisionObject(new_cow);
@@ -205,7 +205,10 @@ void CoalDiscreteBVHManager::setCollisionObjectsTransform(const tesseract::commo
   flushBatchUpdate();
 }
 
-const std::vector<tesseract::common::LinkId>& CoalDiscreteBVHManager::getCollisionObjects() const { return collision_objects_; }
+const std::vector<tesseract::common::LinkId>& CoalDiscreteBVHManager::getCollisionObjects() const
+{
+  return collision_objects_;
+}
 
 void CoalDiscreteBVHManager::setActiveCollisionObjects(const std::vector<tesseract::common::LinkId>& ids)
 {
@@ -250,11 +253,11 @@ void CoalDiscreteBVHManager::setDefaultCollisionMargin(double default_collision_
   onCollisionMarginDataChanged();
 }
 
-void CoalDiscreteBVHManager::setCollisionMarginPair(const std::string& name1,
-                                                    const std::string& name2,
+void CoalDiscreteBVHManager::setCollisionMarginPair(const tesseract::common::LinkId& id1,
+                                                    const tesseract::common::LinkId& id2,
                                                     double collision_margin)
 {
-  contact_test_data_.collision_margin_data.setCollisionMargin(name1, name2, collision_margin);
+  contact_test_data_.collision_margin_data.setCollisionMargin(id1, id2, collision_margin);
   onCollisionMarginDataChanged();
 }
 
@@ -418,7 +421,8 @@ void CoalDiscreteBVHManager::onCollisionMarginDataChanged()
 
   for (auto& cow : link2cow_)
   {
-    const double new_threshold = contact_test_data_.collision_margin_data.getMaxCollisionMargin(cow.second->getLinkId());
+    const double new_threshold =
+        contact_test_data_.collision_margin_data.getMaxCollisionMargin(cow.second->getLinkId());
     if (new_threshold != cow.second->getContactDistanceThreshold())
     {
       cow.second->setContactDistanceThreshold(new_threshold);

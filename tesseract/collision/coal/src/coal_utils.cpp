@@ -720,19 +720,16 @@ bool CollisionCallback::collide(coal::CollisionObject* o1, coal::CollisionObject
   return cdata->done;
 }
 
-CollisionObjectWrapper::CollisionObjectWrapper(const std::string& name,
+CollisionObjectWrapper::CollisionObjectWrapper(tesseract::common::LinkId id,
                                                const int& type_id,
                                                CollisionShapesConst shapes,
                                                tesseract::common::VectorIsometry3d shape_poses)
-  : link_id_(tesseract::common::LinkId::fromName(name))
-  , type_id_(type_id)
-  , shapes_(std::move(shapes))
-  , shape_poses_(std::move(shape_poses))
+  : link_id_(std::move(id)), type_id_(type_id), shapes_(std::move(shapes)), shape_poses_(std::move(shape_poses))
 {
   // Preconditions guaranteed by createCoalCollisionObject() which validates before construction.
   assert(!shapes_.empty());                       // NOLINT
   assert(!shape_poses_.empty());                  // NOLINT
-  assert(!link_id_.name().empty());                // NOLINT
+  assert(!link_id_.name().empty());               // NOLINT
   assert(shapes_.size() == shape_poses_.size());  // NOLINT
 
   collision_geometries_.reserve(shapes_.size());
@@ -865,7 +862,7 @@ void invalidateCacheFor(CollisionCacheMap& cache, const std::vector<CollisionObj
   }
 }
 
-COW::Ptr createCoalCollisionObject(const std::string& name,
+COW::Ptr createCoalCollisionObject(const tesseract::common::LinkId& id,
                                    const int& type_id,
                                    const CollisionShapesConst& shapes,
                                    const tesseract::common::VectorIsometry3d& shape_poses,
@@ -874,14 +871,14 @@ COW::Ptr createCoalCollisionObject(const std::string& name,
   // dont add object that does not have geometry
   if (shapes.empty() || shape_poses.empty() || (shapes.size() != shape_poses.size()))
   {
-    CONSOLE_BRIDGE_logDebug("ignoring link %s", name.c_str());
+    CONSOLE_BRIDGE_logDebug("ignoring link %s", id.name().c_str());
     return nullptr;
   }
 
-  auto new_cow = std::make_shared<COW>(name, type_id, shapes, shape_poses);
+  auto new_cow = std::make_shared<COW>(id, type_id, shapes, shape_poses);
 
   new_cow->m_enabled = enabled;
-  // CONSOLE_BRIDGE_logDebug("Created collision object for link %s", new_cow->getName().c_str());
+  // CONSOLE_BRIDGE_logDebug("Created collision object for link %s", new_cow->getLinkId().name().c_str());
   return new_cow;
 }
 

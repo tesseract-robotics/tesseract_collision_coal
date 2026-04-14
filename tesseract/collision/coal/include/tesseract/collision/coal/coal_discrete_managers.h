@@ -70,16 +70,16 @@ public:
 
   // Bring base class string overloads into scope (prevents name hiding by ID overloads)
   using DiscreteContactManager::addCollisionObject;
+  using DiscreteContactManager::disableCollisionObject;
+  using DiscreteContactManager::enableCollisionObject;
+  using DiscreteContactManager::getActiveCollisionObjectNames;
   using DiscreteContactManager::getCollisionObjectGeometries;
   using DiscreteContactManager::getCollisionObjectGeometriesTransforms;
   using DiscreteContactManager::hasCollisionObject;
-  using DiscreteContactManager::removeCollisionObject;
-  using DiscreteContactManager::enableCollisionObject;
-  using DiscreteContactManager::disableCollisionObject;
   using DiscreteContactManager::isCollisionObjectEnabled;
-  using DiscreteContactManager::setCollisionObjectsTransform;
+  using DiscreteContactManager::removeCollisionObject;
   using DiscreteContactManager::setActiveCollisionObjects;
-  using DiscreteContactManager::getActiveCollisionObjects;
+  using DiscreteContactManager::setCollisionObjectsTransform;
 
   std::string getName() const override final;
 
@@ -106,8 +106,7 @@ public:
 
   bool isCollisionObjectEnabled(const tesseract::common::LinkId& id) const override final;
 
-  void setCollisionObjectsTransform(const tesseract::common::LinkId& id,
-                                    const Eigen::Isometry3d& pose) override final;
+  void setCollisionObjectsTransform(const tesseract::common::LinkId& id, const Eigen::Isometry3d& pose) override final;
 
   void setCollisionObjectsTransform(const tesseract::common::LinkIdTransformMap& transforms) override final;
 
@@ -128,8 +127,8 @@ public:
 
   void setDefaultCollisionMargin(double default_collision_margin) override final;
 
-  void setCollisionMarginPair(const std::string& name1,
-                              const std::string& name2,
+  void setCollisionMarginPair(const tesseract::common::LinkId& id1,
+                              const tesseract::common::LinkId& id2,
                               double collision_margin) override final;
 
   void incrementCollisionMargin(double increment) override final;
@@ -168,13 +167,14 @@ private:
   CollisionCacheMap collision_cache;
 
   Link2COW link2cow_; /**< @brief A map of all (static and active) collision objects being managed, keyed by LinkId */
-  std::unordered_set<tesseract::common::LinkId, tesseract::common::LinkId::Hash>
-      active_ids_; /**< @brief Active collision objects by LinkId (O(1) lookup) */
+  std::unordered_set<tesseract::common::LinkId, tesseract::common::LinkId::Hash> active_ids_; /**< @brief Active
+                                                                                                 collision objects by
+                                                                                                 LinkId (O(1) lookup) */
   std::vector<tesseract::common::LinkId> collision_objects_; /**< @brief A list of the collision objects */
-  ContactTestDataWrapper contact_test_data_;   /**< @brief Persistent contact test data (Bullet pattern) */
-  std::size_t coal_co_count_{ 0 };             /**< @brief The number of Coal collision objects */
-  double gjk_guess_threshold_;                 /**< @brief GJK guess validity threshold (meters) */
-  double gjk_guess_threshold_sq_;              /**< @brief Squared GJK guess validity threshold */
+  ContactTestDataWrapper contact_test_data_; /**< @brief Persistent contact test data (Bullet pattern) */
+  std::size_t coal_co_count_{ 0 };           /**< @brief The number of Coal collision objects */
+  double gjk_guess_threshold_;               /**< @brief GJK guess validity threshold (meters) */
+  double gjk_guess_threshold_sq_;            /**< @brief Squared GJK guess validity threshold */
 
   /** @brief This is used to store static collision objects to update */
   std::vector<CollisionObjectRawPtr> static_update_;
