@@ -66,7 +66,7 @@ inline void addCollisionObjects(ContinuousContactManager& checker)
   /////////////////////////////////////////////
   std::vector<std::string> pre_active_links{ "static_box_link", "moving_box_link", "thin_box_link" };
   checker.setActiveCollisionObjects(pre_active_links);
-  EXPECT_EQ(checker.getActiveCollisionObjects().size(), 3);
+  EXPECT_EQ(checker.getActiveCollisionObjectNames().size(), 3);
 
   /////////////////////////////////////////////
   // Add box and remove
@@ -85,14 +85,14 @@ inline void addCollisionObjects(ContinuousContactManager& checker)
   EXPECT_TRUE(checker.hasCollisionObject("remove_box_link"));
 
   // Verify that adding a new object does not automatically add it to active list
-  EXPECT_EQ(checker.getActiveCollisionObjects().size(), 3);
+  EXPECT_EQ(checker.getActiveCollisionObjectNames().size(), 3);
 
   checker.removeCollisionObject("remove_box_link");
   EXPECT_FALSE(checker.hasCollisionObject("remove_box_link"));
 
   // Verify that active list no longer contains the removed object
   {
-    const auto active_after_remove = checker.getActiveCollisionObjects();
+    const auto active_after_remove = checker.getActiveCollisionObjectNames();
     EXPECT_EQ(active_after_remove.size(), 3);
     EXPECT_EQ(std::find(active_after_remove.begin(), active_after_remove.end(), "remove_box_link"),
               active_after_remove.end());
@@ -151,7 +151,7 @@ inline void runTest(ContinuousContactManager& checker)
 
   std::vector<std::string> active_links{ "moving_box_link" };
   checker.setActiveCollisionObjects(active_links);
-  std::vector<std::string> check_active_links = checker.getActiveCollisionObjects();
+  std::vector<std::string> check_active_links = checker.getActiveCollisionObjectNames();
   EXPECT_TRUE(tesseract::common::isIdentical<std::string>(active_links, check_active_links, false));
 
   EXPECT_TRUE(checker.getContactAllowedValidator() == nullptr);
