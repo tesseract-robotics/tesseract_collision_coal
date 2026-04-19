@@ -80,8 +80,8 @@ static void BM_LARGE_DATASET_MULTILINK(benchmark::State& state,
 
         link_names.push_back("sphere_link_" + std::to_string(x) + std::to_string(y) + std::to_string(z));
 
-        location[tesseract::common::LinkId::fromName(link_names.back())] = sphere_pose;
-        location[tesseract::common::LinkId::fromName(link_names.back())].translation() = Eigen::Vector3d(
+        location[tesseract::common::LinkId(link_names.back())] = sphere_pose;
+        location[tesseract::common::LinkId(link_names.back())].translation() = Eigen::Vector3d(
             static_cast<double>(x) * delta, static_cast<double>(y) * delta, static_cast<double>(z) * delta);
         checker->addCollisionObject(link_names.back(), 0, obj3_shapes, obj3_poses);
       }

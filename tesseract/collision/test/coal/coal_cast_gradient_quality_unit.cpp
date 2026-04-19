@@ -112,7 +112,7 @@ protected:
   {
     // Set static octree pose
     tesseract::common::LinkIdTransformMap location;
-    location[tesseract::common::LinkId::fromName("octomap_link")] = Eigen::Isometry3d::Identity();
+    location[tesseract::common::LinkId("octomap_link")] = Eigen::Isometry3d::Identity();
     checker_.setCollisionObjectsTransform(location);
 
     // Set sweep poses

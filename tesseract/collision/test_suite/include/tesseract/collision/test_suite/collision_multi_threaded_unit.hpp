@@ -62,8 +62,8 @@ inline void runTest(DiscreteContactManager& checker, bool use_convex_mesh = fals
 
         link_names.push_back("sphere_link_" + std::to_string(x) + std::to_string(y) + std::to_string(z));
 
-        location[tesseract::common::LinkId::fromName(link_names.back())] = sphere_pose;
-        location[tesseract::common::LinkId::fromName(link_names.back())].translation() = Eigen::Vector3d(
+        location[tesseract::common::LinkId(link_names.back())] = sphere_pose;
+        location[tesseract::common::LinkId(link_names.back())].translation() = Eigen::Vector3d(
             static_cast<double>(x) * delta, static_cast<double>(y) * delta, static_cast<double>(z) * delta);
         checker.addCollisionObject(link_names.back(), 0, obj3_shapes, obj3_poses);
       }
@@ -99,7 +99,7 @@ inline void runTest(DiscreteContactManager& checker, bool use_convex_mesh = fals
     const DiscreteContactManager::Ptr& manager = contact_manager[static_cast<size_t>(tn)];
     for (const auto& name : link_names)
     {
-      const auto id = tesseract::common::LinkId::fromName(name);
+      const auto id = tesseract::common::LinkId(name);
       if (tn == 0)
       {
         Eigen::Isometry3d pose = location[id];

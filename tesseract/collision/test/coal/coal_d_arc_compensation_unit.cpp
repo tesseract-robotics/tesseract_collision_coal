@@ -19,7 +19,7 @@ namespace
 CastHullShape* getCastHullShape(CoalCastBVHManager& mgr, const std::string& link_name)
 {
   const auto& cast_map = mgr.getCastCollisionObjectMap();
-  auto it = cast_map.find(tesseract::common::LinkId::fromName(link_name));
+  auto it = cast_map.find(tesseract::common::LinkId(link_name));
   if (it == cast_map.end())
     return nullptr;
   auto& cos = it->second->getCollisionObjects();

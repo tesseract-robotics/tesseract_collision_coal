@@ -192,23 +192,23 @@ inline void runTestPrimitive(ContinuousContactManager& checker)
 
   // Set the start location
   tesseract::common::LinkIdTransformMap location_start;
-  location_start[tesseract::common::LinkId::fromName("sphere_link")] = Eigen::Isometry3d::Identity();
-  location_start[tesseract::common::LinkId::fromName("sphere_link")].translation()(0) = -0.2;
-  location_start[tesseract::common::LinkId::fromName("sphere_link")].translation()(1) = -1.0;
+  location_start[tesseract::common::LinkId("sphere_link")] = Eigen::Isometry3d::Identity();
+  location_start[tesseract::common::LinkId("sphere_link")].translation()(0) = -0.2;
+  location_start[tesseract::common::LinkId("sphere_link")].translation()(1) = -1.0;
 
-  location_start[tesseract::common::LinkId::fromName("sphere1_link")] = Eigen::Isometry3d::Identity();
-  location_start[tesseract::common::LinkId::fromName("sphere1_link")].translation()(0) = 0.2;
-  location_start[tesseract::common::LinkId::fromName("sphere1_link")].translation()(2) = -1.0;
+  location_start[tesseract::common::LinkId("sphere1_link")] = Eigen::Isometry3d::Identity();
+  location_start[tesseract::common::LinkId("sphere1_link")].translation()(0) = 0.2;
+  location_start[tesseract::common::LinkId("sphere1_link")].translation()(2) = -1.0;
 
   // Set the end location
   tesseract::common::LinkIdTransformMap location_end;
-  location_end[tesseract::common::LinkId::fromName("sphere_link")] = Eigen::Isometry3d::Identity();
-  location_end[tesseract::common::LinkId::fromName("sphere_link")].translation()(0) = -0.2;
-  location_end[tesseract::common::LinkId::fromName("sphere_link")].translation()(1) = 1.0;
+  location_end[tesseract::common::LinkId("sphere_link")] = Eigen::Isometry3d::Identity();
+  location_end[tesseract::common::LinkId("sphere_link")].translation()(0) = -0.2;
+  location_end[tesseract::common::LinkId("sphere_link")].translation()(1) = 1.0;
 
-  location_end[tesseract::common::LinkId::fromName("sphere1_link")] = Eigen::Isometry3d::Identity();
-  location_end[tesseract::common::LinkId::fromName("sphere1_link")].translation()(0) = 0.2;
-  location_end[tesseract::common::LinkId::fromName("sphere1_link")].translation()(2) = 1.0;
+  location_end[tesseract::common::LinkId("sphere1_link")] = Eigen::Isometry3d::Identity();
+  location_end[tesseract::common::LinkId("sphere1_link")].translation()(0) = 0.2;
+  location_end[tesseract::common::LinkId("sphere1_link")].translation()(2) = 1.0;
 
   checker.setCollisionObjectsTransform(location_start, location_end);
 
@@ -284,7 +284,7 @@ inline void runTestPrimitive(ContinuousContactManager& checker)
                                                                                         "sphere_pose offset";
 
   // Verify start/end transforms are stored correctly
-  EXPECT_TRUE(cr1.transform[static_cast<size_t>(idx[0])].isApprox(location_start[tesseract::common::LinkId::fromName("sphere_link")], 0.0001)) << "sphere_"
+  EXPECT_TRUE(cr1.transform[static_cast<size_t>(idx[0])].isApprox(location_start[tesseract::common::LinkId("sphere_link")], 0.0001)) << "sphere_"
                                                                                                              "link "
                                                                                                              "transform"
                                                                                                              " should "
@@ -293,7 +293,7 @@ inline void runTestPrimitive(ContinuousContactManager& checker)
                                                                                                              "pose "
                                                                                                              "(-0.2, "
                                                                                                              "-1, 0)";
-  EXPECT_TRUE(cr1.transform[static_cast<size_t>(idx[1])].isApprox(location_start[tesseract::common::LinkId::fromName("sphere1_link")], 0.0001)) << "sphere1_"
+  EXPECT_TRUE(cr1.transform[static_cast<size_t>(idx[1])].isApprox(location_start[tesseract::common::LinkId("sphere1_link")], 0.0001)) << "sphere1_"
                                                                                                               "link "
                                                                                                               "transfor"
                                                                                                               "m "
@@ -303,7 +303,7 @@ inline void runTestPrimitive(ContinuousContactManager& checker)
                                                                                                               "pose "
                                                                                                               "(0.2, "
                                                                                                               "0, -1)";
-  EXPECT_TRUE(cr1.cc_transform[static_cast<size_t>(idx[0])].isApprox(location_end[tesseract::common::LinkId::fromName("sphere_link")], 0.0001)) << "sphere_"
+  EXPECT_TRUE(cr1.cc_transform[static_cast<size_t>(idx[0])].isApprox(location_end[tesseract::common::LinkId("sphere_link")], 0.0001)) << "sphere_"
                                                                                                               "link "
                                                                                                               "cc_"
                                                                                                               "transfor"
@@ -314,7 +314,7 @@ inline void runTestPrimitive(ContinuousContactManager& checker)
                                                                                                               "pose "
                                                                                                               "(-0.2, "
                                                                                                               "1, 0)";
-  EXPECT_TRUE(cr1.cc_transform[static_cast<size_t>(idx[1])].isApprox(location_end[tesseract::common::LinkId::fromName("sphere1_link")], 0.0001)) << "sphere1"
+  EXPECT_TRUE(cr1.cc_transform[static_cast<size_t>(idx[1])].isApprox(location_end[tesseract::common::LinkId("sphere1_link")], 0.0001)) << "sphere1"
                                                                                                                "_link "
                                                                                                                "cc_"
                                                                                                                "transfo"
@@ -344,22 +344,22 @@ inline void runTestPrimitive(ContinuousContactManager& checker)
   /////////////////////////////////////////////////////////////
 
   // Set the start location
-  location_start[tesseract::common::LinkId::fromName("sphere_link")] = Eigen::Isometry3d::Identity();
-  location_start[tesseract::common::LinkId::fromName("sphere_link")].translation()(0) = -0.2;
-  location_start[tesseract::common::LinkId::fromName("sphere_link")].translation()(1) = -0.5;
+  location_start[tesseract::common::LinkId("sphere_link")] = Eigen::Isometry3d::Identity();
+  location_start[tesseract::common::LinkId("sphere_link")].translation()(0) = -0.2;
+  location_start[tesseract::common::LinkId("sphere_link")].translation()(1) = -0.5;
 
-  location_start[tesseract::common::LinkId::fromName("sphere1_link")] = Eigen::Isometry3d::Identity();
-  location_start[tesseract::common::LinkId::fromName("sphere1_link")].translation()(0) = 0.2;
-  location_start[tesseract::common::LinkId::fromName("sphere1_link")].translation()(2) = -1.0;
+  location_start[tesseract::common::LinkId("sphere1_link")] = Eigen::Isometry3d::Identity();
+  location_start[tesseract::common::LinkId("sphere1_link")].translation()(0) = 0.2;
+  location_start[tesseract::common::LinkId("sphere1_link")].translation()(2) = -1.0;
 
   // Set the end location
-  location_end[tesseract::common::LinkId::fromName("sphere_link")] = Eigen::Isometry3d::Identity();
-  location_end[tesseract::common::LinkId::fromName("sphere_link")].translation()(0) = -0.2;
-  location_end[tesseract::common::LinkId::fromName("sphere_link")].translation()(1) = 1.0;
+  location_end[tesseract::common::LinkId("sphere_link")] = Eigen::Isometry3d::Identity();
+  location_end[tesseract::common::LinkId("sphere_link")].translation()(0) = -0.2;
+  location_end[tesseract::common::LinkId("sphere_link")].translation()(1) = 1.0;
 
-  location_end[tesseract::common::LinkId::fromName("sphere1_link")] = Eigen::Isometry3d::Identity();
-  location_end[tesseract::common::LinkId::fromName("sphere1_link")].translation()(0) = 0.2;
-  location_end[tesseract::common::LinkId::fromName("sphere1_link")].translation()(2) = 1.0;
+  location_end[tesseract::common::LinkId("sphere1_link")] = Eigen::Isometry3d::Identity();
+  location_end[tesseract::common::LinkId("sphere1_link")].translation()(0) = 0.2;
+  location_end[tesseract::common::LinkId("sphere1_link")].translation()(2) = 1.0;
 
   checker.setCollisionObjectsTransform(location_start, location_end);
 
@@ -429,7 +429,7 @@ inline void runTestPrimitive(ContinuousContactManager& checker)
                                                                                         "nearest_point_local.z";
 
   // Verify transforms
-  EXPECT_TRUE(cr2.transform[static_cast<size_t>(idx[0])].isApprox(location_start[tesseract::common::LinkId::fromName("sphere_link")], 0.0001)) << "sphere_"
+  EXPECT_TRUE(cr2.transform[static_cast<size_t>(idx[0])].isApprox(location_start[tesseract::common::LinkId("sphere_link")], 0.0001)) << "sphere_"
                                                                                                              "link "
                                                                                                              "transform"
                                                                                                              " should "
@@ -438,7 +438,7 @@ inline void runTestPrimitive(ContinuousContactManager& checker)
                                                                                                              "pose "
                                                                                                              "(-0.2, "
                                                                                                              "-0.5, 0)";
-  EXPECT_TRUE(cr2.transform[static_cast<size_t>(idx[1])].isApprox(location_start[tesseract::common::LinkId::fromName("sphere1_link")], 0.0001)) << "sphere1_"
+  EXPECT_TRUE(cr2.transform[static_cast<size_t>(idx[1])].isApprox(location_start[tesseract::common::LinkId("sphere1_link")], 0.0001)) << "sphere1_"
                                                                                                               "link "
                                                                                                               "transfor"
                                                                                                               "m "
@@ -448,7 +448,7 @@ inline void runTestPrimitive(ContinuousContactManager& checker)
                                                                                                               "pose "
                                                                                                               "(0.2, "
                                                                                                               "0, -1)";
-  EXPECT_TRUE(cr2.cc_transform[static_cast<size_t>(idx[0])].isApprox(location_end[tesseract::common::LinkId::fromName("sphere_link")], 0.0001)) << "sphere_"
+  EXPECT_TRUE(cr2.cc_transform[static_cast<size_t>(idx[0])].isApprox(location_end[tesseract::common::LinkId("sphere_link")], 0.0001)) << "sphere_"
                                                                                                               "link "
                                                                                                               "cc_"
                                                                                                               "transfor"
@@ -459,7 +459,7 @@ inline void runTestPrimitive(ContinuousContactManager& checker)
                                                                                                               "pose "
                                                                                                               "(-0.2, "
                                                                                                               "1, 0)";
-  EXPECT_TRUE(cr2.cc_transform[static_cast<size_t>(idx[1])].isApprox(location_end[tesseract::common::LinkId::fromName("sphere1_link")], 0.0001)) << "sphere1"
+  EXPECT_TRUE(cr2.cc_transform[static_cast<size_t>(idx[1])].isApprox(location_end[tesseract::common::LinkId("sphere1_link")], 0.0001)) << "sphere1"
                                                                                                                "_link "
                                                                                                                "cc_"
                                                                                                                "transfo"
@@ -500,23 +500,23 @@ inline void runTestConvex(ContinuousContactManager& checker)
 
   // Set the start location
   tesseract::common::LinkIdTransformMap location_start;
-  location_start[tesseract::common::LinkId::fromName("sphere_link")] = Eigen::Isometry3d::Identity();
-  location_start[tesseract::common::LinkId::fromName("sphere_link")].translation()(0) = -0.2;
-  location_start[tesseract::common::LinkId::fromName("sphere_link")].translation()(1) = -1.0;
+  location_start[tesseract::common::LinkId("sphere_link")] = Eigen::Isometry3d::Identity();
+  location_start[tesseract::common::LinkId("sphere_link")].translation()(0) = -0.2;
+  location_start[tesseract::common::LinkId("sphere_link")].translation()(1) = -1.0;
 
-  location_start[tesseract::common::LinkId::fromName("sphere1_link")] = Eigen::Isometry3d::Identity();
-  location_start[tesseract::common::LinkId::fromName("sphere1_link")].translation()(0) = 0.2;
-  location_start[tesseract::common::LinkId::fromName("sphere1_link")].translation()(2) = -1.0;
+  location_start[tesseract::common::LinkId("sphere1_link")] = Eigen::Isometry3d::Identity();
+  location_start[tesseract::common::LinkId("sphere1_link")].translation()(0) = 0.2;
+  location_start[tesseract::common::LinkId("sphere1_link")].translation()(2) = -1.0;
 
   // Set the end location
   tesseract::common::LinkIdTransformMap location_end;
-  location_end[tesseract::common::LinkId::fromName("sphere_link")] = Eigen::Isometry3d::Identity();
-  location_end[tesseract::common::LinkId::fromName("sphere_link")].translation()(0) = -0.2;
-  location_end[tesseract::common::LinkId::fromName("sphere_link")].translation()(1) = 1.0;
+  location_end[tesseract::common::LinkId("sphere_link")] = Eigen::Isometry3d::Identity();
+  location_end[tesseract::common::LinkId("sphere_link")].translation()(0) = -0.2;
+  location_end[tesseract::common::LinkId("sphere_link")].translation()(1) = 1.0;
 
-  location_end[tesseract::common::LinkId::fromName("sphere1_link")] = Eigen::Isometry3d::Identity();
-  location_end[tesseract::common::LinkId::fromName("sphere1_link")].translation()(0) = 0.2;
-  location_end[tesseract::common::LinkId::fromName("sphere1_link")].translation()(2) = 1.0;
+  location_end[tesseract::common::LinkId("sphere1_link")] = Eigen::Isometry3d::Identity();
+  location_end[tesseract::common::LinkId("sphere1_link")].translation()(0) = 0.2;
+  location_end[tesseract::common::LinkId("sphere1_link")].translation()(2) = 1.0;
 
   checker.setCollisionObjectsTransform(location_start, location_end);
 
@@ -590,7 +590,7 @@ inline void runTestConvex(ContinuousContactManager& checker)
                                                                                         "nearest_point_local.z";
 
   // Verify transforms
-  EXPECT_TRUE(cr1.transform[static_cast<size_t>(idx[0])].isApprox(location_start[tesseract::common::LinkId::fromName("sphere_link")], 0.0001)) << "sphere_"
+  EXPECT_TRUE(cr1.transform[static_cast<size_t>(idx[0])].isApprox(location_start[tesseract::common::LinkId("sphere_link")], 0.0001)) << "sphere_"
                                                                                                              "link "
                                                                                                              "transform"
                                                                                                              " should "
@@ -599,7 +599,7 @@ inline void runTestConvex(ContinuousContactManager& checker)
                                                                                                              "pose "
                                                                                                              "(-0.2, "
                                                                                                              "-1, 0)";
-  EXPECT_TRUE(cr1.transform[static_cast<size_t>(idx[1])].isApprox(location_start[tesseract::common::LinkId::fromName("sphere1_link")], 0.0001)) << "sphere1_"
+  EXPECT_TRUE(cr1.transform[static_cast<size_t>(idx[1])].isApprox(location_start[tesseract::common::LinkId("sphere1_link")], 0.0001)) << "sphere1_"
                                                                                                               "link "
                                                                                                               "transfor"
                                                                                                               "m "
@@ -609,7 +609,7 @@ inline void runTestConvex(ContinuousContactManager& checker)
                                                                                                               "pose "
                                                                                                               "(0.2, "
                                                                                                               "0, -1)";
-  EXPECT_TRUE(cr1.cc_transform[static_cast<size_t>(idx[0])].isApprox(location_end[tesseract::common::LinkId::fromName("sphere_link")], 0.0001)) << "sphere_"
+  EXPECT_TRUE(cr1.cc_transform[static_cast<size_t>(idx[0])].isApprox(location_end[tesseract::common::LinkId("sphere_link")], 0.0001)) << "sphere_"
                                                                                                               "link "
                                                                                                               "cc_"
                                                                                                               "transfor"
@@ -620,7 +620,7 @@ inline void runTestConvex(ContinuousContactManager& checker)
                                                                                                               "pose "
                                                                                                               "(-0.2, "
                                                                                                               "1, 0)";
-  EXPECT_TRUE(cr1.cc_transform[static_cast<size_t>(idx[1])].isApprox(location_end[tesseract::common::LinkId::fromName("sphere1_link")], 0.0001)) << "sphere1"
+  EXPECT_TRUE(cr1.cc_transform[static_cast<size_t>(idx[1])].isApprox(location_end[tesseract::common::LinkId("sphere1_link")], 0.0001)) << "sphere1"
                                                                                                                "_link "
                                                                                                                "cc_"
                                                                                                                "transfo"
@@ -648,22 +648,22 @@ inline void runTestConvex(ContinuousContactManager& checker)
   /////////////////////////////////////////////////////////////
 
   // Set the start location
-  location_start[tesseract::common::LinkId::fromName("sphere_link")] = Eigen::Isometry3d::Identity();
-  location_start[tesseract::common::LinkId::fromName("sphere_link")].translation()(0) = -0.2;
-  location_start[tesseract::common::LinkId::fromName("sphere_link")].translation()(1) = -0.5;
+  location_start[tesseract::common::LinkId("sphere_link")] = Eigen::Isometry3d::Identity();
+  location_start[tesseract::common::LinkId("sphere_link")].translation()(0) = -0.2;
+  location_start[tesseract::common::LinkId("sphere_link")].translation()(1) = -0.5;
 
-  location_start[tesseract::common::LinkId::fromName("sphere1_link")] = Eigen::Isometry3d::Identity();
-  location_start[tesseract::common::LinkId::fromName("sphere1_link")].translation()(0) = 0.2;
-  location_start[tesseract::common::LinkId::fromName("sphere1_link")].translation()(2) = -1.0;
+  location_start[tesseract::common::LinkId("sphere1_link")] = Eigen::Isometry3d::Identity();
+  location_start[tesseract::common::LinkId("sphere1_link")].translation()(0) = 0.2;
+  location_start[tesseract::common::LinkId("sphere1_link")].translation()(2) = -1.0;
 
   // Set the end location
-  location_end[tesseract::common::LinkId::fromName("sphere_link")] = Eigen::Isometry3d::Identity();
-  location_end[tesseract::common::LinkId::fromName("sphere_link")].translation()(0) = -0.2;
-  location_end[tesseract::common::LinkId::fromName("sphere_link")].translation()(1) = 1.0;
+  location_end[tesseract::common::LinkId("sphere_link")] = Eigen::Isometry3d::Identity();
+  location_end[tesseract::common::LinkId("sphere_link")].translation()(0) = -0.2;
+  location_end[tesseract::common::LinkId("sphere_link")].translation()(1) = 1.0;
 
-  location_end[tesseract::common::LinkId::fromName("sphere1_link")] = Eigen::Isometry3d::Identity();
-  location_end[tesseract::common::LinkId::fromName("sphere1_link")].translation()(0) = 0.2;
-  location_end[tesseract::common::LinkId::fromName("sphere1_link")].translation()(2) = 1.0;
+  location_end[tesseract::common::LinkId("sphere1_link")] = Eigen::Isometry3d::Identity();
+  location_end[tesseract::common::LinkId("sphere1_link")].translation()(0) = 0.2;
+  location_end[tesseract::common::LinkId("sphere1_link")].translation()(2) = 1.0;
 
   checker.setCollisionObjectsTransform(location_start, location_end);
 
@@ -737,7 +737,7 @@ inline void runTestConvex(ContinuousContactManager& checker)
       << "Both witness points should have the same Y coordinate";
 
   // Verify transforms
-  EXPECT_TRUE(cr2.transform[static_cast<size_t>(idx[0])].isApprox(location_start[tesseract::common::LinkId::fromName("sphere_link")], 0.0001)) << "sphere_"
+  EXPECT_TRUE(cr2.transform[static_cast<size_t>(idx[0])].isApprox(location_start[tesseract::common::LinkId("sphere_link")], 0.0001)) << "sphere_"
                                                                                                              "link "
                                                                                                              "transform"
                                                                                                              " should "
@@ -746,7 +746,7 @@ inline void runTestConvex(ContinuousContactManager& checker)
                                                                                                              "pose "
                                                                                                              "(-0.2, "
                                                                                                              "-0.5, 0)";
-  EXPECT_TRUE(cr2.transform[static_cast<size_t>(idx[1])].isApprox(location_start[tesseract::common::LinkId::fromName("sphere1_link")], 0.0001)) << "sphere1_"
+  EXPECT_TRUE(cr2.transform[static_cast<size_t>(idx[1])].isApprox(location_start[tesseract::common::LinkId("sphere1_link")], 0.0001)) << "sphere1_"
                                                                                                               "link "
                                                                                                               "transfor"
                                                                                                               "m "
@@ -756,7 +756,7 @@ inline void runTestConvex(ContinuousContactManager& checker)
                                                                                                               "pose "
                                                                                                               "(0.2, "
                                                                                                               "0, -1)";
-  EXPECT_TRUE(cr2.cc_transform[static_cast<size_t>(idx[0])].isApprox(location_end[tesseract::common::LinkId::fromName("sphere_link")], 0.0001)) << "sphere_"
+  EXPECT_TRUE(cr2.cc_transform[static_cast<size_t>(idx[0])].isApprox(location_end[tesseract::common::LinkId("sphere_link")], 0.0001)) << "sphere_"
                                                                                                               "link "
                                                                                                               "cc_"
                                                                                                               "transfor"
@@ -767,7 +767,7 @@ inline void runTestConvex(ContinuousContactManager& checker)
                                                                                                               "pose "
                                                                                                               "(-0.2, "
                                                                                                               "1, 0)";
-  EXPECT_TRUE(cr2.cc_transform[static_cast<size_t>(idx[1])].isApprox(location_end[tesseract::common::LinkId::fromName("sphere1_link")], 0.0001)) << "sphere1"
+  EXPECT_TRUE(cr2.cc_transform[static_cast<size_t>(idx[1])].isApprox(location_end[tesseract::common::LinkId("sphere1_link")], 0.0001)) << "sphere1"
                                                                                                                "_link "
                                                                                                                "cc_"
                                                                                                                "transfo"

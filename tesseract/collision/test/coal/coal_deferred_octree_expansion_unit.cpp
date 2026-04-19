@@ -57,7 +57,7 @@ TEST_F(DeferredOctreeExpansionUnit, StaticOctreeNotExpandedOnAdd)  // NOLINT
 {
   // Both objects start static — octree cast COW should contain raw OcTree (deferred).
   const auto& cast_map = checker_.getCastCollisionObjectMap();
-  auto it = cast_map.find(tesseract::common::LinkId::fromName("octree_link"));
+  auto it = cast_map.find("octree_link");
   ASSERT_NE(it, cast_map.end());
   EXPECT_TRUE(castCowNeedsOctreeExpansion(it->second));
 }
@@ -67,7 +67,7 @@ TEST_F(DeferredOctreeExpansionUnit, PromotionExpandsOctree)  // NOLINT
   checker_.setActiveCollisionObjects(std::vector<std::string>{ "octree_link", "cyl_link" });
 
   const auto& cast_map = checker_.getCastCollisionObjectMap();
-  auto it = cast_map.find(tesseract::common::LinkId::fromName("octree_link"));
+  auto it = cast_map.find("octree_link");
   ASSERT_NE(it, cast_map.end());
   EXPECT_FALSE(castCowNeedsOctreeExpansion(it->second));
 
@@ -103,7 +103,7 @@ TEST_F(DeferredOctreeExpansionUnit, DemotionPreservesExpansion)  // NOLINT
 
   // Expanded cast COW should be cached — not reverted to raw OcTree.
   const auto& cast_map = checker_.getCastCollisionObjectMap();
-  auto it = cast_map.find(tesseract::common::LinkId::fromName("octree_link"));
+  auto it = cast_map.find("octree_link");
   ASSERT_NE(it, cast_map.end());
   EXPECT_FALSE(castCowNeedsOctreeExpansion(it->second));
 }
@@ -116,7 +116,7 @@ TEST_F(DeferredOctreeExpansionUnit, RePromotionSkipsReExpansion)  // NOLINT
   checker_.setActiveCollisionObjects(std::vector<std::string>{ "octree_link", "cyl_link" });
 
   const auto& cast_map = checker_.getCastCollisionObjectMap();
-  auto it = cast_map.find(tesseract::common::LinkId::fromName("octree_link"));
+  auto it = cast_map.find("octree_link");
   ASSERT_NE(it, cast_map.end());
   EXPECT_FALSE(castCowNeedsOctreeExpansion(it->second));
 
@@ -173,7 +173,7 @@ TEST_F(DeferredOctreeExpansionUnit, CloneWithActiveOctreeExpands)  // NOLINT
   ASSERT_NE(cast_clone, nullptr);
 
   const auto& cast_map = cast_clone->getCastCollisionObjectMap();
-  auto it = cast_map.find(tesseract::common::LinkId::fromName("octree_link"));
+  auto it = cast_map.find("octree_link");
   ASSERT_NE(it, cast_map.end());
   EXPECT_FALSE(castCowNeedsOctreeExpansion(it->second));
 
