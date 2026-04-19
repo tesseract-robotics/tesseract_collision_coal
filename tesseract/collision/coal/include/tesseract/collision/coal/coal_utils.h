@@ -47,6 +47,7 @@ TESSERACT_COMMON_IGNORE_WARNINGS_PUSH
 #include <unordered_set>
 #include <utility>
 #include <boost/functional/hash.hpp>
+#include <boost/unordered/unordered_flat_map.hpp>
 #include <coal/broadphase/broadphase_collision_manager.h>
 #include <coal/collision.h>
 TESSERACT_COMMON_IGNORE_WARNINGS_POP
@@ -83,7 +84,7 @@ struct CollisionCacheEntry
 };
 
 /** @brief Cache mapping collision object pairs to their precomputed collision functor and warm-start state */
-using CollisionCacheMap = std::unordered_map<CollisionObjectPair, CollisionCacheEntry, CollisionObjectPairHash>;
+using CollisionCacheMap = boost::unordered_flat_map<CollisionObjectPair, CollisionCacheEntry, CollisionObjectPairHash>;
 
 /// Default GJK guess validity threshold (5mm). Stale GJK warm-start guesses from larger
 /// moves can cause solver failures (zero gradients, degraded contact accuracy).
@@ -266,6 +267,7 @@ inline bool castCowNeedsOctreeExpansion(const COW::Ptr& cast_cow)
  */
 bool needsCollisionCheck(const CollisionObjectWrapper* cd1,
                          const CollisionObjectWrapper* cd2,
+                         const tesseract::common::LinkIdPair& pair,
                          const std::shared_ptr<const tesseract::common::ContactAllowedValidator>& validator,
                          bool verbose = false);
 

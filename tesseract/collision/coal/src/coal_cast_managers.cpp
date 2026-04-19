@@ -254,7 +254,7 @@ void CoalCastBVHManager::setActiveCollisionObjects(const std::vector<tesseract::
   for (auto& [id, cow] : link2cow_)
   {
     // Get the cast collision object
-    COW::Ptr& cast_cow = link2castcow_[id];
+    COW::Ptr& cast_cow = link2castcow_.at(id);
 
     // Use the specialized function that properly handles both regular and cast objects
     updateCollisionObjectFilters(active_ids_, cow, cast_cow, static_manager_, dynamic_manager_);
@@ -272,13 +272,22 @@ CoalCastBVHManager::getActiveCollisionObjectIds() const
 void CoalCastBVHManager::setCollisionObjectsTransform(const tesseract::common::LinkIdTransformMap& pose1,
                                                       const tesseract::common::LinkIdTransformMap& pose2)
 {
-  for (const auto& id : getCollisionObjects())
+  static_update_.clear();
+  dynamic_update_.clear();
+  for (const auto& [id, tf1] : pose1)
   {
-    auto it1 = pose1.find(id);
     auto it2 = pose2.find(id);
-    if (it1 != pose1.end() && it2 != pose2.end())
-      setCollisionObjectsTransform(id, it1->second, it2->second);
+    if (it2 == pose2.end())
+      continue;
+
+    auto cast_it = link2castcow_.find(id);
+    if (cast_it == link2castcow_.end())
+      continue;
+
+    auto reg_it = link2cow_.find(id);
+    collectCastTransformUpdate(cast_it, reg_it, tf1, it2->second);
   }
+  flushBatchUpdate();
 }
 
 void CoalCastBVHManager::setCollisionMarginData(CollisionMarginData collision_margin_data)

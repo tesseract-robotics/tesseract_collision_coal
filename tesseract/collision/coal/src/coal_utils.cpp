@@ -356,68 +356,139 @@ constexpr double COAL_SUPPORT_FUNC_TOLERANCE = 0.01;
 constexpr double COAL_LENGTH_TOLERANCE = 0.001;
 constexpr double COAL_EPSILON = 1e-6;
 
+namespace
+{
+template <typename ConvexT>
+void getAverageSupportFromConvex(const ConvexT* convex,
+                                 const coal::Vec3s& localNormal,
+                                 double& outsupport,
+                                 coal::Vec3s& outpt,
+                                 int& hint,
+                                 coal::details::ShapeSupportData& support_data)
+{
+  using IndexType = typename ConvexT::IndexType;
+
+  coal::Vec3s support;
+  coal::details::getShapeSupport<coal::details::SupportOptions::NoSweptSphere>(
+      convex, localNormal, support, hint, support_data);
+  const double maxSupport = support.dot(localNormal);
+
+  if (convex->neighbors == nullptr)
+  {
+    outsupport = maxSupport;
+    outpt = support;
+    return;
+  }
+
+  // Ensure visited is correctly sized. Coal's linear-path dispatch (V ≤ 32)
+  // leaves the buffer untouched, so without this we could index out of bounds
+  // on a fresh ShapeSupportData or one previously sized for a smaller shape.
+  const auto num_points = static_cast<std::size_t>(convex->num_points);
+  if (support_data.visited.size() != num_points)
+    support_data.visited.assign(num_points, 0);
+  else
+    std::fill(support_data.visited.begin(), support_data.visited.end(), 0);
+
+  support_data.visited[static_cast<std::size_t>(hint)] = 1;
+  thread_local std::vector<IndexType> traversal_stack;
+  traversal_stack.clear();
+  traversal_stack.push_back(static_cast<IndexType>(hint));
+
+  const auto& pts = *convex->points;
+  const auto& nns = *convex->neighbors;
+  coal::Vec3s ptSum = support;
+  double ptCount = 1.0;
+  while (!traversal_stack.empty())
+  {
+    const IndexType cur = traversal_stack.back();
+    traversal_stack.pop_back();
+    const auto& n = nns[cur];
+    for (IndexType in = 0; in < n.count; ++in)
+    {
+      const IndexType ip = convex->neighbor(cur, in);
+      if (support_data.visited[ip] != 0)
+        continue;
+      support_data.visited[ip] = 1;
+      if (pts[ip].dot(localNormal) >= maxSupport - COAL_EPSILON)
+      {
+        ptSum += pts[ip];
+        ptCount += 1.0;
+        traversal_stack.push_back(ip);
+      }
+    }
+  }
+  outsupport = maxSupport;
+  outpt = ptSum / ptCount;
+}
+}  // namespace
+
 /**
  * @brief Compute the average support point for a shape along a direction.
  *
- * Matches Bullet's GetAverageSupport algorithm: for polyhedral shapes
- * (ConvexBase32), iterates all vertices, finds the maximum support value,
- * and averages all vertices within COAL_EPSILON of that maximum. This
- * handles degenerate cases where multiple vertices have equal support
- * (e.g., two symmetric vertices of a tessellated sphere), producing a
- * canonical point that's independent of vertex iteration order.
+ * For polyhedral shapes, delegates to coal's hill-climb (logarithmic when a
+ * neighbor graph is present and V > 32, linear otherwise) to find an extreme
+ * vertex, then averages all tied vertices reached via a DFS over neighbors.
+ * Tied vertices on a convex polytope form a connected supporting face, so the
+ * traversal visits exactly that face. Matches Bullet's GetAverageSupport in
+ * the practically-equivalent sense: identical for unique maxima and exact
+ * ties; divergence bounded by COAL_EPSILON × face_extent in near-epsilon cases.
  *
- * For non-polyhedral shapes (Sphere, Capsule, etc.), falls back to coal's
- * getSupport<WithSweptSphere> which includes the shape's radius.
+ * @param hint In/out warm-start vertex index. On input, the starting vertex
+ *             for hill-climb (typically the result of a previous call with a
+ *             similar direction). On output, the extreme vertex index.
+ * @param support_data In/out scratch data. Coal uses `visited` and `last_dir`
+ *             to accelerate subsequent calls with related directions; pass a
+ *             per-shape instance to preserve warm-start quality across calls.
  */
 void GetAverageSupport(const coal::ShapeBase* shape,
                        const coal::Vec3s& localNormal,
                        double& outsupport,
-                       coal::Vec3s& outpt)
+                       coal::Vec3s& outpt,
+                       int& hint,
+                       coal::details::ShapeSupportData& support_data)
 {
-  const auto* convex = dynamic_cast<const coal::ConvexBase32*>(shape);
-  if (convex != nullptr && convex->points && !convex->points->empty())
+  switch (shape->getNodeType())
   {
-    coal::Vec3s ptSum = coal::Vec3s::Zero();
-    double ptCount = 0;
-    double maxSupport = std::numeric_limits<double>::lowest();
-
-    for (const auto& pt : *convex->points)
+    case coal::GEOM_CONVEX32:
     {
-      double sup = pt.dot(localNormal);
-      if (sup > maxSupport + COAL_EPSILON)
+      const auto* convex = static_cast<const coal::ConvexBase32*>(shape);
+      if (convex->points && !convex->points->empty())
       {
-        ptCount = 1;
-        ptSum = pt;
-        maxSupport = sup;
+        getAverageSupportFromConvex(convex, localNormal, outsupport, outpt, hint, support_data);
+        return;
       }
-      else if (sup >= maxSupport - COAL_EPSILON)
-      {
-        ptCount += 1;
-        ptSum += pt;
-      }
+      break;
     }
-    outsupport = maxSupport;
-    outpt = ptSum / ptCount;
+    case coal::GEOM_CONVEX16:
+    {
+      const auto* convex = static_cast<const coal::ConvexBase16*>(shape);
+      if (convex->points && !convex->points->empty())
+      {
+        getAverageSupportFromConvex(convex, localNormal, outsupport, outpt, hint, support_data);
+        return;
+      }
+      break;
+    }
+    default:
+      break;
   }
-  else
-  {
-    // For primitive shapes (Sphere, etc.), use coal's standard support function.
-    // WithSweptSphere mode is required so that Sphere returns radius*normalize(dir)
-    // instead of zero (NoSweptSphere treats Sphere as a point + inflation).
-    int hint = 0;
-    outpt = coal::details::getSupport<coal::details::SupportOptions::WithSweptSphere>(shape, localNormal, hint);
-    outsupport = localNormal.dot(outpt);
-  }
+
+  // Primitive shapes (sphere, capsule, etc.) and empty convex fall here.
+  // WithSweptSphere ensures Sphere returns radius*normalize(dir) instead of
+  // zero (NoSweptSphere treats Sphere as a point + inflation).
+  outpt = coal::details::getSupport<coal::details::SupportOptions::WithSweptSphere>(shape, localNormal, hint);
+  outsupport = localNormal.dot(outpt);
 }
 
 bool needsCollisionCheck(const CollisionObjectWrapper* cd1,
                          const CollisionObjectWrapper* cd2,
+                         const tesseract::common::LinkIdPair& pair,
                          const std::shared_ptr<const tesseract::common::ContactAllowedValidator>& validator,
                          bool verbose)
 {
   return cd1->m_enabled && cd2->m_enabled && (cd2->m_collisionFilterGroup & cd1->m_collisionFilterMask) &&  // NOLINT
          (cd1->m_collisionFilterGroup & cd2->m_collisionFilterMask) &&                                      // NOLINT
-         !isContactAllowed(cd1->getLinkId(), cd2->getLinkId(), validator, verbose);
+         !isContactAllowed(pair, validator, verbose);
 }
 
 /**
@@ -477,16 +548,20 @@ void populateContinuousCollisionFields(ContactResult& contact,
     coal::Vec3s normal_local1 = tf_world1.getRotation().transpose() * normal_world;
 
     // Get averaged support points on the underlying shape at both local normals.
-    // Uses GetAverageSupport (matching Bullet's GetAverageSupport) which averages
-    // tied vertices, producing canonical points independent of vertex iteration order.
+    // Reuse CastHullShape's GJK warm-start state (hints + ShapeSupportData) in
+    // the same per-pose local frames: after GJK converges, last_dir already
+    // matches the contact normal, so coal keeps our hints instead of overriding
+    // via its internal warm-start pool.
     const coal::ShapeBase* underlying = cast_shape->getUnderlyingShape().get();
     coal::Vec3s pt_local0;
     double sup_local0 = 0;
-    GetAverageSupport(underlying, normal_local0, sup_local0, pt_local0);
+    GetAverageSupport(
+        underlying, normal_local0, sup_local0, pt_local0, cast_shape->getHint0(), cast_shape->getSupportData0());
 
     coal::Vec3s pt_local1;
     double sup_local1 = 0;
-    GetAverageSupport(underlying, normal_local1, sup_local1, pt_local1);
+    GetAverageSupport(
+        underlying, normal_local1, sup_local1, pt_local1, cast_shape->getHint1(), cast_shape->getSupportData1());
 
     // Compare world-frame supports at the LINK origin as reference center,
     // matching Bullet's compound-child treatment:
@@ -579,14 +654,15 @@ bool CollisionCallback::collide(coal::CollisionObject* o1, coal::CollisionObject
   const auto* cd1 = static_cast<const CollisionObjectWrapper*>(o1->getUserData());
   const auto* cd2 = static_cast<const CollisionObjectWrapper*>(o2->getUserData());
 
-  if (!needsCollisionCheck(cd1, cd2, cdata->validator, false))
+  auto link_pair = tesseract::common::LinkIdPair(cd1->getLinkId(), cd2->getLinkId());
+
+  if (!needsCollisionCheck(cd1, cd2, link_pair, cdata->validator, false))
     return false;
 
   std::size_t num_contacts = (cdata->req.contact_limit > 0) ? static_cast<std::size_t>(cdata->req.contact_limit) :
                                                               std::numeric_limits<std::size_t>::max();
   if (cdata->req.type == ContactTestType::FIRST)
     num_contacts = 1;
-  auto link_pair = tesseract::common::LinkIdPair::make(cd1->getLinkId(), cd2->getLinkId());
   const auto security_margin = cdata->collision_margin_data.getCollisionMargin(link_pair);
 
   // Normalize pair ordering for consistent cache lookups: Coal's broadphase
@@ -714,7 +790,7 @@ bool CollisionCallback::collide(coal::CollisionObject* o1, coal::CollisionObject
       const auto it = cdata->res->find(link_pair);
       found = (it != cdata->res->end() && !it->second.empty());
     }
-    processResult(*cdata, contact, link_pair, found);
+    processResult(*cdata, contact, link_pair, security_margin, found);
   }
 
   return cdata->done;
