@@ -147,9 +147,9 @@ inline void runTest(DiscreteContactManager& checker)
 
   // Test when object is inside another
   tesseract::common::LinkIdTransformMap location;
-  location[tesseract::common::LinkId::fromName("sphere_link")] = Eigen::Isometry3d::Identity();
-  location[tesseract::common::LinkId::fromName("sphere1_link")] = Eigen::Isometry3d::Identity();
-  location[tesseract::common::LinkId::fromName("sphere1_link")].translation()(0) = 0.2;
+  location[tesseract::common::LinkId("sphere_link")] = Eigen::Isometry3d::Identity();
+  location[tesseract::common::LinkId("sphere1_link")] = Eigen::Isometry3d::Identity();
+  location[tesseract::common::LinkId("sphere1_link")].translation()(0) = 0.2;
   checker.setCollisionObjectsTransform(location);
 
   // Perform collision check
@@ -164,7 +164,7 @@ inline void runTest(DiscreteContactManager& checker)
   ///////////////////////////////////////////////
   // Test object is out side the contact distance
   ///////////////////////////////////////////////
-  location[tesseract::common::LinkId::fromName("sphere1_link")].translation() = Eigen::Vector3d(1, 0, 0);
+  location[tesseract::common::LinkId("sphere1_link")].translation() = Eigen::Vector3d(1, 0, 0);
   result.clear();
   result_vector.clear();
   checker.setCollisionObjectsTransform(location);
@@ -202,13 +202,13 @@ inline void runTest(DiscreteContactManager& checker)
   /////////////////////////////////////////////////////////////////////////////
   // Test object inside the contact distance (Closest Feature Vertex to Vertex)
   /////////////////////////////////////////////////////////////////////////////
-  location[tesseract::common::LinkId::fromName("sphere1_link")].translation() = Eigen::Vector3d(0, 1, 0);
+  location[tesseract::common::LinkId("sphere1_link")].translation() = Eigen::Vector3d(0, 1, 0);
   result.clear();
   result_vector.clear();
 
   // The closest feature of the mesh should be edge to edge
   // Use different method for setting transforms
-  checker.setCollisionObjectsTransform("sphere1_link", location[tesseract::common::LinkId::fromName("sphere1_link")]);
+  checker.setCollisionObjectsTransform("sphere1_link", location[tesseract::common::LinkId("sphere1_link")]);
   checker.setCollisionMarginData(CollisionMarginData(0.55));
   EXPECT_NEAR(checker.getCollisionMarginData().getMaxCollisionMargin(), 0.55, 1e-5);
   checker.contactTest(result, ContactRequest(ContactTestType::CLOSEST));

@@ -15,11 +15,11 @@ namespace detail
 {
 inline void addCollisionObjects(DiscreteContactManager& checker)
 {
-  const auto box_id = tesseract::common::LinkId::fromName("box_link");
-  const auto thin_box_id = tesseract::common::LinkId::fromName("thin_box_link");
-  const auto cone_id = tesseract::common::LinkId::fromName("cone_link");
-  const auto remove_box_id = tesseract::common::LinkId::fromName("remove_box_link");
-  const auto missing_id = tesseract::common::LinkId::fromName("link_does_not_exist");
+  const auto box_id = tesseract::common::LinkId("box_link");
+  const auto thin_box_id = tesseract::common::LinkId("thin_box_link");
+  const auto cone_id = tesseract::common::LinkId("cone_link");
+  const auto remove_box_id = tesseract::common::LinkId("remove_box_link");
+  const auto missing_id = tesseract::common::LinkId("link_does_not_exist");
 
   //////////////////////
   // Add box to checker
@@ -115,8 +115,8 @@ inline void addCollisionObjects(DiscreteContactManager& checker)
 
 inline void runTest(DiscreteContactManager& checker)
 {
-  const auto box_id = tesseract::common::LinkId::fromName("box_link");
-  const auto cone_id = tesseract::common::LinkId::fromName("cone_link");
+  const auto box_id = tesseract::common::LinkId("box_link");
+  const auto cone_id = tesseract::common::LinkId("cone_link");
 
   // Add collision objects
   detail::addCollisionObjects(checker);

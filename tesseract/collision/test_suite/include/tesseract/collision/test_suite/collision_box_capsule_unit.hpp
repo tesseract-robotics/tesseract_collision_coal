@@ -127,9 +127,9 @@ inline void runTest(DiscreteContactManager& checker)
 
   // Set the collision object transforms
   tesseract::common::LinkIdTransformMap location;
-  location[tesseract::common::LinkId::fromName("box_link")] = Eigen::Isometry3d::Identity();
-  location[tesseract::common::LinkId::fromName("capsule_link")] = Eigen::Isometry3d::Identity();
-  location[tesseract::common::LinkId::fromName("capsule_link")].translation()(0) = 0.2;
+  location[tesseract::common::LinkId("box_link")] = Eigen::Isometry3d::Identity();
+  location[tesseract::common::LinkId("capsule_link")] = Eigen::Isometry3d::Identity();
+  location[tesseract::common::LinkId("capsule_link")].translation()(0) = 0.2;
   checker.setCollisionObjectsTransform(location);
 
   // Perform collision check
@@ -167,7 +167,7 @@ inline void runTest(DiscreteContactManager& checker)
   ////////////////////////////////////////////////
   // Test object is out side the contact distance
   ////////////////////////////////////////////////
-  location[tesseract::common::LinkId::fromName("capsule_link")].translation() = Eigen::Vector3d(0, 0, 1);
+  location[tesseract::common::LinkId("capsule_link")].translation() = Eigen::Vector3d(0, 0, 1);
   result.clear();
   result_vector.clear();
   checker.setCollisionObjectsTransform(location);

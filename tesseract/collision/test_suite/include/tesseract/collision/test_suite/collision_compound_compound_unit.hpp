@@ -19,8 +19,8 @@ namespace detail
 template <class T>
 inline void addCollisionObjects(T& checker)
 {
-  const auto octomap1_link = tesseract::common::LinkId::fromName("octomap1_link");
-  const auto octomap2_link = tesseract::common::LinkId::fromName("octomap2_link");
+  const auto octomap1_link = tesseract::common::LinkId("octomap1_link");
+  const auto octomap2_link = tesseract::common::LinkId("octomap2_link");
 
   /////////////////////////////////////////////////////////////////
   // Add Octomap
@@ -78,8 +78,8 @@ inline void addCollisionObjects(T& checker)
 
 inline void runTestCompound(DiscreteContactManager& checker)
 {
-  const auto octomap1_link = tesseract::common::LinkId::fromName("octomap1_link");
-  const auto octomap2_link = tesseract::common::LinkId::fromName("octomap2_link");
+  const auto octomap1_link = tesseract::common::LinkId("octomap1_link");
+  const auto octomap2_link = tesseract::common::LinkId("octomap2_link");
 
   //////////////////////////////////////
   // Test when object is in collision
@@ -118,8 +118,8 @@ inline void runTestCompound(DiscreteContactManager& checker)
 
 inline void runTestCompound(ContinuousContactManager& checker)
 {
-  const auto octomap1_link = tesseract::common::LinkId::fromName("octomap1_link");
-  const auto octomap2_link = tesseract::common::LinkId::fromName("octomap2_link");
+  const auto octomap1_link = tesseract::common::LinkId("octomap1_link");
+  const auto octomap2_link = tesseract::common::LinkId("octomap2_link");
 
   //////////////////////////////////////
   // Test when object is in collision

@@ -93,7 +93,7 @@ inline void addCCTypeObjects(ContinuousContactManager& checker)
 /// where normal_sign = +1 if link_names[0]=="moving_sphere", else -1.
 inline std::array<int, 3> getSlots(const ContactResult& cr)
 {
-  if (cr.link_ids[0].name() == "moving_sphere")
+  if (cr.link_ids[0]== "moving_sphere")
     return { 0, 1, 1 };
   return { 1, 0, -1 };
 }

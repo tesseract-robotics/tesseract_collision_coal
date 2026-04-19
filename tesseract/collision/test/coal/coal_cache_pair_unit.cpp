@@ -61,11 +61,11 @@ TEST(CoalCachePairUnit, RepeatedContactTestReusesCache)  // NOLINT
   const auto& c1 = result1_vec[0];
 
   // Identify which slot corresponds to link_a vs link_b
-  int a_idx = (c1.link_ids[0].name() == "link_a") ? 0 : 1;
+  int a_idx = (c1.link_ids[0] == "link_a") ? 0 : 1;
   int b_idx = 1 - a_idx;
 
-  EXPECT_EQ(c1.link_ids[a_idx].name(), "link_a");
-  EXPECT_EQ(c1.link_ids[b_idx].name(), "link_b");
+  EXPECT_EQ(c1.link_ids[a_idx], "link_a");
+  EXPECT_EQ(c1.link_ids[b_idx], "link_b");
 
   // Nearest point on link_a's sphere should be on the +x side (toward link_b)
   EXPECT_GT(c1.nearest_points[a_idx].x(), -0.01);
@@ -141,10 +141,10 @@ TEST(CoalCachePairUnit, ReregisteredObjectsGiveConsistentResults)  // NOLINT
 
   // Find the contact for link_a in each result
   auto get_a_nearest = [](const ContactResult& c) {
-    return (c.link_ids[0].name() == "link_a") ? c.nearest_points[0] : c.nearest_points[1];
+    return (c.link_ids[0] == "link_a") ? c.nearest_points[0] : c.nearest_points[1];
   };
   auto get_b_nearest = [](const ContactResult& c) {
-    return (c.link_ids[0].name() == "link_b") ? c.nearest_points[0] : c.nearest_points[1];
+    return (c.link_ids[0] == "link_b") ? c.nearest_points[0] : c.nearest_points[1];
   };
 
   EXPECT_NEAR(result1_vec[0].distance, result2_vec[0].distance, 1e-12);
