@@ -74,7 +74,7 @@ DiscreteContactManager::UPtr CoalDiscreteBVHManager::clone() const
     cloned_cows[id] = cow->clone();
 
   manager->addCollisionObjects(cloned_cows, /*defer_update=*/true);
-  manager->setActiveCollisionObjects(std::vector<tesseract::common::LinkId>(active_ids_.begin(), active_ids_.end()));
+  manager->setActiveCollisionObjects(active_ids_);
   manager->setCollisionMarginData(contact_test_data_.collision_margin_data);
   manager->setContactAllowedValidator(contact_test_data_.validator);
 
@@ -210,10 +210,9 @@ const std::vector<tesseract::common::LinkId>& CoalDiscreteBVHManager::getCollisi
   return collision_objects_;
 }
 
-void CoalDiscreteBVHManager::setActiveCollisionObjects(const std::vector<tesseract::common::LinkId>& ids)
+void CoalDiscreteBVHManager::setActiveCollisionObjects(const std::unordered_set<tesseract::common::LinkId>& ids)
 {
-  active_ids_.clear();
-  active_ids_.insert(ids.begin(), ids.end());
+  active_ids_ = ids;
 
   for (auto& co : link2cow_)
   {
@@ -223,8 +222,7 @@ void CoalDiscreteBVHManager::setActiveCollisionObjects(const std::vector<tessera
   updateBroadphaseAndCache();
 }
 
-const std::unordered_set<tesseract::common::LinkId, tesseract::common::LinkId::Hash>&
-CoalDiscreteBVHManager::getActiveCollisionObjectIds() const
+const std::unordered_set<tesseract::common::LinkId>& CoalDiscreteBVHManager::getActiveCollisionObjectIds() const
 {
   return active_ids_;
 }
