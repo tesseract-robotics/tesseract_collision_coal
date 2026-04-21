@@ -975,11 +975,10 @@ void applyCollisionFilterMask(COW& cow)
     cow.m_collisionFilterMask = CollisionFilterGroups::StaticFilter | CollisionFilterGroups::KinematicFilter;
 }
 
-void updateCollisionObjectFilters(
-    const std::unordered_set<tesseract::common::LinkId, tesseract::common::LinkId::Hash>& active_ids,
-    const COW::Ptr& cow,
-    const std::unique_ptr<coal::BroadPhaseCollisionManager>& static_manager,
-    const std::unique_ptr<coal::BroadPhaseCollisionManager>& dynamic_manager)
+void updateCollisionObjectFilters(const std::unordered_set<tesseract::common::LinkId>& active_ids,
+                                  const COW::Ptr& cow,
+                                  const std::unique_ptr<coal::BroadPhaseCollisionManager>& static_manager,
+                                  const std::unique_ptr<coal::BroadPhaseCollisionManager>& dynamic_manager)
 {
   // For discrete checks we can check static to kinematic and kinematic to
   // kinematic
@@ -1015,12 +1014,11 @@ void updateCollisionObjectFilters(
   applyCollisionFilterMask(*cow);
 }
 
-void updateCollisionObjectFilters(
-    const std::unordered_set<tesseract::common::LinkId, tesseract::common::LinkId::Hash>& active_ids,
-    const COW::Ptr& cow,
-    COW::Ptr& cast_cow,
-    const std::unique_ptr<coal::BroadPhaseCollisionManager>& static_manager,
-    const std::unique_ptr<coal::BroadPhaseCollisionManager>& dynamic_manager)
+void updateCollisionObjectFilters(const std::unordered_set<tesseract::common::LinkId>& active_ids,
+                                  const COW::Ptr& cow,
+                                  COW::Ptr& cast_cow,
+                                  const std::unique_ptr<coal::BroadPhaseCollisionManager>& static_manager,
+                                  const std::unique_ptr<coal::BroadPhaseCollisionManager>& dynamic_manager)
 {
   const std::vector<CollisionObjectPtr>& reg_objects = cow->getCollisionObjects();
 
@@ -1125,7 +1123,7 @@ COW::Ptr makeCastCollisionObject(const COW::Ptr& cow, bool expand_octrees)
           const auto& base_shape_pose = current_shape_poses[old_shape_index];
           int octree_subshape_index = 0;
 
-          // Reserve extra capacity for the voxel expansion.  tree->size() is O(1)
+          // Reserve extra capacity for the voxel expansion. tree->size() is O(1)
           // and an upper bound on the number of occupied leaves.
           const std::size_t voxel_budget = tree->size();
           new_collision_objects.reserve(new_collision_objects.size() + voxel_budget);
