@@ -55,8 +55,8 @@ TEST(CoalVsBulletUnit, ConvexHullSphereSphereSweptComparison)  // NOLINT
   std::printf("%-15s: %s\n", "Coal", test_suite::detail::formatContactResult(coal_cr).c_str());
 
   // Find matching link indices
-  int bi0 = (bullet_cr.link_ids[0]== "sphere_link") ? 0 : 1;
-  int ci0 = (coal_cr.link_ids[0]== "sphere_link") ? 0 : 1;
+  int bi0 = (bullet_cr.link_ids[0] == "sphere_link") ? 0 : 1;
+  int ci0 = (coal_cr.link_ids[0] == "sphere_link") ? 0 : 1;
 
   EXPECT_NEAR(coal_cr.distance, bullet_cr.distance, 0.01) << "Penetration depth";
   EXPECT_NEAR(coal_cr.cc_time[ci0], bullet_cr.cc_time[bi0], 0.05) << "sphere_link cc_time";

@@ -443,9 +443,9 @@ inline void runTestScenarioD_ArticulatedArm(ContinuousContactManager& checker)
     const std::string label = "Result[" + std::to_string(i) + "]";
 
     // Determine which link this contact involves and use the right poses
-    if (cr.link_ids[0]== "parent_link" || cr.link_ids[1]== "parent_link")
+    if (cr.link_ids[0] == "parent_link" || cr.link_ids[1] == "parent_link")
       validateOctreeContactSelfConsistency(cr, "parent_link", poses.parent_pose1, poses.parent_pose2, label);
-    if (cr.link_ids[0]== "child_link" || cr.link_ids[1]== "child_link")
+    if (cr.link_ids[0] == "child_link" || cr.link_ids[1] == "child_link")
       validateOctreeContactSelfConsistency(cr, "child_link", poses.child_pose1, poses.child_pose2, label);
   }
 }

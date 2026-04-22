@@ -130,11 +130,11 @@ inline void runTest(DiscreteContactManager& checker, const std::string& file_pat
       idx = 1;
 
     mesh_vertices_color[static_cast<std::size_t>(
-      (*mesh_triangles)[(4 * r.subshape_id[static_cast<std::size_t>(idx)]) + 1])] = Eigen::Vector3i(255, 0, 0);
+        (*mesh_triangles)[(4 * r.subshape_id[static_cast<std::size_t>(idx)]) + 1])] = Eigen::Vector3i(255, 0, 0);
     mesh_vertices_color[static_cast<std::size_t>(
-      (*mesh_triangles)[(4 * r.subshape_id[static_cast<std::size_t>(idx)]) + 2])] = Eigen::Vector3i(255, 0, 0);
+        (*mesh_triangles)[(4 * r.subshape_id[static_cast<std::size_t>(idx)]) + 2])] = Eigen::Vector3i(255, 0, 0);
     mesh_vertices_color[static_cast<std::size_t>(
-      (*mesh_triangles)[(4 * r.subshape_id[static_cast<std::size_t>(idx)]) + 3])] = Eigen::Vector3i(255, 0, 0);
+        (*mesh_triangles)[(4 * r.subshape_id[static_cast<std::size_t>(idx)]) + 3])] = Eigen::Vector3i(255, 0, 0);
   }
 
   tesseract::common::writeSimplePlyFile(

@@ -346,11 +346,14 @@ inline void runTest(ContinuousContactManager& checker)
   EXPECT_NEAR(result_vector[0].nearest_points_local[static_cast<size_t>(idx[1])][1], 0.0, 0.001);
   EXPECT_NEAR(result_vector[0].nearest_points_local[static_cast<size_t>(idx[1])][2], 0.25, 0.001);
 
-  EXPECT_TRUE(result_vector[0].transform[static_cast<size_t>(idx[0])].isApprox(location_start[tesseract::common::LinkId("sphere_link")], 0.0001));
-  EXPECT_TRUE(result_vector[0].transform[static_cast<size_t>(idx[1])].isApprox(location_start[tesseract::common::LinkId("sphere1_link")], 0.0001));
-  EXPECT_TRUE(result_vector[0].cc_transform[static_cast<size_t>(idx[0])].isApprox(location_end[tesseract::common::LinkId("sphere_link")], 0.0001));
-  EXPECT_TRUE(
-      result_vector[0].cc_transform[static_cast<size_t>(idx[1])].isApprox(location_end[tesseract::common::LinkId("sphere1_link")], 0.0001));
+  EXPECT_TRUE(result_vector[0].transform[static_cast<size_t>(idx[0])].isApprox(
+      location_start[tesseract::common::LinkId("sphere_link")], 0.0001));
+  EXPECT_TRUE(result_vector[0].transform[static_cast<size_t>(idx[1])].isApprox(
+      location_start[tesseract::common::LinkId("sphere1_link")], 0.0001));
+  EXPECT_TRUE(result_vector[0].cc_transform[static_cast<size_t>(idx[0])].isApprox(
+      location_end[tesseract::common::LinkId("sphere_link")], 0.0001));
+  EXPECT_TRUE(result_vector[0].cc_transform[static_cast<size_t>(idx[1])].isApprox(
+      location_end[tesseract::common::LinkId("sphere1_link")], 0.0001));
 
   EXPECT_NEAR(result_vector[0].normal[0], idx[2] * 1.0, 0.001);
   EXPECT_NEAR(result_vector[0].normal[1], idx[2] * 0.0, 0.001);
@@ -417,11 +420,14 @@ inline void runTest(ContinuousContactManager& checker)
   EXPECT_NEAR(result_vector[0].nearest_points_local[static_cast<size_t>(idx[1])][1], 0.0, 0.001);
   EXPECT_NEAR(result_vector[0].nearest_points_local[static_cast<size_t>(idx[1])][2], 0.25, 0.001);
 
-  EXPECT_TRUE(result_vector[0].transform[static_cast<size_t>(idx[0])].isApprox(location_start[tesseract::common::LinkId("sphere_link")], 0.0001));
-  EXPECT_TRUE(result_vector[0].transform[static_cast<size_t>(idx[1])].isApprox(location_start[tesseract::common::LinkId("sphere1_link")], 0.0001));
-  EXPECT_TRUE(result_vector[0].cc_transform[static_cast<size_t>(idx[0])].isApprox(location_end[tesseract::common::LinkId("sphere_link")], 0.0001));
-  EXPECT_TRUE(
-      result_vector[0].cc_transform[static_cast<size_t>(idx[1])].isApprox(location_end[tesseract::common::LinkId("sphere1_link")], 0.0001));
+  EXPECT_TRUE(result_vector[0].transform[static_cast<size_t>(idx[0])].isApprox(
+      location_start[tesseract::common::LinkId("sphere_link")], 0.0001));
+  EXPECT_TRUE(result_vector[0].transform[static_cast<size_t>(idx[1])].isApprox(
+      location_start[tesseract::common::LinkId("sphere1_link")], 0.0001));
+  EXPECT_TRUE(result_vector[0].cc_transform[static_cast<size_t>(idx[0])].isApprox(
+      location_end[tesseract::common::LinkId("sphere_link")], 0.0001));
+  EXPECT_TRUE(result_vector[0].cc_transform[static_cast<size_t>(idx[1])].isApprox(
+      location_end[tesseract::common::LinkId("sphere1_link")], 0.0001));
 
   EXPECT_NEAR(result_vector[0].normal[0], idx[2] * 1.0, 0.001);
   EXPECT_NEAR(result_vector[0].normal[1], idx[2] * 0.0, 0.001);

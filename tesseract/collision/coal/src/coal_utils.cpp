@@ -68,7 +68,6 @@ TESSERACT_COMMON_IGNORE_WARNINGS_POP
 
 namespace tesseract::collision::tesseract_collision_coal
 {
-
 void computeShapeAABB(const coal::ShapeBase& s, const coal::Transform3s& tf, coal::AABB& bv)
 {
   switch (s.getNodeType())
