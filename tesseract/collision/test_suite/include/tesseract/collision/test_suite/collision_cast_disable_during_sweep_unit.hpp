@@ -34,7 +34,8 @@ inline void addStaticBoxAndActiveSphere(ContinuousContactManager& checker)
 inline bool hasPairInResults(const ContactResultVector& results, const std::string& a, const std::string& b)
 {
   return std::any_of(results.begin(), results.end(), [&a, &b](const ContactResult& cr) {
-    return ((cr.link_ids[0].name() == a && cr.link_ids[1].name() == b) || (cr.link_ids[0].name() == b && cr.link_ids[1].name() == a));
+    return ((cr.link_ids[0].name() == a && cr.link_ids[1].name() == b) ||
+            (cr.link_ids[0].name() == b && cr.link_ids[1].name() == a));
   });
 }
 

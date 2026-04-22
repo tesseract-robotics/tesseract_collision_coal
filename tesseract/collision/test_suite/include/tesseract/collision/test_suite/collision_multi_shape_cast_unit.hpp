@@ -110,7 +110,7 @@ inline void runTestMultiShapeCast(ContinuousContactManager& checker)
   // This confirms the cc_transform recovery correctly accounts for
   // non-identity local offsets.
   const auto& cr = result_vector[0];
-  std::size_t arm_idx = (cr.link_ids[0]== "arm_link") ? 0 : 1;
+  std::size_t arm_idx = (cr.link_ids[0] == "arm_link") ? 0 : 1;
 
   // cc_transform should be the link transform at t=1 (pose2)
   EXPECT_TRUE(cr.cc_transform[arm_idx].isApprox(pose2, 0.01)) << "arm_link cc_transform should match end pose (90 deg "

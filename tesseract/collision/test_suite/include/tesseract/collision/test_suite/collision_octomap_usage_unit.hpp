@@ -28,14 +28,16 @@ inline std::shared_ptr<octomap::OcTree> loadOctreeBox2m()
 inline bool hasPair(const ContactResultVector& results, const std::string& a, const std::string& b)
 {
   return std::any_of(results.begin(), results.end(), [&a, &b](const ContactResult& cr) {
-    return ((cr.link_ids[0].name() == a && cr.link_ids[1].name() == b) || (cr.link_ids[0].name() == b && cr.link_ids[1].name() == a));
+    return ((cr.link_ids[0].name() == a && cr.link_ids[1].name() == b) ||
+            (cr.link_ids[0].name() == b && cr.link_ids[1].name() == a));
   });
 }
 
 inline const ContactResult* findPair(const ContactResultVector& results, const std::string& a, const std::string& b)
 {
   auto it = std::find_if(results.begin(), results.end(), [&a, &b](const ContactResult& cr) {
-    return ((cr.link_ids[0].name() == a && cr.link_ids[1].name() == b) || (cr.link_ids[0].name() == b && cr.link_ids[1].name() == a));
+    return ((cr.link_ids[0].name() == a && cr.link_ids[1].name() == b) ||
+            (cr.link_ids[0].name() == b && cr.link_ids[1].name() == a));
   });
 
   if (it == results.end())
@@ -52,8 +54,8 @@ inline std::size_t getLinkIndex(const ContactResult& cr, const std::string& name
   if (cr.link_ids[1].name() == name)
     return 1;
 
-  ADD_FAILURE() << "Link name '" << name << "' not found in contact result (link_names: '" << cr.link_ids[0].name() << "', '"
-                << cr.link_ids[1].name() << "')";
+  ADD_FAILURE() << "Link name '" << name << "' not found in contact result (link_names: '" << cr.link_ids[0].name()
+                << "', '" << cr.link_ids[1].name() << "')";
   return 0;
 }
 

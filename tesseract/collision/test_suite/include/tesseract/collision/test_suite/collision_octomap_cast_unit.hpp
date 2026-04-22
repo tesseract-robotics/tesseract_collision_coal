@@ -325,8 +325,8 @@ inline void runOctomapCylinderCastTest(ContinuousContactManager& checker, Contac
   bool found_pair = false;
   for (const auto& cr : result_vector)
   {
-    if ((cr.link_ids[0]== "octomap_link" && cr.link_ids[1]== "cylinder_link") ||
-        (cr.link_ids[0]== "cylinder_link" && cr.link_ids[1]== "octomap_link"))
+    if ((cr.link_ids[0] == "octomap_link" && cr.link_ids[1] == "cylinder_link") ||
+        (cr.link_ids[0] == "cylinder_link" && cr.link_ids[1] == "octomap_link"))
     {
       found_pair = true;
       SCOPED_TRACE(formatOctomapContactResult(cr));
@@ -374,8 +374,8 @@ inline void runOctomapSphereCastTest(ContinuousContactManager& checker, ContactT
   bool found_pair = false;
   for (const auto& cr : result_vector)
   {
-    if ((cr.link_ids[0]== "octomap_link" && cr.link_ids[1]== "sphere_link") ||
-        (cr.link_ids[0]== "sphere_link" && cr.link_ids[1]== "octomap_link"))
+    if ((cr.link_ids[0] == "octomap_link" && cr.link_ids[1] == "sphere_link") ||
+        (cr.link_ids[0] == "sphere_link" && cr.link_ids[1] == "octomap_link"))
     {
       found_pair = true;
       SCOPED_TRACE(formatOctomapContactResult(cr));
@@ -473,8 +473,8 @@ inline void runOctomapConvexHullCastTest(ContinuousContactManager& checker, Cont
   bool found_pair = false;
   for (const auto& cr : result_vector)
   {
-    if ((cr.link_ids[0]== "octomap_link" && cr.link_ids[1]== "convex_link") ||
-        (cr.link_ids[0]== "convex_link" && cr.link_ids[1]== "octomap_link"))
+    if ((cr.link_ids[0] == "octomap_link" && cr.link_ids[1] == "convex_link") ||
+        (cr.link_ids[0] == "convex_link" && cr.link_ids[1] == "octomap_link"))
     {
       found_pair = true;
       SCOPED_TRACE(formatOctomapContactResult(cr));

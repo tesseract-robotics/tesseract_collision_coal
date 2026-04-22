@@ -55,12 +55,10 @@ class TestOrigContactAllowedValidator : public tesseract::common::ContactAllowed
 public:
   bool operator()(const tesseract::common::LinkIdPair& pair) const override
   {
-    if (pair == tesseract::common::LinkIdPair("link_1",
-                                                    "link_2"))
+    if (pair == tesseract::common::LinkIdPair("link_1", "link_2"))
       return true;
 
-    if (pair == tesseract::common::LinkIdPair("link_1",
-                                                    "link_3"))
+    if (pair == tesseract::common::LinkIdPair("link_1", "link_3"))
       return true;
 
     return false;
@@ -72,8 +70,7 @@ class TestOvrdContactAllowedValidator : public tesseract::common::ContactAllowed
 public:
   bool operator()(const tesseract::common::LinkIdPair& pair) const override
   {
-    return pair == tesseract::common::LinkIdPair("link_1",
-                                                       "link_2");
+    return pair == tesseract::common::LinkIdPair("link_1", "link_2");
   }
 };
 
