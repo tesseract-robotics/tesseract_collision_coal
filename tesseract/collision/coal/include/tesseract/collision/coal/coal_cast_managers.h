@@ -188,9 +188,9 @@ private:
   /** @brief Cache for collision functors and collision requests */
   CollisionCacheMap collision_cache;
 
-  Link2COW link2cow_;     /** @brief A map of all collision objects being managed, keyed by LinkId */
-  Link2COW link2castcow_; /** @brief A map of cast collision objects being managed, keyed by LinkId */
-  std::unordered_set<tesseract::common::LinkId> active_ids_; /** @brief Active collision objects by LinkId */
+  Link2COW link2cow_;                                    /** @brief A map of all collision objects being managed */
+  Link2COW link2castcow_;                                /** @brief A map of cast collision objects being managed. */
+  std::unordered_set<tesseract::common::LinkId> active_; /** @brief A list of the active collision objects */
   std::vector<tesseract::common::LinkId> collision_objects_; /** @brief A list of the collision objects */
   ContactTestDataWrapper contact_test_data_; /**< @brief Persistent contact test data (Bullet pattern) */
   std::size_t coal_co_count_{ 0 };           /**< @brief The number of coal collision objects */
