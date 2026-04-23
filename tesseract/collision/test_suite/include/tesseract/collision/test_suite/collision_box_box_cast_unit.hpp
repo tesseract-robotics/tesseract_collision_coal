@@ -66,7 +66,7 @@ inline void addCollisionObjects(ContinuousContactManager& checker)
   /////////////////////////////////////////////
   std::vector<std::string> pre_active_links{ "static_box_link", "moving_box_link", "thin_box_link" };
   checker.setActiveCollisionObjects(pre_active_links);
-  EXPECT_EQ(checker.getActiveCollisionObjects().size(), 3);
+  EXPECT_EQ(checker.getActiveCollisionObjectNames().size(), 3);
 
   /////////////////////////////////////////////
   // Add box and remove
@@ -85,14 +85,14 @@ inline void addCollisionObjects(ContinuousContactManager& checker)
   EXPECT_TRUE(checker.hasCollisionObject("remove_box_link"));
 
   // Verify that adding a new object does not automatically add it to active list
-  EXPECT_EQ(checker.getActiveCollisionObjects().size(), 3);
+  EXPECT_EQ(checker.getActiveCollisionObjectNames().size(), 3);
 
   checker.removeCollisionObject("remove_box_link");
   EXPECT_FALSE(checker.hasCollisionObject("remove_box_link"));
 
   // Verify that active list no longer contains the removed object
   {
-    const auto& active_after_remove = checker.getActiveCollisionObjects();
+    const auto active_after_remove = checker.getActiveCollisionObjectNames();
     EXPECT_EQ(active_after_remove.size(), 3);
     EXPECT_EQ(std::find(active_after_remove.begin(), active_after_remove.end(), "remove_box_link"),
               active_after_remove.end());
@@ -118,9 +118,9 @@ inline void addCollisionObjects(ContinuousContactManager& checker)
   const auto& co = checker.getCollisionObjects();
   for (std::size_t i = 0; i < co.size(); ++i)
   {
-    EXPECT_TRUE(checker.getCollisionObjectGeometries(co[i]).size() == 1);
-    EXPECT_TRUE(checker.getCollisionObjectGeometriesTransforms(co[i]).size() == 1);
-    const auto& cgt = checker.getCollisionObjectGeometriesTransforms(co[i]);
+    EXPECT_TRUE(checker.getCollisionObjectGeometries(co[i].name()).size() == 1);
+    EXPECT_TRUE(checker.getCollisionObjectGeometriesTransforms(co[i].name()).size() == 1);
+    const auto& cgt = checker.getCollisionObjectGeometriesTransforms(co[i].name());
     if (i != 2)
     {
       EXPECT_TRUE(cgt[0].isApprox(Eigen::Isometry3d::Identity(), 1e-5));
@@ -147,11 +147,11 @@ inline void runTest(ContinuousContactManager& checker)
   //////////////////////////////////////
   // Test when object is inside another
   //////////////////////////////////////
-  checker.setActiveCollisionObjects({ "moving_box_link", "static_box_link" });
+  checker.setActiveCollisionObjects(std::vector<std::string>{ "moving_box_link", "static_box_link" });
 
   std::vector<std::string> active_links{ "moving_box_link" };
   checker.setActiveCollisionObjects(active_links);
-  std::vector<std::string> check_active_links = checker.getActiveCollisionObjects();
+  std::vector<std::string> check_active_links = checker.getActiveCollisionObjectNames();
   EXPECT_TRUE(tesseract::common::isIdentical<std::string>(active_links, check_active_links, false));
 
   EXPECT_TRUE(checker.getContactAllowedValidator() == nullptr);
@@ -202,7 +202,7 @@ inline void runTest(ContinuousContactManager& checker)
     // Dump full contact state for context on any failure
     SCOPED_TRACE("Contact[0] state:"
                  "\n  link_names: [" +
-                 cr.link_names[0] + ", " + cr.link_names[1] +
+                 cr.link_ids[0].name() + ", " + cr.link_ids[1].name() +
                  "]"
                  "\n  distance: " +
                  std::to_string(cr.distance) + "\n  normal: (" + std::to_string(cr.normal[0]) + ", " +

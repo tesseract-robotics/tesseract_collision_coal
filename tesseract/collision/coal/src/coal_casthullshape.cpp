@@ -40,10 +40,10 @@
 #include <tesseract/common/macros.h>
 TESSERACT_COMMON_IGNORE_WARNINGS_PUSH
 #include <coal/narrowphase/support_functions.h>
-#include <coal/shape/geometric_shapes_utility.h>
 TESSERACT_COMMON_IGNORE_WARNINGS_POP
 
 #include <tesseract/collision/coal/coal_casthullshape.h>
+#include <tesseract/collision/coal/coal_utils.h>
 
 namespace tesseract::collision::tesseract_collision_coal
 {
@@ -58,15 +58,24 @@ CastHullShape::CastHullShape(std::shared_ptr<coal::ShapeBase> shape, const coal:
 
 void CastHullShape::computeLocalAABB()
 {
-  // Pose 0: shape's local AABB (includes its swept sphere radius).
+  // Pose 0: underlying shape's local AABB (tight, precomputed).
   aabb_local = shape_->aabb_local;
 
-  // Pose 1: shape at cast transform, via Coal's |R|*half-extents formula.
+  // Pose 1: tight AABB of the underlying shape at the cast transform.
+  // computeShapeAABB dispatches to the type-specific computeBV specialization
+  // (exact for Box, Sphere, ConvexBase, etc.) based on the shape's node type.
   coal::AABB pose1_aabb;
-  coal::computeBV<coal::AABB, coal::ShapeBase>(*shape_, castTransform_, pose1_aabb);
+  computeShapeAABB(*shape_, castTransform_, pose1_aabb);
+
+  // Include the underlying shape's swept sphere radius in the pose-1 AABB
+  // (pose 0 already includes it via shape_->aabb_local).
+  const coal::Scalar shape_ssr = shape_->getSweptSphereRadius();
+  if (shape_ssr > 0)
+    pose1_aabb.expand(shape_ssr);
+
   aabb_local += pose1_aabb;
 
-  // Pad by CastHullShape's own swept-sphere radius (underlying shape's is already included).
+  // Pad by CastHullShape's own swept-sphere radius (zero by default).
   aabb_local.expand(getSweptSphereRadius());
 
   aabb_center = aabb_local.center();
@@ -94,9 +103,7 @@ double CastHullShape::computeVolume() const
   if (translation_length < 1e-6 && !has_rotation)
     return baseVolume;
 
-  // Unlike computeLocalAABB() (which delegates to computeBV's |R|*half-extents formula),
-  // this uses support functions for a tighter AABB and thus a better volume estimate.
-  // This is not on the hot path, so the extra cost is acceptable.
+  // Use support functions for a tight AABB volume estimate.
   int hint = 0;
   coal::details::ShapeSupportData data;
   coal::AABB swept_aabb;

@@ -44,6 +44,7 @@
 TESSERACT_COMMON_IGNORE_WARNINGS_PUSH
 #include <memory>
 #include <unordered_map>
+#include <unordered_set>
 #include <utility>
 #include <boost/functional/hash.hpp>
 #include <coal/broadphase/broadphase_collision_manager.h>
@@ -96,6 +97,12 @@ inline constexpr double kDefaultGJKGuessThreshold = 5e-3;
 /// `d_arc_compensation`.
 inline constexpr bool kDefaultDArcCompensation = false;
 
+/** @brief Compute a tight AABB for any ShapeBase subclass by dispatching to the
+ *  type-specific computeBV specialization based on getNodeType().
+ *  Falls back to computeBV<AABB, ShapeBase> for unrecognized types (GEOM_CUSTOM etc.).
+ *  @pre s.computeLocalAABB() must have been called (fallback reads aabb_local). */
+void computeShapeAABB(const coal::ShapeBase& s, const coal::Transform3s& tf, coal::AABB& bv);
+
 /** @brief Erase cache entries involving any of the given collision objects (for object removal) */
 void invalidateCacheFor(CollisionCacheMap& cache, const std::vector<CollisionObjectPtr>& objects);
 
@@ -120,7 +127,7 @@ public:
   using ConstPtr = std::shared_ptr<const CollisionObjectWrapper>;
 
   CollisionObjectWrapper() = default;
-  CollisionObjectWrapper(std::string name,
+  CollisionObjectWrapper(tesseract::common::LinkId id,
                          const int& type_id,
                          CollisionShapesConst shapes,
                          tesseract::common::VectorIsometry3d shape_poses);
@@ -131,7 +138,7 @@ public:
   uint32_t gjk_generation_{ 1 };  ///< Monotonic counter for GJK guess invalidation. Starts at 1 so new cache entries
                                   ///< (initialized to 0) trigger initial GJK seeding on first use.
 
-  const std::string& getName() const { return name_; }
+  const tesseract::common::LinkId& getLinkId() const { return link_id_; }
   const int& getTypeID() const { return type_id_; }
 
   const CollisionShapesConst& getCollisionGeometries() const { return shapes_; }
@@ -167,7 +174,7 @@ public:
   static int getShapeIndex(const coal::CollisionObject* co);
 
 protected:
-  std::string name_;                                              // name of the collision object
+  tesseract::common::LinkId link_id_;                             // id derived from name, also carries the name string
   int type_id_{ -1 };                                             // user defined type id
   Eigen::Isometry3d world_pose_{ Eigen::Isometry3d::Identity() }; /**< @brief Collision Object World Transformation */
   CollisionShapesConst shapes_;
@@ -181,9 +188,9 @@ protected:
 CollisionGeometryPtr createShapePrimitive(const CollisionShapeConstPtr& geom);
 
 using COW = CollisionObjectWrapper;
-using Link2COW = std::map<std::string, COW::Ptr>;
+using Link2COW = std::unordered_map<tesseract::common::LinkId, COW::Ptr>;
 
-COW::Ptr createCoalCollisionObject(const std::string& name,
+COW::Ptr createCoalCollisionObject(const tesseract::common::LinkId& id,
                                    const int& type_id,
                                    const CollisionShapesConst& shapes,
                                    const tesseract::common::VectorIsometry3d& shape_poses,
@@ -202,25 +209,25 @@ void applyCollisionFilterMask(COW& cow);
 
 /**
  * @brief Update collision objects filters
- * @param active The active collision objects
+ * @param active_ids Set of active collision object LinkIds
  * @param cow The collision object to update
  * @param static_manager Broadphase manager for static objects
  * @param dynamic_manager Broadphase manager for dynamic objects
  */
-void updateCollisionObjectFilters(const std::vector<std::string>& active,
+void updateCollisionObjectFilters(const std::unordered_set<tesseract::common::LinkId>& active_ids,
                                   const COW::Ptr& cow,
                                   const std::unique_ptr<coal::BroadPhaseCollisionManager>& static_manager,
                                   const std::unique_ptr<coal::BroadPhaseCollisionManager>& dynamic_manager);
 
 /**
  * @brief Update collision objects filters for continuous collision checking
- * @param active The active collision objects
+ * @param active_ids Set of active collision object LinkIds
  * @param cow The regular collision object
  * @param cast_cow The cast collision object
  * @param static_manager Broadphase manager for static objects
  * @param dynamic_manager Broadphase manager for dynamic objects
  */
-void updateCollisionObjectFilters(const std::vector<std::string>& active,
+void updateCollisionObjectFilters(const std::unordered_set<tesseract::common::LinkId>& active_ids,
                                   const COW::Ptr& cow,
                                   COW::Ptr& cast_cow,
                                   const std::unique_ptr<coal::BroadPhaseCollisionManager>& static_manager,
@@ -256,6 +263,7 @@ inline bool castCowNeedsOctreeExpansion(const COW::Ptr& cast_cow)
  */
 bool needsCollisionCheck(const CollisionObjectWrapper* cd1,
                          const CollisionObjectWrapper* cd2,
+                         const tesseract::common::LinkIdPair& pair,
                          const std::shared_ptr<const tesseract::common::ContactAllowedValidator>& validator,
                          bool verbose = false);
 

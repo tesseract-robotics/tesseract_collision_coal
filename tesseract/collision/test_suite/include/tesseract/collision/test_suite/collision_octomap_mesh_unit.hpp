@@ -21,6 +21,9 @@ namespace detail
 {
 inline void addCollisionObjects(DiscreteContactManager& checker)
 {
+  const auto octomap_link = tesseract::common::LinkId("octomap_link");
+  const auto plane_link = tesseract::common::LinkId("plane_link");
+
   /////////////////////////////////////////////////////////////////
   // Add Octomap
   /////////////////////////////////////////////////////////////////
@@ -37,7 +40,7 @@ inline void addCollisionObjects(DiscreteContactManager& checker)
   obj1_shapes.push_back(dense_octomap);
   obj1_poses.push_back(octomap_pose);
 
-  checker.addCollisionObject("octomap_link", 0, obj1_shapes, obj1_poses);
+  checker.addCollisionObject(octomap_link, 0, obj1_shapes, obj1_poses);
 
   /////////////////////////////////////////////////////////////////
   // Add plane mesh to checker.
@@ -55,7 +58,7 @@ inline void addCollisionObjects(DiscreteContactManager& checker)
   obj2_shapes.push_back(sphere);
   obj2_poses.push_back(sphere_pose);
 
-  checker.addCollisionObject("plane_link", 0, obj2_shapes, obj2_poses);
+  checker.addCollisionObject(plane_link, 0, obj2_shapes, obj2_poses);
 
   EXPECT_TRUE(checker.getCollisionObjects().size() == 2);
   for (const auto& co : checker.getCollisionObjects())
@@ -72,6 +75,9 @@ inline void addCollisionObjects(DiscreteContactManager& checker)
 
 inline void runTest(DiscreteContactManager& checker, const std::string& file_path)
 {
+  const auto octomap_link = tesseract::common::LinkId("octomap_link");
+  const auto plane_link = tesseract::common::LinkId("plane_link");
+
   // Add collision object
   detail::addCollisionObjects(checker);
 
@@ -81,23 +87,25 @@ inline void runTest(DiscreteContactManager& checker, const std::string& file_pat
   //////////////////////////////////////
   // Test when object is in collision
   //////////////////////////////////////
-  std::vector<std::string> active_links{ "octomap_link", "plane_link" };
-  checker.setActiveCollisionObjects(active_links);
-  std::vector<std::string> check_active_links = checker.getActiveCollisionObjects();
-  EXPECT_TRUE(tesseract::common::isIdentical<std::string>(active_links, check_active_links, false));
+  std::vector<tesseract::common::LinkId> active_link_ids{ octomap_link, plane_link };
+  checker.setActiveCollisionObjects(active_link_ids);
+  const auto& check_active_link_ids = checker.getActiveCollisionObjectIds();
+  EXPECT_EQ(check_active_link_ids.size(), active_link_ids.size());
+  EXPECT_EQ(check_active_link_ids.count(octomap_link), 1);
+  EXPECT_EQ(check_active_link_ids.count(plane_link), 1);
 
   EXPECT_TRUE(checker.getContactAllowedValidator() == nullptr);
 
   checker.setCollisionMarginData(CollisionMarginData(0.5));
   EXPECT_NEAR(checker.getCollisionMarginData().getMaxCollisionMargin(), 0.5, 1e-5);
 
-  checker.setCollisionMarginPair("octomap_link", "plane_link", 0.1);
+  checker.setCollisionMarginPair(octomap_link, plane_link, 0.1);
 
   // Set the collision object transforms
-  tesseract::common::TransformMap location;
-  location["octomap_link"] = Eigen::Isometry3d::Identity();
-  location["plane_link"] = Eigen::Isometry3d::Identity();
-  location["plane_link"].translation() = Eigen::Vector3d(0, 0, 0);
+  tesseract::common::LinkIdTransformMap location;
+  location[octomap_link] = Eigen::Isometry3d::Identity();
+  location[plane_link] = Eigen::Isometry3d::Identity();
+  location[plane_link].translation() = Eigen::Vector3d(0, 0, 0);
   checker.setCollisionObjectsTransform(location);
 
   // Perform collision check
@@ -107,7 +115,7 @@ inline void runTest(DiscreteContactManager& checker, const std::string& file_pat
   ContactResultVector result_vector;
   result.flattenMoveResults(result_vector);
 
-  const tesseract::collision::CollisionShapesConst& geom = checker.getCollisionObjectGeometries("plane_link");
+  const tesseract::collision::CollisionShapesConst& geom = checker.getCollisionObjectGeometries(plane_link);
   const auto& mesh = std::static_pointer_cast<const tesseract::geometry::Mesh>(geom.at(0));
   const auto& mesh_vertices = mesh->getVertices();
   const auto& mesh_triangles = mesh->getFaces();
@@ -118,15 +126,15 @@ inline void runTest(DiscreteContactManager& checker, const std::string& file_pat
   for (auto& r : result_vector)
   {
     int idx = 0;
-    if (r.link_names[0] != "plane_link")
+    if (r.link_ids[0] != plane_link)
       idx = 1;
 
     mesh_vertices_color[static_cast<std::size_t>(
-        (*mesh_triangles)[4 * r.subshape_id[static_cast<std::size_t>(idx)] + 1])] = Eigen::Vector3i(255, 0, 0);
+        (*mesh_triangles)[(4 * r.subshape_id[static_cast<std::size_t>(idx)]) + 1])] = Eigen::Vector3i(255, 0, 0);
     mesh_vertices_color[static_cast<std::size_t>(
-        (*mesh_triangles)[4 * r.subshape_id[static_cast<std::size_t>(idx)] + 2])] = Eigen::Vector3i(255, 0, 0);
+        (*mesh_triangles)[(4 * r.subshape_id[static_cast<std::size_t>(idx)]) + 2])] = Eigen::Vector3i(255, 0, 0);
     mesh_vertices_color[static_cast<std::size_t>(
-        (*mesh_triangles)[4 * r.subshape_id[static_cast<std::size_t>(idx)] + 3])] = Eigen::Vector3i(255, 0, 0);
+        (*mesh_triangles)[(4 * r.subshape_id[static_cast<std::size_t>(idx)]) + 3])] = Eigen::Vector3i(255, 0, 0);
   }
 
   tesseract::common::writeSimplePlyFile(
