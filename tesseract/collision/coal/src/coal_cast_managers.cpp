@@ -78,7 +78,7 @@ ContinuousContactManager::UPtr CoalCastBVHManager::clone() const
     cloned_cows[id] = cow->clone();
 
   manager->addCollisionObjects(cloned_cows, /*defer_update=*/true);
-  manager->setActiveCollisionObjects(active_ids_);
+  manager->setActiveCollisionObjects(active_);
   manager->setCollisionMarginData(contact_test_data_.collision_margin_data);
   manager->setContactAllowedValidator(contact_test_data_.validator);
 
@@ -136,7 +136,7 @@ bool CoalCastBVHManager::removeCollisionObject(const tesseract::common::LinkId& 
       removeObjects(objects, *static_manager_);
     link2cow_.erase(it);
 
-    active_ids_.erase(id);
+    active_.erase(id);
 
     // Also remove from cast map
     auto it_cast = link2castcow_.find(id);
@@ -241,32 +241,6 @@ void CoalCastBVHManager::setCollisionObjectsTransform(const tesseract::common::L
   }
 }
 
-const std::vector<tesseract::common::LinkId>& CoalCastBVHManager::getCollisionObjects() const
-{
-  return collision_objects_;
-}
-
-void CoalCastBVHManager::setActiveCollisionObjects(const std::unordered_set<tesseract::common::LinkId>& ids)
-{
-  active_ids_ = ids;
-
-  for (auto& [id, cow] : link2cow_)
-  {
-    // Get the cast collision object
-    COW::Ptr& cast_cow = link2castcow_.at(id);
-
-    // Use the specialized function that properly handles both regular and cast objects
-    updateCollisionObjectFilters(active_ids_, cow, cast_cow, static_manager_, dynamic_manager_);
-  }
-
-  updateBroadphaseAndCache();
-}
-
-const std::unordered_set<tesseract::common::LinkId>& CoalCastBVHManager::getActiveCollisionObjectIds() const
-{
-  return active_ids_;
-}
-
 void CoalCastBVHManager::setCollisionObjectsTransform(const tesseract::common::LinkIdTransformMap& pose1,
                                                       const tesseract::common::LinkIdTransformMap& pose2)
 {
@@ -286,6 +260,32 @@ void CoalCastBVHManager::setCollisionObjectsTransform(const tesseract::common::L
     collectCastTransformUpdate(cast_it, reg_it, tf1, it2->second);
   }
   flushBatchUpdate();
+}
+
+const std::vector<tesseract::common::LinkId>& CoalCastBVHManager::getCollisionObjects() const
+{
+  return collision_objects_;
+}
+
+void CoalCastBVHManager::setActiveCollisionObjects(const std::unordered_set<tesseract::common::LinkId>& ids)
+{
+  active_ = ids;
+
+  for (auto& [id, cow] : link2cow_)
+  {
+    // Get the cast collision object
+    COW::Ptr& cast_cow = link2castcow_.at(id);
+
+    // Use the specialized function that properly handles both regular and cast objects
+    updateCollisionObjectFilters(active_, cow, cast_cow, static_manager_, dynamic_manager_);
+  }
+
+  updateBroadphaseAndCache();
+}
+
+const std::unordered_set<tesseract::common::LinkId>& CoalCastBVHManager::getActiveCollisionObjectIds() const
+{
+  return active_;
 }
 
 void CoalCastBVHManager::setCollisionMarginData(CollisionMarginData collision_margin_data)
@@ -384,8 +384,8 @@ void CoalCastBVHManager::addCollisionObject(const COW::Ptr& cow)
       dynamic_manager_->registerObject(co.get());
   }
 
-  if (!active_ids_.empty())
-    updateCollisionObjectFilters(active_ids_, cow, cast_ref, static_manager_, dynamic_manager_);
+  if (!active_.empty())
+    updateCollisionObjectFilters(active_, cow, cast_ref, static_manager_, dynamic_manager_);
 
   updateBroadphaseAndCache();
 }
@@ -429,12 +429,12 @@ void CoalCastBVHManager::addCollisionObjects(const Link2COW& cows, bool defer_up
 
   if (!defer_update)
   {
-    if (!active_ids_.empty())
+    if (!active_.empty())
     {
       for (auto& [id, cow_ref] : link2cow_)
       {
         COW::Ptr& cast_cow = link2castcow_[id];
-        updateCollisionObjectFilters(active_ids_, cow_ref, cast_cow, static_manager_, dynamic_manager_);
+        updateCollisionObjectFilters(active_, cow_ref, cast_cow, static_manager_, dynamic_manager_);
       }
     }
 
