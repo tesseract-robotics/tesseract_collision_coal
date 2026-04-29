@@ -26,14 +26,14 @@ TEST(CoalVsBulletUnit, ConvexHullSphereSphereSweptComparison)  // NOLINT
     checker.setCollisionMarginData(CollisionMarginData(0.1));
 
     tesseract::common::LinkIdTransformMap start, end;
-    start[tesseract::common::LinkId("sphere_link")] = Eigen::Isometry3d::Identity();
-    start[tesseract::common::LinkId("sphere_link")].translation() = Eigen::Vector3d(-0.2, -1.0, 0);
-    start[tesseract::common::LinkId("sphere1_link")] = Eigen::Isometry3d::Identity();
-    start[tesseract::common::LinkId("sphere1_link")].translation() = Eigen::Vector3d(0.2, 0, -1.0);
-    end[tesseract::common::LinkId("sphere_link")] = Eigen::Isometry3d::Identity();
-    end[tesseract::common::LinkId("sphere_link")].translation() = Eigen::Vector3d(-0.2, 1.0, 0);
-    end[tesseract::common::LinkId("sphere1_link")] = Eigen::Isometry3d::Identity();
-    end[tesseract::common::LinkId("sphere1_link")].translation() = Eigen::Vector3d(0.2, 0, 1.0);
+    start["sphere_link"] = Eigen::Isometry3d::Identity();
+    start["sphere_link"].translation() = Eigen::Vector3d(-0.2, -1.0, 0);
+    start["sphere1_link"] = Eigen::Isometry3d::Identity();
+    start["sphere1_link"].translation() = Eigen::Vector3d(0.2, 0, -1.0);
+    end["sphere_link"] = Eigen::Isometry3d::Identity();
+    end["sphere_link"].translation() = Eigen::Vector3d(-0.2, 1.0, 0);
+    end["sphere1_link"] = Eigen::Isometry3d::Identity();
+    end["sphere1_link"].translation() = Eigen::Vector3d(0.2, 0, 1.0);
     checker.setCollisionObjectsTransform(start, end);
 
     ContactResultMap result;

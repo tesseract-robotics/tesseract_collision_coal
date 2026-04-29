@@ -143,7 +143,7 @@ inline void runDiscreteOctomapTransformOverloadUsageTest(DiscreteContactManager&
 
   // Map overload
   tesseract::common::LinkIdTransformMap map_far;
-  map_far[tesseract::common::LinkId("octomap_link")] = far_pose;
+  map_far["octomap_link"] = far_pose;
   checker.setCollisionObjectsTransform(map_far);
   ContactResultVector far_map = detail::runClosest(checker);
   EXPECT_FALSE(detail::hasPair(far_map, "octomap_link", "sphere_link"));
@@ -199,14 +199,14 @@ inline void runContinuousOctomapTransformOverloadUsageTest(ContinuousContactMana
 
   // Rigid map overload on static octree
   tesseract::common::LinkIdTransformMap static_map_far;
-  static_map_far[tesseract::common::LinkId("octomap2_link")] = static_far;
+  static_map_far["octomap2_link"] = static_far;
   checker.setCollisionObjectsTransform(static_map_far);
 
   // Sweep map overload on active octree
   tesseract::common::LinkIdTransformMap map_start;
   tesseract::common::LinkIdTransformMap map_end;
-  map_start[tesseract::common::LinkId("octomap1_link")] = start;
-  map_end[tesseract::common::LinkId("octomap1_link")] = end;
+  map_start["octomap1_link"] = start;
+  map_end["octomap1_link"] = end;
   checker.setCollisionObjectsTransform(map_start, map_end);
 
   ContactResultVector map_sweep_far = detail::runClosest(checker);

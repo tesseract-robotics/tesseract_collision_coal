@@ -153,20 +153,16 @@ inline std::string formatContactResult(const ContactResult& cr)
 {
   std::ostringstream os;
   os << std::setprecision(6) << std::fixed;
-  os << "Contact result state:"
-     << "\n  link_names: [" << cr.link_ids[0].name() << ", " << cr.link_ids[1].name() << "]"
+  os << "Contact result state:" << "\n  link_names: [" << cr.link_ids[0].name() << ", " << cr.link_ids[1].name() << "]"
      << "\n  distance: " << cr.distance << "\n  normal: (" << cr.normal[0] << ", " << cr.normal[1] << ", "
-     << cr.normal[2] << ")"
-     << "\n  nearest_points[0]: (" << cr.nearest_points[0][0] << ", " << cr.nearest_points[0][1] << ", "
-     << cr.nearest_points[0][2] << ")"
-     << "\n  nearest_points[1]: (" << cr.nearest_points[1][0] << ", " << cr.nearest_points[1][1] << ", "
-     << cr.nearest_points[1][2] << ")"
-     << "\n  nearest_points_local[0]: (" << cr.nearest_points_local[0][0] << ", " << cr.nearest_points_local[0][1]
-     << ", " << cr.nearest_points_local[0][2] << ")"
-     << "\n  nearest_points_local[1]: (" << cr.nearest_points_local[1][0] << ", " << cr.nearest_points_local[1][1]
-     << ", " << cr.nearest_points_local[1][2] << ")"
-     << "\n  cc_time: [" << cr.cc_time[0] << ", " << cr.cc_time[1] << "]"
-     << "\n  cc_type: [" << static_cast<int>(cr.cc_type[0]) << ", " << static_cast<int>(cr.cc_type[1]) << "]";
+     << cr.normal[2] << ")" << "\n  nearest_points[0]: (" << cr.nearest_points[0][0] << ", " << cr.nearest_points[0][1]
+     << ", " << cr.nearest_points[0][2] << ")" << "\n  nearest_points[1]: (" << cr.nearest_points[1][0] << ", "
+     << cr.nearest_points[1][1] << ", " << cr.nearest_points[1][2] << ")" << "\n  nearest_points_local[0]: ("
+     << cr.nearest_points_local[0][0] << ", " << cr.nearest_points_local[0][1] << ", " << cr.nearest_points_local[0][2]
+     << ")" << "\n  nearest_points_local[1]: (" << cr.nearest_points_local[1][0] << ", "
+     << cr.nearest_points_local[1][1] << ", " << cr.nearest_points_local[1][2] << ")" << "\n  cc_time: ["
+     << cr.cc_time[0] << ", " << cr.cc_time[1] << "]" << "\n  cc_type: [" << static_cast<int>(cr.cc_type[0]) << ", "
+     << static_cast<int>(cr.cc_type[1]) << "]";
   return os.str();
 }
 
@@ -192,23 +188,23 @@ inline void runTestPrimitive(ContinuousContactManager& checker)
 
   // Set the start location
   tesseract::common::LinkIdTransformMap location_start;
-  location_start[tesseract::common::LinkId("sphere_link")] = Eigen::Isometry3d::Identity();
-  location_start[tesseract::common::LinkId("sphere_link")].translation()(0) = -0.2;
-  location_start[tesseract::common::LinkId("sphere_link")].translation()(1) = -1.0;
+  location_start["sphere_link"] = Eigen::Isometry3d::Identity();
+  location_start["sphere_link"].translation()(0) = -0.2;
+  location_start["sphere_link"].translation()(1) = -1.0;
 
-  location_start[tesseract::common::LinkId("sphere1_link")] = Eigen::Isometry3d::Identity();
-  location_start[tesseract::common::LinkId("sphere1_link")].translation()(0) = 0.2;
-  location_start[tesseract::common::LinkId("sphere1_link")].translation()(2) = -1.0;
+  location_start["sphere1_link"] = Eigen::Isometry3d::Identity();
+  location_start["sphere1_link"].translation()(0) = 0.2;
+  location_start["sphere1_link"].translation()(2) = -1.0;
 
   // Set the end location
   tesseract::common::LinkIdTransformMap location_end;
-  location_end[tesseract::common::LinkId("sphere_link")] = Eigen::Isometry3d::Identity();
-  location_end[tesseract::common::LinkId("sphere_link")].translation()(0) = -0.2;
-  location_end[tesseract::common::LinkId("sphere_link")].translation()(1) = 1.0;
+  location_end["sphere_link"] = Eigen::Isometry3d::Identity();
+  location_end["sphere_link"].translation()(0) = -0.2;
+  location_end["sphere_link"].translation()(1) = 1.0;
 
-  location_end[tesseract::common::LinkId("sphere1_link")] = Eigen::Isometry3d::Identity();
-  location_end[tesseract::common::LinkId("sphere1_link")].translation()(0) = 0.2;
-  location_end[tesseract::common::LinkId("sphere1_link")].translation()(2) = 1.0;
+  location_end["sphere1_link"] = Eigen::Isometry3d::Identity();
+  location_end["sphere1_link"].translation()(0) = 0.2;
+  location_end["sphere1_link"].translation()(2) = 1.0;
 
   checker.setCollisionObjectsTransform(location_start, location_end);
 
@@ -242,11 +238,11 @@ inline void runTestPrimitive(ContinuousContactManager& checker)
       << "sphere1_link (" << sphere1_slot << ") cc_time should be 0.5 (collision at midpoint of sweep)";
 
   EXPECT_EQ(cr1.cc_type[static_cast<size_t>(idx[0])], ContinuousCollisionType::CCType_Between)
-      << "sphere_link (" << sphere_slot << ") cc_type should be CCType_Between (3), "
-      << "got " << static_cast<int>(cr1.cc_type[static_cast<size_t>(idx[0])]);
+      << "sphere_link (" << sphere_slot << ") cc_type should be CCType_Between (3), " << "got "
+      << static_cast<int>(cr1.cc_type[static_cast<size_t>(idx[0])]);
   EXPECT_EQ(cr1.cc_type[static_cast<size_t>(idx[1])], ContinuousCollisionType::CCType_Between)
-      << "sphere1_link (" << sphere1_slot << ") cc_type should be CCType_Between (3), "
-      << "got " << static_cast<int>(cr1.cc_type[static_cast<size_t>(idx[1])]);
+      << "sphere1_link (" << sphere1_slot << ") cc_type should be CCType_Between (3), " << "got "
+      << static_cast<int>(cr1.cc_type[static_cast<size_t>(idx[1])]);
 
   // World-frame nearest points at collision time
   EXPECT_NEAR(cr1.nearest_points[static_cast<size_t>(idx[0])][0], 0.05, 0.001) << "sphere_link nearest_point.x: "
@@ -284,59 +280,47 @@ inline void runTestPrimitive(ContinuousContactManager& checker)
                                                                                         "sphere_pose offset";
 
   // Verify start/end transforms are stored correctly
-  EXPECT_TRUE(cr1.transform[static_cast<size_t>(idx[0])].isApprox(location_start[tesseract::common::LinkId("sphere_"
-                                                                                                           "link")],
-                                                                  0.0001))
-      << "sphere_"
-         "link "
-         "transform"
-         " should "
-         "match "
-         "start "
-         "pose "
-         "(-0.2, "
-         "-1, 0)";
-  EXPECT_TRUE(cr1.transform[static_cast<size_t>(idx[1])].isApprox(location_start[tesseract::common::LinkId("sphere1_"
-                                                                                                           "link")],
-                                                                  0.0001))
-      << "sphere1_"
-         "link "
-         "transfor"
-         "m "
-         "should "
-         "match "
-         "start "
-         "pose "
-         "(0.2, "
-         "0, -1)";
-  EXPECT_TRUE(cr1.cc_transform[static_cast<size_t>(idx[0])].isApprox(location_end[tesseract::common::LinkId("sphere_"
-                                                                                                            "link")],
-                                                                     0.0001))
-      << "sphere_"
-         "link "
-         "cc_"
-         "transfor"
-         "m "
-         "should "
-         "match "
-         "end "
-         "pose "
-         "(-0.2, "
-         "1, 0)";
-  EXPECT_TRUE(cr1.cc_transform[static_cast<size_t>(idx[1])].isApprox(location_end[tesseract::common::LinkId("sphere1_"
-                                                                                                            "link")],
-                                                                     0.0001))
-      << "sphere1"
-         "_link "
-         "cc_"
-         "transfo"
-         "rm "
-         "should "
-         "match "
-         "end "
-         "pose "
-         "(0.2, "
-         "0, 1)";
+  EXPECT_TRUE(cr1.transform[static_cast<size_t>(idx[0])].isApprox(location_start["sphere_link"], 0.0001)) << "sphere_"
+                                                                                                             "link "
+                                                                                                             "transform"
+                                                                                                             " should "
+                                                                                                             "match "
+                                                                                                             "start "
+                                                                                                             "pose "
+                                                                                                             "(-0.2, "
+                                                                                                             "-1, 0)";
+  EXPECT_TRUE(cr1.transform[static_cast<size_t>(idx[1])].isApprox(location_start["sphere1_link"], 0.0001)) << "sphere1_"
+                                                                                                              "link "
+                                                                                                              "transfor"
+                                                                                                              "m "
+                                                                                                              "should "
+                                                                                                              "match "
+                                                                                                              "start "
+                                                                                                              "pose "
+                                                                                                              "(0.2, "
+                                                                                                              "0, -1)";
+  EXPECT_TRUE(cr1.cc_transform[static_cast<size_t>(idx[0])].isApprox(location_end["sphere_link"], 0.0001)) << "sphere_"
+                                                                                                              "link "
+                                                                                                              "cc_"
+                                                                                                              "transfor"
+                                                                                                              "m "
+                                                                                                              "should "
+                                                                                                              "match "
+                                                                                                              "end "
+                                                                                                              "pose "
+                                                                                                              "(-0.2, "
+                                                                                                              "1, 0)";
+  EXPECT_TRUE(cr1.cc_transform[static_cast<size_t>(idx[1])].isApprox(location_end["sphere1_link"], 0.0001)) << "sphere1"
+                                                                                                               "_link "
+                                                                                                               "cc_"
+                                                                                                               "transfo"
+                                                                                                               "rm "
+                                                                                                               "should "
+                                                                                                               "match "
+                                                                                                               "end "
+                                                                                                               "pose "
+                                                                                                               "(0.2, "
+                                                                                                               "0, 1)";
 
   // Contact normal should point along X (spheres separated in X direction)
   EXPECT_NEAR(cr1.normal.norm(), 1.0, 1e-4) << "Contact normal must be a unit vector";
@@ -356,22 +340,22 @@ inline void runTestPrimitive(ContinuousContactManager& checker)
   /////////////////////////////////////////////////////////////
 
   // Set the start location
-  location_start[tesseract::common::LinkId("sphere_link")] = Eigen::Isometry3d::Identity();
-  location_start[tesseract::common::LinkId("sphere_link")].translation()(0) = -0.2;
-  location_start[tesseract::common::LinkId("sphere_link")].translation()(1) = -0.5;
+  location_start["sphere_link"] = Eigen::Isometry3d::Identity();
+  location_start["sphere_link"].translation()(0) = -0.2;
+  location_start["sphere_link"].translation()(1) = -0.5;
 
-  location_start[tesseract::common::LinkId("sphere1_link")] = Eigen::Isometry3d::Identity();
-  location_start[tesseract::common::LinkId("sphere1_link")].translation()(0) = 0.2;
-  location_start[tesseract::common::LinkId("sphere1_link")].translation()(2) = -1.0;
+  location_start["sphere1_link"] = Eigen::Isometry3d::Identity();
+  location_start["sphere1_link"].translation()(0) = 0.2;
+  location_start["sphere1_link"].translation()(2) = -1.0;
 
   // Set the end location
-  location_end[tesseract::common::LinkId("sphere_link")] = Eigen::Isometry3d::Identity();
-  location_end[tesseract::common::LinkId("sphere_link")].translation()(0) = -0.2;
-  location_end[tesseract::common::LinkId("sphere_link")].translation()(1) = 1.0;
+  location_end["sphere_link"] = Eigen::Isometry3d::Identity();
+  location_end["sphere_link"].translation()(0) = -0.2;
+  location_end["sphere_link"].translation()(1) = 1.0;
 
-  location_end[tesseract::common::LinkId("sphere1_link")] = Eigen::Isometry3d::Identity();
-  location_end[tesseract::common::LinkId("sphere1_link")].translation()(0) = 0.2;
-  location_end[tesseract::common::LinkId("sphere1_link")].translation()(2) = 1.0;
+  location_end["sphere1_link"] = Eigen::Isometry3d::Identity();
+  location_end["sphere1_link"].translation()(0) = 0.2;
+  location_end["sphere1_link"].translation()(2) = 1.0;
 
   checker.setCollisionObjectsTransform(location_start, location_end);
 
@@ -406,11 +390,11 @@ inline void runTestPrimitive(ContinuousContactManager& checker)
       << "(Z=0 reached at 1.0/2.0 of sweep from Z=-1 to Z=1)";
 
   EXPECT_EQ(cr2.cc_type[static_cast<size_t>(idx[0])], ContinuousCollisionType::CCType_Between)
-      << "sphere_link (" << sphere_slot2 << ") cc_type should be CCType_Between (3), "
-      << "got " << static_cast<int>(cr2.cc_type[static_cast<size_t>(idx[0])]);
+      << "sphere_link (" << sphere_slot2 << ") cc_type should be CCType_Between (3), " << "got "
+      << static_cast<int>(cr2.cc_type[static_cast<size_t>(idx[0])]);
   EXPECT_EQ(cr2.cc_type[static_cast<size_t>(idx[1])], ContinuousCollisionType::CCType_Between)
-      << "sphere1_link (" << sphere1_slot2 << ") cc_type should be CCType_Between (3), "
-      << "got " << static_cast<int>(cr2.cc_type[static_cast<size_t>(idx[1])]);
+      << "sphere1_link (" << sphere1_slot2 << ") cc_type should be CCType_Between (3), " << "got "
+      << static_cast<int>(cr2.cc_type[static_cast<size_t>(idx[1])]);
 
   // World-frame nearest points
   EXPECT_NEAR(cr2.nearest_points[static_cast<size_t>(idx[0])][0], 0.05, 0.001) << "sphere_link nearest_point.x";
@@ -441,59 +425,47 @@ inline void runTestPrimitive(ContinuousContactManager& checker)
                                                                                         "nearest_point_local.z";
 
   // Verify transforms
-  EXPECT_TRUE(cr2.transform[static_cast<size_t>(idx[0])].isApprox(location_start[tesseract::common::LinkId("sphere_"
-                                                                                                           "link")],
-                                                                  0.0001))
-      << "sphere_"
-         "link "
-         "transform"
-         " should "
-         "match "
-         "start "
-         "pose "
-         "(-0.2, "
-         "-0.5, 0)";
-  EXPECT_TRUE(cr2.transform[static_cast<size_t>(idx[1])].isApprox(location_start[tesseract::common::LinkId("sphere1_"
-                                                                                                           "link")],
-                                                                  0.0001))
-      << "sphere1_"
-         "link "
-         "transfor"
-         "m "
-         "should "
-         "match "
-         "start "
-         "pose "
-         "(0.2, "
-         "0, -1)";
-  EXPECT_TRUE(cr2.cc_transform[static_cast<size_t>(idx[0])].isApprox(location_end[tesseract::common::LinkId("sphere_"
-                                                                                                            "link")],
-                                                                     0.0001))
-      << "sphere_"
-         "link "
-         "cc_"
-         "transfor"
-         "m "
-         "should "
-         "match "
-         "end "
-         "pose "
-         "(-0.2, "
-         "1, 0)";
-  EXPECT_TRUE(cr2.cc_transform[static_cast<size_t>(idx[1])].isApprox(location_end[tesseract::common::LinkId("sphere1_"
-                                                                                                            "link")],
-                                                                     0.0001))
-      << "sphere1"
-         "_link "
-         "cc_"
-         "transfo"
-         "rm "
-         "should "
-         "match "
-         "end "
-         "pose "
-         "(0.2, "
-         "0, 1)";
+  EXPECT_TRUE(cr2.transform[static_cast<size_t>(idx[0])].isApprox(location_start["sphere_link"], 0.0001)) << "sphere_"
+                                                                                                             "link "
+                                                                                                             "transform"
+                                                                                                             " should "
+                                                                                                             "match "
+                                                                                                             "start "
+                                                                                                             "pose "
+                                                                                                             "(-0.2, "
+                                                                                                             "-0.5, 0)";
+  EXPECT_TRUE(cr2.transform[static_cast<size_t>(idx[1])].isApprox(location_start["sphere1_link"], 0.0001)) << "sphere1_"
+                                                                                                              "link "
+                                                                                                              "transfor"
+                                                                                                              "m "
+                                                                                                              "should "
+                                                                                                              "match "
+                                                                                                              "start "
+                                                                                                              "pose "
+                                                                                                              "(0.2, "
+                                                                                                              "0, -1)";
+  EXPECT_TRUE(cr2.cc_transform[static_cast<size_t>(idx[0])].isApprox(location_end["sphere_link"], 0.0001)) << "sphere_"
+                                                                                                              "link "
+                                                                                                              "cc_"
+                                                                                                              "transfor"
+                                                                                                              "m "
+                                                                                                              "should "
+                                                                                                              "match "
+                                                                                                              "end "
+                                                                                                              "pose "
+                                                                                                              "(-0.2, "
+                                                                                                              "1, 0)";
+  EXPECT_TRUE(cr2.cc_transform[static_cast<size_t>(idx[1])].isApprox(location_end["sphere1_link"], 0.0001)) << "sphere1"
+                                                                                                               "_link "
+                                                                                                               "cc_"
+                                                                                                               "transfo"
+                                                                                                               "rm "
+                                                                                                               "should "
+                                                                                                               "match "
+                                                                                                               "end "
+                                                                                                               "pose "
+                                                                                                               "(0.2, "
+                                                                                                               "0, 1)";
 
   // Contact normal
   EXPECT_NEAR(cr2.normal.norm(), 1.0, 1e-4) << "Contact normal must be a unit vector";
@@ -524,23 +496,23 @@ inline void runTestConvex(ContinuousContactManager& checker)
 
   // Set the start location
   tesseract::common::LinkIdTransformMap location_start;
-  location_start[tesseract::common::LinkId("sphere_link")] = Eigen::Isometry3d::Identity();
-  location_start[tesseract::common::LinkId("sphere_link")].translation()(0) = -0.2;
-  location_start[tesseract::common::LinkId("sphere_link")].translation()(1) = -1.0;
+  location_start["sphere_link"] = Eigen::Isometry3d::Identity();
+  location_start["sphere_link"].translation()(0) = -0.2;
+  location_start["sphere_link"].translation()(1) = -1.0;
 
-  location_start[tesseract::common::LinkId("sphere1_link")] = Eigen::Isometry3d::Identity();
-  location_start[tesseract::common::LinkId("sphere1_link")].translation()(0) = 0.2;
-  location_start[tesseract::common::LinkId("sphere1_link")].translation()(2) = -1.0;
+  location_start["sphere1_link"] = Eigen::Isometry3d::Identity();
+  location_start["sphere1_link"].translation()(0) = 0.2;
+  location_start["sphere1_link"].translation()(2) = -1.0;
 
   // Set the end location
   tesseract::common::LinkIdTransformMap location_end;
-  location_end[tesseract::common::LinkId("sphere_link")] = Eigen::Isometry3d::Identity();
-  location_end[tesseract::common::LinkId("sphere_link")].translation()(0) = -0.2;
-  location_end[tesseract::common::LinkId("sphere_link")].translation()(1) = 1.0;
+  location_end["sphere_link"] = Eigen::Isometry3d::Identity();
+  location_end["sphere_link"].translation()(0) = -0.2;
+  location_end["sphere_link"].translation()(1) = 1.0;
 
-  location_end[tesseract::common::LinkId("sphere1_link")] = Eigen::Isometry3d::Identity();
-  location_end[tesseract::common::LinkId("sphere1_link")].translation()(0) = 0.2;
-  location_end[tesseract::common::LinkId("sphere1_link")].translation()(2) = 1.0;
+  location_end["sphere1_link"] = Eigen::Isometry3d::Identity();
+  location_end["sphere1_link"].translation()(0) = 0.2;
+  location_end["sphere1_link"].translation()(2) = 1.0;
 
   checker.setCollisionObjectsTransform(location_start, location_end);
 
@@ -576,11 +548,11 @@ inline void runTestConvex(ContinuousContactManager& checker)
       << "sphere1_link (" << sphere1_slot << ") cc_time should be 0.5 (collision at midpoint)";
 
   EXPECT_EQ(cr1.cc_type[static_cast<size_t>(idx[0])], ContinuousCollisionType::CCType_Between)
-      << "sphere_link (" << sphere_slot << ") cc_type should be CCType_Between (3), "
-      << "got " << static_cast<int>(cr1.cc_type[static_cast<size_t>(idx[0])]);
+      << "sphere_link (" << sphere_slot << ") cc_type should be CCType_Between (3), " << "got "
+      << static_cast<int>(cr1.cc_type[static_cast<size_t>(idx[0])]);
   EXPECT_EQ(cr1.cc_type[static_cast<size_t>(idx[1])], ContinuousCollisionType::CCType_Between)
-      << "sphere1_link (" << sphere1_slot << ") cc_type should be CCType_Between (3), "
-      << "got " << static_cast<int>(cr1.cc_type[static_cast<size_t>(idx[1])]);
+      << "sphere1_link (" << sphere1_slot << ") cc_type should be CCType_Between (3), " << "got "
+      << static_cast<int>(cr1.cc_type[static_cast<size_t>(idx[1])]);
 
   // World-frame nearest points (convex mesh values)
   EXPECT_NEAR(cr1.nearest_points[static_cast<size_t>(idx[0])][0], 0.0377, 0.001) << "sphere_link nearest_point.x "
@@ -614,59 +586,47 @@ inline void runTestConvex(ContinuousContactManager& checker)
                                                                                         "nearest_point_local.z";
 
   // Verify transforms
-  EXPECT_TRUE(cr1.transform[static_cast<size_t>(idx[0])].isApprox(location_start[tesseract::common::LinkId("sphere_"
-                                                                                                           "link")],
-                                                                  0.0001))
-      << "sphere_"
-         "link "
-         "transform"
-         " should "
-         "match "
-         "start "
-         "pose "
-         "(-0.2, "
-         "-1, 0)";
-  EXPECT_TRUE(cr1.transform[static_cast<size_t>(idx[1])].isApprox(location_start[tesseract::common::LinkId("sphere1_"
-                                                                                                           "link")],
-                                                                  0.0001))
-      << "sphere1_"
-         "link "
-         "transfor"
-         "m "
-         "should "
-         "match "
-         "start "
-         "pose "
-         "(0.2, "
-         "0, -1)";
-  EXPECT_TRUE(cr1.cc_transform[static_cast<size_t>(idx[0])].isApprox(location_end[tesseract::common::LinkId("sphere_"
-                                                                                                            "link")],
-                                                                     0.0001))
-      << "sphere_"
-         "link "
-         "cc_"
-         "transfor"
-         "m "
-         "should "
-         "match "
-         "end "
-         "pose "
-         "(-0.2, "
-         "1, 0)";
-  EXPECT_TRUE(cr1.cc_transform[static_cast<size_t>(idx[1])].isApprox(location_end[tesseract::common::LinkId("sphere1_"
-                                                                                                            "link")],
-                                                                     0.0001))
-      << "sphere1"
-         "_link "
-         "cc_"
-         "transfo"
-         "rm "
-         "should "
-         "match "
-         "end "
-         "pose "
-         "(0.2, "
-         "0, 1)";
+  EXPECT_TRUE(cr1.transform[static_cast<size_t>(idx[0])].isApprox(location_start["sphere_link"], 0.0001)) << "sphere_"
+                                                                                                             "link "
+                                                                                                             "transform"
+                                                                                                             " should "
+                                                                                                             "match "
+                                                                                                             "start "
+                                                                                                             "pose "
+                                                                                                             "(-0.2, "
+                                                                                                             "-1, 0)";
+  EXPECT_TRUE(cr1.transform[static_cast<size_t>(idx[1])].isApprox(location_start["sphere1_link"], 0.0001)) << "sphere1_"
+                                                                                                              "link "
+                                                                                                              "transfor"
+                                                                                                              "m "
+                                                                                                              "should "
+                                                                                                              "match "
+                                                                                                              "start "
+                                                                                                              "pose "
+                                                                                                              "(0.2, "
+                                                                                                              "0, -1)";
+  EXPECT_TRUE(cr1.cc_transform[static_cast<size_t>(idx[0])].isApprox(location_end["sphere_link"], 0.0001)) << "sphere_"
+                                                                                                              "link "
+                                                                                                              "cc_"
+                                                                                                              "transfor"
+                                                                                                              "m "
+                                                                                                              "should "
+                                                                                                              "match "
+                                                                                                              "end "
+                                                                                                              "pose "
+                                                                                                              "(-0.2, "
+                                                                                                              "1, 0)";
+  EXPECT_TRUE(cr1.cc_transform[static_cast<size_t>(idx[1])].isApprox(location_end["sphere1_link"], 0.0001)) << "sphere1"
+                                                                                                               "_link "
+                                                                                                               "cc_"
+                                                                                                               "transfo"
+                                                                                                               "rm "
+                                                                                                               "should "
+                                                                                                               "match "
+                                                                                                               "end "
+                                                                                                               "pose "
+                                                                                                               "(0.2, "
+                                                                                                               "0, 1)";
 
   // Contact normal
   EXPECT_NEAR(cr1.normal.norm(), 1.0, 1e-4) << "Contact normal must be a unit vector";
@@ -684,22 +644,22 @@ inline void runTestConvex(ContinuousContactManager& checker)
   /////////////////////////////////////////////////////////////
 
   // Set the start location
-  location_start[tesseract::common::LinkId("sphere_link")] = Eigen::Isometry3d::Identity();
-  location_start[tesseract::common::LinkId("sphere_link")].translation()(0) = -0.2;
-  location_start[tesseract::common::LinkId("sphere_link")].translation()(1) = -0.5;
+  location_start["sphere_link"] = Eigen::Isometry3d::Identity();
+  location_start["sphere_link"].translation()(0) = -0.2;
+  location_start["sphere_link"].translation()(1) = -0.5;
 
-  location_start[tesseract::common::LinkId("sphere1_link")] = Eigen::Isometry3d::Identity();
-  location_start[tesseract::common::LinkId("sphere1_link")].translation()(0) = 0.2;
-  location_start[tesseract::common::LinkId("sphere1_link")].translation()(2) = -1.0;
+  location_start["sphere1_link"] = Eigen::Isometry3d::Identity();
+  location_start["sphere1_link"].translation()(0) = 0.2;
+  location_start["sphere1_link"].translation()(2) = -1.0;
 
   // Set the end location
-  location_end[tesseract::common::LinkId("sphere_link")] = Eigen::Isometry3d::Identity();
-  location_end[tesseract::common::LinkId("sphere_link")].translation()(0) = -0.2;
-  location_end[tesseract::common::LinkId("sphere_link")].translation()(1) = 1.0;
+  location_end["sphere_link"] = Eigen::Isometry3d::Identity();
+  location_end["sphere_link"].translation()(0) = -0.2;
+  location_end["sphere_link"].translation()(1) = 1.0;
 
-  location_end[tesseract::common::LinkId("sphere1_link")] = Eigen::Isometry3d::Identity();
-  location_end[tesseract::common::LinkId("sphere1_link")].translation()(0) = 0.2;
-  location_end[tesseract::common::LinkId("sphere1_link")].translation()(2) = 1.0;
+  location_end["sphere1_link"] = Eigen::Isometry3d::Identity();
+  location_end["sphere1_link"].translation()(0) = 0.2;
+  location_end["sphere1_link"].translation()(2) = 1.0;
 
   checker.setCollisionObjectsTransform(location_start, location_end);
 
@@ -727,11 +687,11 @@ inline void runTestConvex(ContinuousContactManager& checker)
 
   // cc_type must be CCType_Between for both (collision occurs mid-sweep)
   EXPECT_EQ(cr2.cc_type[static_cast<size_t>(idx[0])], ContinuousCollisionType::CCType_Between)
-      << "sphere_link (" << sphere_slot2 << ") cc_type should be CCType_Between (3), "
-      << "got " << static_cast<int>(cr2.cc_type[static_cast<size_t>(idx[0])]);
+      << "sphere_link (" << sphere_slot2 << ") cc_type should be CCType_Between (3), " << "got "
+      << static_cast<int>(cr2.cc_type[static_cast<size_t>(idx[0])]);
   EXPECT_EQ(cr2.cc_type[static_cast<size_t>(idx[1])], ContinuousCollisionType::CCType_Between)
-      << "sphere1_link (" << sphere1_slot2 << ") cc_type should be CCType_Between (3), "
-      << "got " << static_cast<int>(cr2.cc_type[static_cast<size_t>(idx[1])]);
+      << "sphere1_link (" << sphere1_slot2 << ") cc_type should be CCType_Between (3), " << "got "
+      << static_cast<int>(cr2.cc_type[static_cast<size_t>(idx[1])]);
 
   // cc_time range: sphere_link travels less (1.5 vs 2.0), so it collides before
   // the midpoint.  The exact value depends on GJK witness point placement, which
@@ -773,59 +733,47 @@ inline void runTestConvex(ContinuousContactManager& checker)
       << "Both witness points should have the same Y coordinate";
 
   // Verify transforms
-  EXPECT_TRUE(cr2.transform[static_cast<size_t>(idx[0])].isApprox(location_start[tesseract::common::LinkId("sphere_"
-                                                                                                           "link")],
-                                                                  0.0001))
-      << "sphere_"
-         "link "
-         "transform"
-         " should "
-         "match "
-         "start "
-         "pose "
-         "(-0.2, "
-         "-0.5, 0)";
-  EXPECT_TRUE(cr2.transform[static_cast<size_t>(idx[1])].isApprox(location_start[tesseract::common::LinkId("sphere1_"
-                                                                                                           "link")],
-                                                                  0.0001))
-      << "sphere1_"
-         "link "
-         "transfor"
-         "m "
-         "should "
-         "match "
-         "start "
-         "pose "
-         "(0.2, "
-         "0, -1)";
-  EXPECT_TRUE(cr2.cc_transform[static_cast<size_t>(idx[0])].isApprox(location_end[tesseract::common::LinkId("sphere_"
-                                                                                                            "link")],
-                                                                     0.0001))
-      << "sphere_"
-         "link "
-         "cc_"
-         "transfor"
-         "m "
-         "should "
-         "match "
-         "end "
-         "pose "
-         "(-0.2, "
-         "1, 0)";
-  EXPECT_TRUE(cr2.cc_transform[static_cast<size_t>(idx[1])].isApprox(location_end[tesseract::common::LinkId("sphere1_"
-                                                                                                            "link")],
-                                                                     0.0001))
-      << "sphere1"
-         "_link "
-         "cc_"
-         "transfo"
-         "rm "
-         "should "
-         "match "
-         "end "
-         "pose "
-         "(0.2, "
-         "0, 1)";
+  EXPECT_TRUE(cr2.transform[static_cast<size_t>(idx[0])].isApprox(location_start["sphere_link"], 0.0001)) << "sphere_"
+                                                                                                             "link "
+                                                                                                             "transform"
+                                                                                                             " should "
+                                                                                                             "match "
+                                                                                                             "start "
+                                                                                                             "pose "
+                                                                                                             "(-0.2, "
+                                                                                                             "-0.5, 0)";
+  EXPECT_TRUE(cr2.transform[static_cast<size_t>(idx[1])].isApprox(location_start["sphere1_link"], 0.0001)) << "sphere1_"
+                                                                                                              "link "
+                                                                                                              "transfor"
+                                                                                                              "m "
+                                                                                                              "should "
+                                                                                                              "match "
+                                                                                                              "start "
+                                                                                                              "pose "
+                                                                                                              "(0.2, "
+                                                                                                              "0, -1)";
+  EXPECT_TRUE(cr2.cc_transform[static_cast<size_t>(idx[0])].isApprox(location_end["sphere_link"], 0.0001)) << "sphere_"
+                                                                                                              "link "
+                                                                                                              "cc_"
+                                                                                                              "transfor"
+                                                                                                              "m "
+                                                                                                              "should "
+                                                                                                              "match "
+                                                                                                              "end "
+                                                                                                              "pose "
+                                                                                                              "(-0.2, "
+                                                                                                              "1, 0)";
+  EXPECT_TRUE(cr2.cc_transform[static_cast<size_t>(idx[1])].isApprox(location_end["sphere1_link"], 0.0001)) << "sphere1"
+                                                                                                               "_link "
+                                                                                                               "cc_"
+                                                                                                               "transfo"
+                                                                                                               "rm "
+                                                                                                               "should "
+                                                                                                               "match "
+                                                                                                               "end "
+                                                                                                               "pose "
+                                                                                                               "(0.2, "
+                                                                                                               "0, 1)";
 
   // Contact normal
   EXPECT_NEAR(cr2.normal.norm(), 1.0, 1e-4) << "Contact normal must be a unit vector";

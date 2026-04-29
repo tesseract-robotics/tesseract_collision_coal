@@ -168,7 +168,7 @@ static void BM_SET_COLLISION_OBJECTS_TRANSFORM_MAP(benchmark::State& state,
     // the same one. It might be worth it to manually time these as well if it's really important
     selected_link.clear();  // Need to clear or this grows and is not releastic to compare to vector version
     const auto& name = active_obj[static_cast<std::size_t>(rand()) % num_obj];
-    selected_link[tesseract::common::LinkId(name)] = info.obj2_poses[0];
+    selected_link[name] = info.obj2_poses[0];
     info.contact_manager_->setCollisionObjectsTransform(selected_link);
   }
 }

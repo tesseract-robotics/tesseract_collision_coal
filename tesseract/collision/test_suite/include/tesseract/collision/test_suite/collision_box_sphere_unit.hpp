@@ -148,9 +148,9 @@ inline void runTestPrimitive(DiscreteContactManager& checker)
 
   // Set the collision object transforms
   tesseract::common::LinkIdTransformMap location;
-  location[tesseract::common::LinkId("box_link")] = Eigen::Isometry3d::Identity();
-  location[tesseract::common::LinkId("sphere_link")] = Eigen::Isometry3d::Identity();
-  location[tesseract::common::LinkId("sphere_link")].translation()(0) = 0.2;
+  location["box_link"] = Eigen::Isometry3d::Identity();
+  location["sphere_link"] = Eigen::Isometry3d::Identity();
+  location["sphere_link"].translation()(0) = 0.2;
   checker.setCollisionObjectsTransform(location);
 
   // Perform collision check
@@ -192,12 +192,12 @@ inline void runTestPrimitive(DiscreteContactManager& checker)
   ////////////////////////////////////////////////
   // Test object is out side the contact distance
   ////////////////////////////////////////////////
-  location[tesseract::common::LinkId("sphere_link")].translation() = Eigen::Vector3d(1, 0, 0);
+  location["sphere_link"].translation() = Eigen::Vector3d(1, 0, 0);
   result.clear();
   result_vector.clear();
 
   // Use different method for setting transforms
-  checker.setCollisionObjectsTransform("sphere_link", location[tesseract::common::LinkId("sphere_link")]);
+  checker.setCollisionObjectsTransform("sphere_link", location["sphere_link"]);
   checker.contactTest(result, ContactRequest(ContactTestType::CLOSEST));
   result.flattenCopyResults(result_vector);
 
@@ -261,9 +261,9 @@ inline void runTestConvex(DiscreteContactManager& checker)
 
   // Set the collision object transforms
   tesseract::common::LinkIdTransformMap location;
-  location[tesseract::common::LinkId("box_link")] = Eigen::Isometry3d::Identity();
-  location[tesseract::common::LinkId("sphere_link")] = Eigen::Isometry3d::Identity();
-  location[tesseract::common::LinkId("sphere_link")].translation()(0) = 0.2;
+  location["box_link"] = Eigen::Isometry3d::Identity();
+  location["sphere_link"] = Eigen::Isometry3d::Identity();
+  location["sphere_link"].translation()(0) = 0.2;
   checker.setCollisionObjectsTransform(location);
 
   // Perform collision check
@@ -300,7 +300,7 @@ inline void runTestConvex(DiscreteContactManager& checker)
   ////////////////////////////////////////////////
   // Test object is out side the contact distance
   ////////////////////////////////////////////////
-  location[tesseract::common::LinkId("sphere_link")].translation() = Eigen::Vector3d(1, 0, 0);
+  location["sphere_link"].translation() = Eigen::Vector3d(1, 0, 0);
   result.clear();
   result_vector.clear();
   checker.setCollisionObjectsTransform(location);

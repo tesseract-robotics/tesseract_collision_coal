@@ -65,12 +65,12 @@ inline void runStaticOctreeCylinderContinuousTransformUpdatesBroadphase(Continuo
   Eigen::Isometry3d static_far = Eigen::Isometry3d::Identity();
   static_far.translation() = Eigen::Vector3d(5.0, 0.0, 0.0);
   tesseract::common::LinkIdTransformMap static_far_tf;
-  static_far_tf[tesseract::common::LinkId("static_octree")] = static_far;
+  static_far_tf["static_octree"] = static_far;
   checker.setCollisionObjectsTransform(static_far_tf);
 
   const Eigen::Isometry3d static_origin = Eigen::Isometry3d::Identity();
   tesseract::common::LinkIdTransformMap static_origin_tf;
-  static_origin_tf[tesseract::common::LinkId("static_octree")] = static_origin;
+  static_origin_tf["static_octree"] = static_origin;
   checker.setCollisionObjectsTransform(static_origin_tf);
 
   Eigen::Isometry3d active_start = Eigen::Isometry3d::Identity();
@@ -79,8 +79,8 @@ inline void runStaticOctreeCylinderContinuousTransformUpdatesBroadphase(Continuo
   active_end.translation() = Eigen::Vector3d(0.0, 0.0, 0.0);
   tesseract::common::LinkIdTransformMap active_tf1;
   tesseract::common::LinkIdTransformMap active_tf2;
-  active_tf1[tesseract::common::LinkId("active_cylinder")] = active_start;
-  active_tf2[tesseract::common::LinkId("active_cylinder")] = active_end;
+  active_tf1["active_cylinder"] = active_start;
+  active_tf2["active_cylinder"] = active_end;
   checker.setCollisionObjectsTransform(active_tf1, active_tf2);
 
   for (ContactTestType type : { ContactTestType::FIRST, ContactTestType::CLOSEST, ContactTestType::ALL })
@@ -115,7 +115,7 @@ inline void runStaticOctreeCylinderActiveToggleStillCollides(ContinuousContactMa
   checker.setActiveCollisionObjects(std::vector<std::string>{ "active_cylinder" });
 
   tesseract::common::LinkIdTransformMap static_tf;
-  static_tf[tesseract::common::LinkId("static_octree")] = Eigen::Isometry3d::Identity();
+  static_tf["static_octree"] = Eigen::Isometry3d::Identity();
   checker.setCollisionObjectsTransform(static_tf);
 
   Eigen::Isometry3d active_start = Eigen::Isometry3d::Identity();

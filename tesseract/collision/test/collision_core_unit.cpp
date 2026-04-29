@@ -171,8 +171,8 @@ TEST(TesseractCoreUnit, ContactManagerConfigYamlUnit)  // NOLINT
   data_original.pair_margin_data.setCollisionMargin("linkA", "linkB", 0.456);
   data_original.acm_override_type = tesseract::collision::ACMOverrideType::OR;
   data_original.acm.addAllowedCollision("linkA", "linkB", "always");
-  data_original.modify_object_enabled[tesseract::common::LinkId("object1")] = true;
-  data_original.modify_object_enabled[tesseract::common::LinkId("object2")] = false;
+  data_original.modify_object_enabled["object1"] = true;
+  data_original.modify_object_enabled["object2"] = false;
 
   // Decode test
   {

@@ -51,7 +51,7 @@ inline void runCompoundMeshShapeIdUsesOriginalGeometryIndex(ContinuousContactMan
 
   // Keep compound mesh static at identity
   tesseract::common::LinkIdTransformMap location;
-  location[tesseract::common::LinkId("compound_link")] = Eigen::Isometry3d::Identity();
+  location["compound_link"] = Eigen::Isometry3d::Identity();
   checker.setCollisionObjectsTransform(location);
 
   // Sweep sphere into the compound mesh volume.
@@ -98,7 +98,7 @@ inline void runCompoundMeshSubshapeIdReportsPrimitiveIdentity(ContinuousContactM
   checker.setDefaultCollisionMargin(0.1);
 
   tesseract::common::LinkIdTransformMap location;
-  location[tesseract::common::LinkId("compound_link")] = Eigen::Isometry3d::Identity();
+  location["compound_link"] = Eigen::Isometry3d::Identity();
   checker.setCollisionObjectsTransform(location);
 
   Eigen::Isometry3d start_pos = Eigen::Isometry3d::Identity();

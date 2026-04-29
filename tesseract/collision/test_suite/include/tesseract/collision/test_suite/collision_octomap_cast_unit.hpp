@@ -25,26 +25,20 @@ inline std::string formatOctomapContactResult(const ContactResult& cr)
 {
   std::ostringstream os;
   os << std::setprecision(6) << std::fixed;
-  os << "Contact result:"
-     << "\n  link_names: [" << cr.link_ids[0].name() << ", " << cr.link_ids[1].name() << "]"
+  os << "Contact result:" << "\n  link_names: [" << cr.link_ids[0].name() << ", " << cr.link_ids[1].name() << "]"
      << "\n  distance: " << cr.distance << "\n  normal: (" << cr.normal[0] << ", " << cr.normal[1] << ", "
-     << cr.normal[2] << ")"
-     << "\n  nearest_points[0]: (" << cr.nearest_points[0][0] << ", " << cr.nearest_points[0][1] << ", "
-     << cr.nearest_points[0][2] << ")"
-     << "\n  nearest_points[1]: (" << cr.nearest_points[1][0] << ", " << cr.nearest_points[1][1] << ", "
-     << cr.nearest_points[1][2] << ")"
-     << "\n  nearest_points_local[0]: (" << cr.nearest_points_local[0][0] << ", " << cr.nearest_points_local[0][1]
-     << ", " << cr.nearest_points_local[0][2] << ")"
-     << "\n  nearest_points_local[1]: (" << cr.nearest_points_local[1][0] << ", " << cr.nearest_points_local[1][1]
-     << ", " << cr.nearest_points_local[1][2] << ")"
-     << "\n  cc_time: [" << cr.cc_time[0] << ", " << cr.cc_time[1] << "]"
-     << "\n  cc_type: [" << static_cast<int>(cr.cc_type[0]) << ", " << static_cast<int>(cr.cc_type[1]) << "]"
-     << "\n  transform[0].t: (" << cr.transform[0].translation()[0] << ", " << cr.transform[0].translation()[1] << ", "
-     << cr.transform[0].translation()[2] << ")"
-     << "\n  transform[1].t: (" << cr.transform[1].translation()[0] << ", " << cr.transform[1].translation()[1] << ", "
-     << cr.transform[1].translation()[2] << ")"
-     << "\n  cc_transform[0].t: (" << cr.cc_transform[0].translation()[0] << ", " << cr.cc_transform[0].translation()[1]
-     << ", " << cr.cc_transform[0].translation()[2] << ")"
+     << cr.normal[2] << ")" << "\n  nearest_points[0]: (" << cr.nearest_points[0][0] << ", " << cr.nearest_points[0][1]
+     << ", " << cr.nearest_points[0][2] << ")" << "\n  nearest_points[1]: (" << cr.nearest_points[1][0] << ", "
+     << cr.nearest_points[1][1] << ", " << cr.nearest_points[1][2] << ")" << "\n  nearest_points_local[0]: ("
+     << cr.nearest_points_local[0][0] << ", " << cr.nearest_points_local[0][1] << ", " << cr.nearest_points_local[0][2]
+     << ")" << "\n  nearest_points_local[1]: (" << cr.nearest_points_local[1][0] << ", "
+     << cr.nearest_points_local[1][1] << ", " << cr.nearest_points_local[1][2] << ")" << "\n  cc_time: ["
+     << cr.cc_time[0] << ", " << cr.cc_time[1] << "]" << "\n  cc_type: [" << static_cast<int>(cr.cc_type[0]) << ", "
+     << static_cast<int>(cr.cc_type[1]) << "]" << "\n  transform[0].t: (" << cr.transform[0].translation()[0] << ", "
+     << cr.transform[0].translation()[1] << ", " << cr.transform[0].translation()[2] << ")" << "\n  transform[1].t: ("
+     << cr.transform[1].translation()[0] << ", " << cr.transform[1].translation()[1] << ", "
+     << cr.transform[1].translation()[2] << ")" << "\n  cc_transform[0].t: (" << cr.cc_transform[0].translation()[0]
+     << ", " << cr.cc_transform[0].translation()[1] << ", " << cr.cc_transform[0].translation()[2] << ")"
      << "\n  cc_transform[1].t: (" << cr.cc_transform[1].translation()[0] << ", " << cr.cc_transform[1].translation()[1]
      << ", " << cr.cc_transform[1].translation()[2] << ")";
   return os.str();
@@ -83,8 +77,8 @@ inline void checkOctomapCastResult(const ContactResult& cr,
 {
   // Determine which slot holds the kinematic shape and which holds the static octree.
   EXPECT_TRUE(cr.link_ids[0].name() == kin_link || cr.link_ids[1].name() == kin_link)
-      << "Expected kinematic link '" << kin_link << "' in contact result, "
-      << "got [" << cr.link_ids[0].name() << ", " << cr.link_ids[1].name() << "]";
+      << "Expected kinematic link '" << kin_link << "' in contact result, " << "got [" << cr.link_ids[0].name() << ", "
+      << cr.link_ids[1].name() << "]";
   const std::size_t ki = (cr.link_ids[0].name() == kin_link) ? 0 : 1;
   const std::size_t si = 1 - ki;
 
@@ -94,8 +88,8 @@ inline void checkOctomapCastResult(const ContactResult& cr,
   // so populateContinuousCollisionFields skips it and CCD fields keep
   // defaults: CCType_None / cc_time = -1.
   // -----------------------------------------------------------------------
-  EXPECT_EQ(cr.cc_type[si], ContinuousCollisionType::CCType_None) << "Octree (static) cc_type should be CCType_None; "
-                                                                  << "got " << static_cast<int>(cr.cc_type[si]);
+  EXPECT_EQ(cr.cc_type[si], ContinuousCollisionType::CCType_None)
+      << "Octree (static) cc_type should be CCType_None; " << "got " << static_cast<int>(cr.cc_type[si]);
   EXPECT_NEAR(cr.cc_time[si], -1.0, 1e-3) << "Octree (static) cc_time should be -1 (not set for static objects)";
 
   // -----------------------------------------------------------------------
@@ -120,8 +114,8 @@ inline void checkOctomapCastResult(const ContactResult& cr,
   // populateContinuousCollisionFields, which is a bug.
   // -----------------------------------------------------------------------
   EXPECT_NE(cr.cc_type[ki], ContinuousCollisionType::CCType_None)
-      << "Kinematic cc_type must not be CCType_None; "
-      << "got " << static_cast<int>(cr.cc_type[ki]) << ". CCType_None means the kinematic side was not processed.";
+      << "Kinematic cc_type must not be CCType_None; " << "got " << static_cast<int>(cr.cc_type[ki])
+      << ". CCType_None means the kinematic side was not processed.";
 
   // cc_time consistency with cc_type:
   if (cr.cc_type[ki] == ContinuousCollisionType::CCType_Time0)
@@ -194,17 +188,15 @@ inline void checkOctomapCastResult(const ContactResult& cr,
   {
     const double along_sweep = (ki == 0 ? 1.0 : -1.0) * cr.normal.dot(sweep_dir);
     EXPECT_LT(along_sweep, -0.001) << "For CCType_Time0, the outward normal from the kinematic shape must "
-                                   << "have a negative component along sweep_dir "
-                                   << "(along_sweep = " << along_sweep << "). "
-                                   << "This is the invariant that selects CCType_Time0 over CCType_Between.";
+                                   << "have a negative component along sweep_dir " << "(along_sweep = " << along_sweep
+                                   << "). " << "This is the invariant that selects CCType_Time0 over CCType_Between.";
   }
   else if (cr.cc_type[ki] == ContinuousCollisionType::CCType_Time1)
   {
     const double along_sweep = (ki == 0 ? 1.0 : -1.0) * cr.normal.dot(sweep_dir);
     EXPECT_GT(along_sweep, 0.001) << "For CCType_Time1, the outward normal from the kinematic shape must "
-                                  << "have a positive component along sweep_dir "
-                                  << "(along_sweep = " << along_sweep << "). "
-                                  << "This is the invariant that selects CCType_Time1 over CCType_Between.";
+                                  << "have a positive component along sweep_dir " << "(along_sweep = " << along_sweep
+                                  << "). " << "This is the invariant that selects CCType_Time1 over CCType_Between.";
   }
 }
 
@@ -298,7 +290,7 @@ inline void runOctomapCylinderCastTest(ContinuousContactManager& checker, Contac
 
   // Set the static octree transform
   tesseract::common::LinkIdTransformMap location;
-  location[tesseract::common::LinkId("octomap_link")] = Eigen::Isometry3d::Identity();
+  location["octomap_link"] = Eigen::Isometry3d::Identity();
   checker.setCollisionObjectsTransform(location);
 
   // Sweep the cylinder from outside (-2, 0, 0) through the octree to (0, 0, 0).
@@ -349,7 +341,7 @@ inline void runOctomapSphereCastTest(ContinuousContactManager& checker, ContactT
 
   // Set the static octree transform
   tesseract::common::LinkIdTransformMap location;
-  location[tesseract::common::LinkId("octomap_link")] = Eigen::Isometry3d::Identity();
+  location["octomap_link"] = Eigen::Isometry3d::Identity();
   checker.setCollisionObjectsTransform(location);
 
   // Sweep the sphere from outside (0, 0, 2) down into the octree at (0, 0, 0).
@@ -448,7 +440,7 @@ inline void runOctomapConvexHullCastTest(ContinuousContactManager& checker, Cont
 
   // Set the static octree transform
   tesseract::common::LinkIdTransformMap location;
-  location[tesseract::common::LinkId("octomap_link")] = Eigen::Isometry3d::Identity();
+  location["octomap_link"] = Eigen::Isometry3d::Identity();
   checker.setCollisionObjectsTransform(location);
 
   // Sweep the convex hull from outside (-2, 0, 0) through the octree to (0, 0, 0).
