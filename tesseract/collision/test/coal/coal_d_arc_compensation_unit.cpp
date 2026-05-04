@@ -38,7 +38,7 @@ std::unique_ptr<CoalCastBVHManager> makeCastSetup(bool d_arc_compensation)
   tesseract::common::VectorIsometry3d poses = { Eigen::Isometry3d::Identity() };
 
   checker->addCollisionObject("link_a", 0, shapes, poses, true);
-  checker->setActiveCollisionObjects({ "link_a" });
+  checker->setActiveCollisionObjects(std::vector<std::string>{ "link_a" });
   checker->setDefaultCollisionMargin(0.0);
 
   return checker;
@@ -128,7 +128,7 @@ TEST(CoalDArcCompensationUnit, OffsetShapeCorrectDArc)  // NOLINT
   tesseract::common::VectorIsometry3d poses = { shape_offset };
 
   checker->addCollisionObject("link_a", 0, shapes, poses, true);
-  checker->setActiveCollisionObjects({ "link_a" });
+  checker->setActiveCollisionObjects(std::vector<std::string>{ "link_a" });
   checker->setDefaultCollisionMargin(0.0);
 
   // Rotate 30 degrees about Z at the link frame origin.
@@ -200,7 +200,7 @@ TEST(CoalDArcCompensationUnit, FactoryParsesConfig)  // NOLINT
   CollisionShapesConst shapes = { sphere };
   tesseract::common::VectorIsometry3d poses = { Eigen::Isometry3d::Identity() };
   mgr->addCollisionObject("link_a", 0, shapes, poses, true);
-  mgr->setActiveCollisionObjects({ "link_a" });
+  mgr->setActiveCollisionObjects(std::vector<std::string>{ "link_a" });
 
   Eigen::Isometry3d pose1 = Eigen::Isometry3d::Identity();
   Eigen::Isometry3d pose2 = Eigen::Isometry3d::Identity();
@@ -227,7 +227,7 @@ TEST(CoalDArcCompensationUnit, FactoryDefaultsToDisabled)  // NOLINT
     CollisionShapesConst shapes = { sphere };
     tesseract::common::VectorIsometry3d poses = { Eigen::Isometry3d::Identity() };
     mgr->addCollisionObject("link_a", 0, shapes, poses, true);
-    mgr->setActiveCollisionObjects({ "link_a" });
+    mgr->setActiveCollisionObjects(std::vector<std::string>{ "link_a" });
 
     Eigen::Isometry3d pose1 = Eigen::Isometry3d::Identity();
     Eigen::Isometry3d pose2 = Eigen::Isometry3d::Identity();
@@ -252,7 +252,7 @@ TEST(CoalDArcCompensationUnit, FactoryDefaultsToDisabled)  // NOLINT
     CollisionShapesConst shapes = { sphere };
     tesseract::common::VectorIsometry3d poses = { Eigen::Isometry3d::Identity() };
     mgr->addCollisionObject("link_a", 0, shapes, poses, true);
-    mgr->setActiveCollisionObjects({ "link_a" });
+    mgr->setActiveCollisionObjects(std::vector<std::string>{ "link_a" });
 
     Eigen::Isometry3d pose1 = Eigen::Isometry3d::Identity();
     Eigen::Isometry3d pose2 = Eigen::Isometry3d::Identity();
@@ -314,7 +314,7 @@ TEST(CoalDArcCompensationUnit, MissedCollisionCaught)  // NOLINT
     tesseract::common::VectorIsometry3d obs_poses = { Eigen::Isometry3d::Identity() };
 
     checker->addCollisionObject("obstacle", 0, obs_shapes, obs_poses, true);
-    checker->setActiveCollisionObjects({ "link_a", "obstacle" });
+    checker->setActiveCollisionObjects(std::vector<std::string>{ "link_a", "obstacle" });
 
     // Place obstacle at its world position
     Eigen::Isometry3d world_obs_pose = Eigen::Isometry3d::Identity();

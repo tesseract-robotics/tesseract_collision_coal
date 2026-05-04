@@ -153,20 +153,16 @@ inline std::string formatContactResult(const ContactResult& cr)
 {
   std::ostringstream os;
   os << std::setprecision(6) << std::fixed;
-  os << "Contact result state:"
-     << "\n  link_names: [" << cr.link_names[0] << ", " << cr.link_names[1] << "]"
+  os << "Contact result state:" << "\n  link_names: [" << cr.link_ids[0].name() << ", " << cr.link_ids[1].name() << "]"
      << "\n  distance: " << cr.distance << "\n  normal: (" << cr.normal[0] << ", " << cr.normal[1] << ", "
-     << cr.normal[2] << ")"
-     << "\n  nearest_points[0]: (" << cr.nearest_points[0][0] << ", " << cr.nearest_points[0][1] << ", "
-     << cr.nearest_points[0][2] << ")"
-     << "\n  nearest_points[1]: (" << cr.nearest_points[1][0] << ", " << cr.nearest_points[1][1] << ", "
-     << cr.nearest_points[1][2] << ")"
-     << "\n  nearest_points_local[0]: (" << cr.nearest_points_local[0][0] << ", " << cr.nearest_points_local[0][1]
-     << ", " << cr.nearest_points_local[0][2] << ")"
-     << "\n  nearest_points_local[1]: (" << cr.nearest_points_local[1][0] << ", " << cr.nearest_points_local[1][1]
-     << ", " << cr.nearest_points_local[1][2] << ")"
-     << "\n  cc_time: [" << cr.cc_time[0] << ", " << cr.cc_time[1] << "]"
-     << "\n  cc_type: [" << static_cast<int>(cr.cc_type[0]) << ", " << static_cast<int>(cr.cc_type[1]) << "]";
+     << cr.normal[2] << ")" << "\n  nearest_points[0]: (" << cr.nearest_points[0][0] << ", " << cr.nearest_points[0][1]
+     << ", " << cr.nearest_points[0][2] << ")" << "\n  nearest_points[1]: (" << cr.nearest_points[1][0] << ", "
+     << cr.nearest_points[1][1] << ", " << cr.nearest_points[1][2] << ")" << "\n  nearest_points_local[0]: ("
+     << cr.nearest_points_local[0][0] << ", " << cr.nearest_points_local[0][1] << ", " << cr.nearest_points_local[0][2]
+     << ")" << "\n  nearest_points_local[1]: (" << cr.nearest_points_local[1][0] << ", "
+     << cr.nearest_points_local[1][1] << ", " << cr.nearest_points_local[1][2] << ")" << "\n  cc_time: ["
+     << cr.cc_time[0] << ", " << cr.cc_time[1] << "]" << "\n  cc_type: [" << static_cast<int>(cr.cc_type[0]) << ", "
+     << static_cast<int>(cr.cc_type[1]) << "]";
   return os.str();
 }
 
@@ -182,7 +178,7 @@ inline void runTestPrimitive(ContinuousContactManager& checker)
   ///////////////////////////////////////////////////
   std::vector<std::string> active_links{ "sphere_link", "sphere1_link" };
   checker.setActiveCollisionObjects(active_links);
-  std::vector<std::string> check_active_links = checker.getActiveCollisionObjects();
+  std::vector<std::string> check_active_links = checker.getActiveCollisionObjectNames();
   EXPECT_TRUE(tesseract::common::isIdentical<std::string>(active_links, check_active_links, false));
 
   EXPECT_TRUE(checker.getContactAllowedValidator() == nullptr);
@@ -191,7 +187,7 @@ inline void runTestPrimitive(ContinuousContactManager& checker)
   EXPECT_NEAR(checker.getCollisionMarginData().getMaxCollisionMargin(), 0.1, 1e-5);
 
   // Set the start location
-  tesseract::common::TransformMap location_start;
+  tesseract::common::LinkIdTransformMap location_start;
   location_start["sphere_link"] = Eigen::Isometry3d::Identity();
   location_start["sphere_link"].translation()(0) = -0.2;
   location_start["sphere_link"].translation()(1) = -1.0;
@@ -201,7 +197,7 @@ inline void runTestPrimitive(ContinuousContactManager& checker)
   location_start["sphere1_link"].translation()(2) = -1.0;
 
   // Set the end location
-  tesseract::common::TransformMap location_end;
+  tesseract::common::LinkIdTransformMap location_end;
   location_end["sphere_link"] = Eigen::Isometry3d::Identity();
   location_end["sphere_link"].translation()(0) = -0.2;
   location_end["sphere_link"].translation()(1) = 1.0;
@@ -230,7 +226,7 @@ inline void runTestPrimitive(ContinuousContactManager& checker)
   EXPECT_NEAR(cr1.distance, -0.1, 0.0001) << "Penetration should be -0.1 (sphere separation 0.4, combined radii 0.5)";
 
   std::vector<int> idx = { 0, 1, 1 };
-  if (cr1.link_names[0] != "sphere_link")
+  if (cr1.link_ids[0].name() != "sphere_link")
     idx = { 1, 0, -1 };
 
   const std::string sphere_slot = (idx[0] == 0) ? "slot 0" : "slot 1";
@@ -242,11 +238,11 @@ inline void runTestPrimitive(ContinuousContactManager& checker)
       << "sphere1_link (" << sphere1_slot << ") cc_time should be 0.5 (collision at midpoint of sweep)";
 
   EXPECT_EQ(cr1.cc_type[static_cast<size_t>(idx[0])], ContinuousCollisionType::CCType_Between)
-      << "sphere_link (" << sphere_slot << ") cc_type should be CCType_Between (3), "
-      << "got " << static_cast<int>(cr1.cc_type[static_cast<size_t>(idx[0])]);
+      << "sphere_link (" << sphere_slot << ") cc_type should be CCType_Between (3), " << "got "
+      << static_cast<int>(cr1.cc_type[static_cast<size_t>(idx[0])]);
   EXPECT_EQ(cr1.cc_type[static_cast<size_t>(idx[1])], ContinuousCollisionType::CCType_Between)
-      << "sphere1_link (" << sphere1_slot << ") cc_type should be CCType_Between (3), "
-      << "got " << static_cast<int>(cr1.cc_type[static_cast<size_t>(idx[1])]);
+      << "sphere1_link (" << sphere1_slot << ") cc_type should be CCType_Between (3), " << "got "
+      << static_cast<int>(cr1.cc_type[static_cast<size_t>(idx[1])]);
 
   // World-frame nearest points at collision time
   EXPECT_NEAR(cr1.nearest_points[static_cast<size_t>(idx[0])][0], 0.05, 0.001) << "sphere_link nearest_point.x: "
@@ -380,7 +376,7 @@ inline void runTestPrimitive(ContinuousContactManager& checker)
   EXPECT_NEAR(cr2.distance, -0.1, 0.0001) << "Penetration should be -0.1 (same sphere geometry, same X separation)";
 
   idx = { 0, 1, 1 };
-  if (cr2.link_names[0] != "sphere_link")
+  if (cr2.link_ids[0].name() != "sphere_link")
     idx = { 1, 0, -1 };
 
   const std::string sphere_slot2 = (idx[0] == 0) ? "slot 0" : "slot 1";
@@ -394,11 +390,11 @@ inline void runTestPrimitive(ContinuousContactManager& checker)
       << "(Z=0 reached at 1.0/2.0 of sweep from Z=-1 to Z=1)";
 
   EXPECT_EQ(cr2.cc_type[static_cast<size_t>(idx[0])], ContinuousCollisionType::CCType_Between)
-      << "sphere_link (" << sphere_slot2 << ") cc_type should be CCType_Between (3), "
-      << "got " << static_cast<int>(cr2.cc_type[static_cast<size_t>(idx[0])]);
+      << "sphere_link (" << sphere_slot2 << ") cc_type should be CCType_Between (3), " << "got "
+      << static_cast<int>(cr2.cc_type[static_cast<size_t>(idx[0])]);
   EXPECT_EQ(cr2.cc_type[static_cast<size_t>(idx[1])], ContinuousCollisionType::CCType_Between)
-      << "sphere1_link (" << sphere1_slot2 << ") cc_type should be CCType_Between (3), "
-      << "got " << static_cast<int>(cr2.cc_type[static_cast<size_t>(idx[1])]);
+      << "sphere1_link (" << sphere1_slot2 << ") cc_type should be CCType_Between (3), " << "got "
+      << static_cast<int>(cr2.cc_type[static_cast<size_t>(idx[1])]);
 
   // World-frame nearest points
   EXPECT_NEAR(cr2.nearest_points[static_cast<size_t>(idx[0])][0], 0.05, 0.001) << "sphere_link nearest_point.x";
@@ -490,7 +486,7 @@ inline void runTestConvex(ContinuousContactManager& checker)
   ///////////////////////////////////////////////////
   std::vector<std::string> active_links{ "sphere_link", "sphere1_link" };
   checker.setActiveCollisionObjects(active_links);
-  std::vector<std::string> check_active_links = checker.getActiveCollisionObjects();
+  std::vector<std::string> check_active_links = checker.getActiveCollisionObjectNames();
   EXPECT_TRUE(tesseract::common::isIdentical<std::string>(active_links, check_active_links, false));
 
   EXPECT_TRUE(checker.getContactAllowedValidator() == nullptr);
@@ -499,7 +495,7 @@ inline void runTestConvex(ContinuousContactManager& checker)
   EXPECT_NEAR(checker.getCollisionMarginData().getMaxCollisionMargin(), 0.1, 1e-5);
 
   // Set the start location
-  tesseract::common::TransformMap location_start;
+  tesseract::common::LinkIdTransformMap location_start;
   location_start["sphere_link"] = Eigen::Isometry3d::Identity();
   location_start["sphere_link"].translation()(0) = -0.2;
   location_start["sphere_link"].translation()(1) = -1.0;
@@ -509,7 +505,7 @@ inline void runTestConvex(ContinuousContactManager& checker)
   location_start["sphere1_link"].translation()(2) = -1.0;
 
   // Set the end location
-  tesseract::common::TransformMap location_end;
+  tesseract::common::LinkIdTransformMap location_end;
   location_end["sphere_link"] = Eigen::Isometry3d::Identity();
   location_end["sphere_link"].translation()(0) = -0.2;
   location_end["sphere_link"].translation()(1) = 1.0;
@@ -540,7 +536,7 @@ inline void runTestConvex(ContinuousContactManager& checker)
                                                "radius slightly)";
 
   std::vector<int> idx = { 0, 1, 1 };
-  if (cr1.link_names[0] != "sphere_link")
+  if (cr1.link_ids[0].name() != "sphere_link")
     idx = { 1, 0, -1 };
 
   const std::string sphere_slot = (idx[0] == 0) ? "slot 0" : "slot 1";
@@ -552,11 +548,11 @@ inline void runTestConvex(ContinuousContactManager& checker)
       << "sphere1_link (" << sphere1_slot << ") cc_time should be 0.5 (collision at midpoint)";
 
   EXPECT_EQ(cr1.cc_type[static_cast<size_t>(idx[0])], ContinuousCollisionType::CCType_Between)
-      << "sphere_link (" << sphere_slot << ") cc_type should be CCType_Between (3), "
-      << "got " << static_cast<int>(cr1.cc_type[static_cast<size_t>(idx[0])]);
+      << "sphere_link (" << sphere_slot << ") cc_type should be CCType_Between (3), " << "got "
+      << static_cast<int>(cr1.cc_type[static_cast<size_t>(idx[0])]);
   EXPECT_EQ(cr1.cc_type[static_cast<size_t>(idx[1])], ContinuousCollisionType::CCType_Between)
-      << "sphere1_link (" << sphere1_slot << ") cc_type should be CCType_Between (3), "
-      << "got " << static_cast<int>(cr1.cc_type[static_cast<size_t>(idx[1])]);
+      << "sphere1_link (" << sphere1_slot << ") cc_type should be CCType_Between (3), " << "got "
+      << static_cast<int>(cr1.cc_type[static_cast<size_t>(idx[1])]);
 
   // World-frame nearest points (convex mesh values)
   EXPECT_NEAR(cr1.nearest_points[static_cast<size_t>(idx[0])][0], 0.0377, 0.001) << "sphere_link nearest_point.x "
@@ -683,7 +679,7 @@ inline void runTestConvex(ContinuousContactManager& checker)
   EXPECT_NEAR(cr2.distance, -0.0755, 0.001) << "Penetration for convex mesh spheres";
 
   idx = { 0, 1, 1 };
-  if (cr2.link_names[0] != "sphere_link")
+  if (cr2.link_ids[0].name() != "sphere_link")
     idx = { 1, 0, -1 };
 
   const std::string sphere_slot2 = (idx[0] == 0) ? "slot 0" : "slot 1";
@@ -691,11 +687,11 @@ inline void runTestConvex(ContinuousContactManager& checker)
 
   // cc_type must be CCType_Between for both (collision occurs mid-sweep)
   EXPECT_EQ(cr2.cc_type[static_cast<size_t>(idx[0])], ContinuousCollisionType::CCType_Between)
-      << "sphere_link (" << sphere_slot2 << ") cc_type should be CCType_Between (3), "
-      << "got " << static_cast<int>(cr2.cc_type[static_cast<size_t>(idx[0])]);
+      << "sphere_link (" << sphere_slot2 << ") cc_type should be CCType_Between (3), " << "got "
+      << static_cast<int>(cr2.cc_type[static_cast<size_t>(idx[0])]);
   EXPECT_EQ(cr2.cc_type[static_cast<size_t>(idx[1])], ContinuousCollisionType::CCType_Between)
-      << "sphere1_link (" << sphere1_slot2 << ") cc_type should be CCType_Between (3), "
-      << "got " << static_cast<int>(cr2.cc_type[static_cast<size_t>(idx[1])]);
+      << "sphere1_link (" << sphere1_slot2 << ") cc_type should be CCType_Between (3), " << "got "
+      << static_cast<int>(cr2.cc_type[static_cast<size_t>(idx[1])]);
 
   // cc_time range: sphere_link travels less (1.5 vs 2.0), so it collides before
   // the midpoint.  The exact value depends on GJK witness point placement, which

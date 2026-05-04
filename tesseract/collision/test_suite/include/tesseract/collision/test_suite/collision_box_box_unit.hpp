@@ -92,7 +92,7 @@ inline void addCollisionObjects(DiscreteContactManager& checker, bool use_convex
   /////////////////////////////////////////////
   std::vector<std::string> pre_active_links{ "box_link", "second_box_link", "thin_box_link" };
   checker.setActiveCollisionObjects(pre_active_links);
-  EXPECT_EQ(checker.getActiveCollisionObjects().size(), 3);
+  EXPECT_EQ(checker.getActiveCollisionObjectNames().size(), 3);
 
   /////////////////////////////////////////////
   // Add box and remove
@@ -110,14 +110,14 @@ inline void addCollisionObjects(DiscreteContactManager& checker, bool use_convex
   EXPECT_TRUE(checker.hasCollisionObject("remove_box_link"));
 
   // Verify that adding a new object does not automatically add it to active list
-  EXPECT_EQ(checker.getActiveCollisionObjects().size(), 3);
+  EXPECT_EQ(checker.getActiveCollisionObjectNames().size(), 3);
 
   checker.removeCollisionObject("remove_box_link");
   EXPECT_FALSE(checker.hasCollisionObject("remove_box_link"));
 
   // Verify that active list no longer contains the removed object
   {
-    const auto& active_after_remove = checker.getActiveCollisionObjects();
+    const auto active_after_remove = checker.getActiveCollisionObjectNames();
     EXPECT_EQ(active_after_remove.size(), 3);
     EXPECT_EQ(std::find(active_after_remove.begin(), active_after_remove.end(), "remove_box_link"),
               active_after_remove.end());
@@ -142,9 +142,9 @@ inline void addCollisionObjects(DiscreteContactManager& checker, bool use_convex
   EXPECT_TRUE(checker.getCollisionObjects().size() == 3);
   for (const auto& co : checker.getCollisionObjects())
   {
-    EXPECT_TRUE(checker.getCollisionObjectGeometries(co).size() == 1);
-    EXPECT_TRUE(checker.getCollisionObjectGeometriesTransforms(co).size() == 1);
-    for (const auto& cgt : checker.getCollisionObjectGeometriesTransforms(co))
+    EXPECT_TRUE(checker.getCollisionObjectGeometries(co.name()).size() == 1);
+    EXPECT_TRUE(checker.getCollisionObjectGeometriesTransforms(co.name()).size() == 1);
+    for (const auto& cgt : checker.getCollisionObjectGeometriesTransforms(co.name()))
     {
       EXPECT_TRUE(cgt.isApprox(Eigen::Isometry3d::Identity(), 1e-5));
     }
@@ -158,7 +158,7 @@ inline void runTestTyped(DiscreteContactManager& checker, ContactTestType test_t
   //////////////////////////////////////
   std::vector<std::string> active_links{ "box_link", "second_box_link" };
   checker.setActiveCollisionObjects(active_links);
-  std::vector<std::string> check_active_links = checker.getActiveCollisionObjects();
+  std::vector<std::string> check_active_links = checker.getActiveCollisionObjectNames();
   EXPECT_TRUE(tesseract::common::isIdentical<std::string>(active_links, check_active_links, false));
 
   EXPECT_TRUE(checker.getContactAllowedValidator() == nullptr);
@@ -167,7 +167,7 @@ inline void runTestTyped(DiscreteContactManager& checker, ContactTestType test_t
   EXPECT_NEAR(checker.getCollisionMarginData().getCollisionMargin("box_link", "second_box_link"), 0.1, 1e-5);
 
   // Set the collision object transforms
-  tesseract::common::TransformMap location;
+  tesseract::common::LinkIdTransformMap location;
   location["box_link"] = Eigen::Isometry3d::Identity();
   location["box_link"].translation()(0) = 0.2;
   location["box_link"].translation()(1) = 0.1;
@@ -188,7 +188,7 @@ inline void runTestTyped(DiscreteContactManager& checker, ContactTestType test_t
   EXPECT_NEAR(result_vector[0].nearest_points[0][2], result_vector[0].nearest_points[1][2], 0.001);
 
   std::vector<int> idx = { 0, 1, 1 };
-  if (result_vector[0].link_names[0] != "box_link")
+  if (result_vector[0].link_ids[0].name() != "box_link")
     idx = { 1, 0, -1 };
 
   if (result_vector[0].single_contact_point)
@@ -270,7 +270,7 @@ inline void runTestTyped(DiscreteContactManager& checker, ContactTestType test_t
     EXPECT_NEAR(result_vector[0].nearest_points[0][2], result_vector[0].nearest_points[1][2], 0.001);
 
     idx = { 0, 1, 1 };
-    if (result_vector[0].link_names[0] != "box_link")
+    if (result_vector[0].link_ids[0].name() != "box_link")
       idx = { 1, 0, -1 };
 
     if (result_vector[0].single_contact_point)
@@ -307,7 +307,7 @@ inline void runTestTyped(DiscreteContactManager& checker, ContactTestType test_t
     EXPECT_NEAR(result_vector[0].nearest_points[0][2], result_vector[0].nearest_points[1][2], 0.001);
 
     idx = { 0, 1, 1 };
-    if (result_vector[0].link_names[0] != "box_link")
+    if (result_vector[0].link_ids[0].name() != "box_link")
       idx = { 1, 0, -1 };
 
     if (result_vector[0].single_contact_point)

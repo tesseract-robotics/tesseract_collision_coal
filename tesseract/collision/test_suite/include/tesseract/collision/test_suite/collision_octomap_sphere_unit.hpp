@@ -77,9 +77,9 @@ inline void addCollisionObjects(DiscreteContactManager& checker, bool use_convex
   EXPECT_TRUE(checker.getCollisionObjects().size() == 2);
   for (const auto& co : checker.getCollisionObjects())
   {
-    EXPECT_TRUE(checker.getCollisionObjectGeometries(co).size() == 1);
-    EXPECT_TRUE(checker.getCollisionObjectGeometriesTransforms(co).size() == 1);
-    for (const auto& cgt : checker.getCollisionObjectGeometriesTransforms(co))
+    EXPECT_TRUE(checker.getCollisionObjectGeometries(co.name()).size() == 1);
+    EXPECT_TRUE(checker.getCollisionObjectGeometriesTransforms(co.name()).size() == 1);
+    for (const auto& cgt : checker.getCollisionObjectGeometriesTransforms(co.name()))
     {
       EXPECT_TRUE(cgt.isApprox(Eigen::Isometry3d::Identity(), 1e-5));
     }
@@ -93,7 +93,7 @@ inline void runTestTyped(DiscreteContactManager& checker, double tol, ContactTes
   //////////////////////////////////////
   std::vector<std::string> active_links{ "octomap_link", "sphere_link" };
   checker.setActiveCollisionObjects(active_links);
-  std::vector<std::string> check_active_links = checker.getActiveCollisionObjects();
+  std::vector<std::string> check_active_links = checker.getActiveCollisionObjectNames();
   EXPECT_TRUE(tesseract::common::isIdentical<std::string>(active_links, check_active_links, false));
 
   EXPECT_TRUE(checker.getContactAllowedValidator() == nullptr);
@@ -102,7 +102,7 @@ inline void runTestTyped(DiscreteContactManager& checker, double tol, ContactTes
   EXPECT_NEAR(checker.getCollisionMarginData().getMaxCollisionMargin(), 0.1, 1e-5);
 
   // Set the collision object transforms
-  tesseract::common::TransformMap location;
+  tesseract::common::LinkIdTransformMap location;
   location["octomap_link"] = Eigen::Isometry3d::Identity();
   location["sphere_link"] = Eigen::Isometry3d::Identity();
   location["sphere_link"].translation() = Eigen::Vector3d(0, 0, 1);

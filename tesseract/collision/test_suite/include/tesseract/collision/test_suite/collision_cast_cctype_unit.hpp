@@ -93,7 +93,7 @@ inline void addCCTypeObjects(ContinuousContactManager& checker)
 /// where normal_sign = +1 if link_names[0]=="moving_sphere", else -1.
 inline std::array<int, 3> getSlots(const ContactResult& cr)
 {
-  if (cr.link_names[0] == "moving_sphere")
+  if (cr.link_ids[0] == "moving_sphere")
     return { 0, 1, 1 };
   return { 1, 0, -1 };
 }
@@ -113,7 +113,7 @@ inline std::array<int, 3> getSlots(const ContactResult& cr)
 inline void runTestCCTypeTime1(ContinuousContactManager& checker)
 {
   addCCTypeObjects(checker);
-  checker.setActiveCollisionObjects({ "moving_sphere" });
+  checker.setActiveCollisionObjects(std::vector<std::string>{ "moving_sphere" });
   checker.setDefaultCollisionMargin(0.0);
 
   // Static sphere fixed at origin
@@ -139,7 +139,7 @@ inline void runTestCCTypeTime1(ContinuousContactManager& checker)
   const auto ki = static_cast<std::size_t>(slots[0]);  // moving_sphere slot
   const auto si = static_cast<std::size_t>(slots[1]);  // static_sphere slot
 
-  SCOPED_TRACE("CCType_Time1 contact: link_names=[" + cr.link_names[0] + ", " + cr.link_names[1] +
+  SCOPED_TRACE("CCType_Time1 contact: link_names=[" + cr.link_ids[0].name() + ", " + cr.link_ids[1].name() +
                "] ki=" + std::to_string(ki) + " si=" + std::to_string(si));
 
   // -----------------------------------------------------------------------
@@ -246,7 +246,7 @@ inline void runTestCCTypeTime1(ContinuousContactManager& checker)
 inline void runTestCCTypeTime0(ContinuousContactManager& checker)
 {
   addCCTypeObjects(checker);
-  checker.setActiveCollisionObjects({ "moving_sphere" });
+  checker.setActiveCollisionObjects(std::vector<std::string>{ "moving_sphere" });
   checker.setDefaultCollisionMargin(0.0);
 
   // Static sphere fixed at origin
@@ -271,7 +271,7 @@ inline void runTestCCTypeTime0(ContinuousContactManager& checker)
   const auto ki = static_cast<std::size_t>(slots[0]);
   const auto si = static_cast<std::size_t>(slots[1]);
 
-  SCOPED_TRACE("CCType_Time0 contact: link_names=[" + cr.link_names[0] + ", " + cr.link_names[1] +
+  SCOPED_TRACE("CCType_Time0 contact: link_names=[" + cr.link_ids[0].name() + ", " + cr.link_ids[1].name() +
                "] ki=" + std::to_string(ki) + " si=" + std::to_string(si));
 
   // -----------------------------------------------------------------------

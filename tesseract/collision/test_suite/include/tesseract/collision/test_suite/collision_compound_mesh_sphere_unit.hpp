@@ -106,9 +106,9 @@ inline void addCollisionObjects(DiscreteContactManager& checker)
   EXPECT_TRUE(checker.getCollisionObjects().size() == 3);
   for (const auto& co : checker.getCollisionObjects())
   {
-    EXPECT_TRUE(checker.getCollisionObjectGeometries(co).size() == 1);
-    EXPECT_TRUE(checker.getCollisionObjectGeometriesTransforms(co).size() == 1);
-    for (const auto& cgt : checker.getCollisionObjectGeometriesTransforms(co))
+    EXPECT_TRUE(checker.getCollisionObjectGeometries(co.name()).size() == 1);
+    EXPECT_TRUE(checker.getCollisionObjectGeometriesTransforms(co.name()).size() == 1);
+    for (const auto& cgt : checker.getCollisionObjectGeometriesTransforms(co.name()))
     {
       EXPECT_TRUE(cgt.isApprox(Eigen::Isometry3d::Identity(), 1e-5));
     }
@@ -130,7 +130,7 @@ inline void runTest(DiscreteContactManager& checker)
   //////////////////////////////////////
   std::vector<std::string> active_links{ "box_link", "sphere_link" };
   checker.setActiveCollisionObjects(active_links);
-  std::vector<std::string> check_active_links = checker.getActiveCollisionObjects();
+  std::vector<std::string> check_active_links = checker.getActiveCollisionObjectNames();
   EXPECT_TRUE(tesseract::common::isIdentical<std::string>(active_links, check_active_links, false));
 
   EXPECT_TRUE(checker.getContactAllowedValidator() == nullptr);
@@ -139,7 +139,7 @@ inline void runTest(DiscreteContactManager& checker)
   EXPECT_NEAR(checker.getCollisionMarginData().getMaxCollisionMargin(), 0.1, 1e-5);
 
   // Set the collision object transforms
-  tesseract::common::TransformMap location;
+  tesseract::common::LinkIdTransformMap location;
   location["box_link"] = Eigen::Isometry3d::Identity();
   location["sphere_link"] = Eigen::Isometry3d::Identity();
   location["sphere_link"].translation()(0) = 0.2;
@@ -156,7 +156,7 @@ inline void runTest(DiscreteContactManager& checker)
   EXPECT_NEAR(result_vector[0].distance, -0.19053635, 0.001);
 
   std::vector<int> idx = { 0, 1, 1 };
-  if (result_vector[0].link_names[0] != "box_link")
+  if (result_vector[0].link_ids[0].name() != "box_link")
     idx = { 1, 0, -1 };
 
   if (result_vector[0].single_contact_point)
@@ -213,7 +213,7 @@ inline void runTest(DiscreteContactManager& checker)
   EXPECT_NEAR(result_vector[0].distance, 0.1094636, 0.001);
 
   idx = { 0, 1, 1 };
-  if (result_vector[0].link_names[0] != "box_link")
+  if (result_vector[0].link_ids[0].name() != "box_link")
     idx = { 1, 0, -1 };
 
   if (result_vector[0].single_contact_point)
@@ -259,7 +259,7 @@ inline void runTest(DiscreteContactManager& checker)
   EXPECT_NEAR(result_vector[0].distance, 0.03130736, 0.001);
 
   idx = { 0, 1, 1 };
-  if (result_vector[0].link_names[0] != "box_link")
+  if (result_vector[0].link_ids[0].name() != "box_link")
     idx = { 1, 0, -1 };
 
   if (result_vector[0].single_contact_point)
