@@ -5,6 +5,7 @@
 TESSERACT_COMMON_IGNORE_WARNINGS_PUSH
 #include <gtest/gtest.h>
 #include <string>
+#include <unordered_set>
 TESSERACT_COMMON_IGNORE_WARNINGS_POP
 
 #include <tesseract/collision/continuous_contact_manager.h>
@@ -64,7 +65,7 @@ inline void addCollisionObjects(ContinuousContactManager& checker)
   /////////////////////////////////////////////
   // Set active links before add/remove test
   /////////////////////////////////////////////
-  std::vector<std::string> pre_active_links{ "static_box_link", "moving_box_link", "thin_box_link" };
+  std::vector<tesseract::common::LinkId> pre_active_links{ "static_box_link", "moving_box_link", "thin_box_link" };
   checker.setActiveCollisionObjects(pre_active_links);
   EXPECT_EQ(checker.getActiveCollisionObjects().size(), 3);
 
@@ -94,8 +95,7 @@ inline void addCollisionObjects(ContinuousContactManager& checker)
   {
     const auto& active_after_remove = checker.getActiveCollisionObjects();
     EXPECT_EQ(active_after_remove.size(), 3);
-    EXPECT_EQ(std::find(active_after_remove.begin(), active_after_remove.end(), "remove_box_link"),
-              active_after_remove.end());
+    EXPECT_EQ(active_after_remove.count("remove_box_link"), 0);
   }
 
   /////////////////////////////////////////////
@@ -149,10 +149,10 @@ inline void runTest(ContinuousContactManager& checker)
   //////////////////////////////////////
   checker.setActiveCollisionObjects({ "moving_box_link", "static_box_link" });
 
-  std::vector<std::string> active_links{ "moving_box_link" };
+  std::vector<tesseract::common::LinkId> active_links{ "moving_box_link" };
   checker.setActiveCollisionObjects(active_links);
-  std::vector<std::string> check_active_links = checker.getActiveCollisionObjects();
-  EXPECT_TRUE(tesseract::common::isIdentical<std::string>(active_links, check_active_links, false));
+  EXPECT_EQ(checker.getActiveCollisionObjects(),
+            std::unordered_set<tesseract::common::LinkId>(active_links.begin(), active_links.end()));
 
   EXPECT_TRUE(checker.getContactAllowedValidator() == nullptr);
 
@@ -162,9 +162,9 @@ inline void runTest(ContinuousContactManager& checker)
   // Set the collision object transforms
   // static_box_link: unit box at origin (identity transform)
   // moving_box_link: 0.25^3 box sweeping from (-1.9, 0, 0) to (1.9, 3.8, 0)
-  std::vector<std::string> names = { "static_box_link" };
+  std::vector<tesseract::common::LinkId> link_ids = { "static_box_link" };
   tesseract::common::VectorIsometry3d transforms = { Eigen::Isometry3d::Identity() };
-  checker.setCollisionObjectsTransform(names, transforms);
+  checker.setCollisionObjectsTransform(link_ids, transforms);
 
   tesseract::common::VectorIsometry3d start_poses, end_poses;
   Eigen::Isometry3d start_pos, end_pos;
@@ -202,7 +202,7 @@ inline void runTest(ContinuousContactManager& checker)
     // Dump full contact state for context on any failure
     SCOPED_TRACE("Contact[0] state:"
                  "\n  link_names: [" +
-                 cr.link_names[0] + ", " + cr.link_names[1] +
+                 cr.link_ids[0].name() + ", " + cr.link_ids[1].name() +
                  "]"
                  "\n  distance: " +
                  std::to_string(cr.distance) + "\n  normal: (" + std::to_string(cr.normal[0]) + ", " +

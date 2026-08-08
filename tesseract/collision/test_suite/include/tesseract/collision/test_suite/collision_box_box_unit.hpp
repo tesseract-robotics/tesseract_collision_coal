@@ -14,6 +14,8 @@ TESSERACT_COMMON_IGNORE_WARNINGS_POP
 #include <tesseract/common/resource_locator.h>
 #include <tesseract/common/ply_io.h>
 
+#include <unordered_set>
+
 namespace tesseract::collision::test_suite
 {
 namespace detail
@@ -90,7 +92,7 @@ inline void addCollisionObjects(DiscreteContactManager& checker, bool use_convex
   /////////////////////////////////////////////
   // Set active links before add/remove test
   /////////////////////////////////////////////
-  std::vector<std::string> pre_active_links{ "box_link", "second_box_link", "thin_box_link" };
+  std::vector<tesseract::common::LinkId> pre_active_links{ "box_link", "second_box_link", "thin_box_link" };
   checker.setActiveCollisionObjects(pre_active_links);
   EXPECT_EQ(checker.getActiveCollisionObjects().size(), 3);
 
@@ -119,8 +121,7 @@ inline void addCollisionObjects(DiscreteContactManager& checker, bool use_convex
   {
     const auto& active_after_remove = checker.getActiveCollisionObjects();
     EXPECT_EQ(active_after_remove.size(), 3);
-    EXPECT_EQ(std::find(active_after_remove.begin(), active_after_remove.end(), "remove_box_link"),
-              active_after_remove.end());
+    EXPECT_EQ(active_after_remove.count("remove_box_link"), 0);
   }
 
   /////////////////////////////////////////////
@@ -156,10 +157,10 @@ inline void runTestTyped(DiscreteContactManager& checker, ContactTestType test_t
   //////////////////////////////////////
   // Test when object is inside another
   //////////////////////////////////////
-  std::vector<std::string> active_links{ "box_link", "second_box_link" };
+  std::vector<tesseract::common::LinkId> active_links{ "box_link", "second_box_link" };
   checker.setActiveCollisionObjects(active_links);
-  std::vector<std::string> check_active_links = checker.getActiveCollisionObjects();
-  EXPECT_TRUE(tesseract::common::isIdentical<std::string>(active_links, check_active_links, false));
+  EXPECT_EQ(checker.getActiveCollisionObjects(),
+            std::unordered_set<tesseract::common::LinkId>(active_links.begin(), active_links.end()));
 
   EXPECT_TRUE(checker.getContactAllowedValidator() == nullptr);
 
@@ -167,7 +168,7 @@ inline void runTestTyped(DiscreteContactManager& checker, ContactTestType test_t
   EXPECT_NEAR(checker.getCollisionMarginData().getCollisionMargin("box_link", "second_box_link"), 0.1, 1e-5);
 
   // Set the collision object transforms
-  tesseract::common::TransformMap location;
+  tesseract::common::LinkIdTransformMap location;
   location["box_link"] = Eigen::Isometry3d::Identity();
   location["box_link"].translation()(0) = 0.2;
   location["box_link"].translation()(1) = 0.1;
@@ -188,7 +189,7 @@ inline void runTestTyped(DiscreteContactManager& checker, ContactTestType test_t
   EXPECT_NEAR(result_vector[0].nearest_points[0][2], result_vector[0].nearest_points[1][2], 0.001);
 
   std::vector<int> idx = { 0, 1, 1 };
-  if (result_vector[0].link_names[0] != "box_link")
+  if (result_vector[0].link_ids[0] != "box_link")
     idx = { 1, 0, -1 };
 
   if (result_vector[0].single_contact_point)
@@ -217,9 +218,9 @@ inline void runTestTyped(DiscreteContactManager& checker, ContactTestType test_t
     result_vector.clear();
 
     // Use different method for setting transforms
-    std::vector<std::string> names = { "box_link" };
+    std::vector<tesseract::common::LinkId> link_ids = { "box_link" };
     tesseract::common::VectorIsometry3d transforms = { location["box_link"] };
-    checker.setCollisionObjectsTransform(names, transforms);
+    checker.setCollisionObjectsTransform(link_ids, transforms);
     checker.contactTest(result, test_type);
     result.flattenCopyResults(result_vector);
 
@@ -240,9 +241,9 @@ inline void runTestTyped(DiscreteContactManager& checker, ContactTestType test_t
     result_vector.clear();
 
     // Use different method for setting transforms
-    std::vector<std::string> names = { "box_link" };
+    std::vector<tesseract::common::LinkId> link_ids = { "box_link" };
     tesseract::common::VectorIsometry3d transforms = { location["box_link"] };
-    checker.setCollisionObjectsTransform(names, transforms);
+    checker.setCollisionObjectsTransform(link_ids, transforms);
     checker.contactTest(result, test_type);
     result.flattenMoveResults(result_vector);
 
@@ -270,7 +271,7 @@ inline void runTestTyped(DiscreteContactManager& checker, ContactTestType test_t
     EXPECT_NEAR(result_vector[0].nearest_points[0][2], result_vector[0].nearest_points[1][2], 0.001);
 
     idx = { 0, 1, 1 };
-    if (result_vector[0].link_names[0] != "box_link")
+    if (result_vector[0].link_ids[0] != "box_link")
       idx = { 1, 0, -1 };
 
     if (result_vector[0].single_contact_point)
@@ -307,7 +308,7 @@ inline void runTestTyped(DiscreteContactManager& checker, ContactTestType test_t
     EXPECT_NEAR(result_vector[0].nearest_points[0][2], result_vector[0].nearest_points[1][2], 0.001);
 
     idx = { 0, 1, 1 };
-    if (result_vector[0].link_names[0] != "box_link")
+    if (result_vector[0].link_ids[0] != "box_link")
       idx = { 1, 0, -1 };
 
     if (result_vector[0].single_contact_point)

@@ -28,14 +28,16 @@ inline std::shared_ptr<octomap::OcTree> loadOctreeBox2m()
 inline bool hasPair(const ContactResultVector& results, const std::string& a, const std::string& b)
 {
   return std::any_of(results.begin(), results.end(), [&a, &b](const ContactResult& cr) {
-    return ((cr.link_names[0] == a && cr.link_names[1] == b) || (cr.link_names[0] == b && cr.link_names[1] == a));
+    return ((cr.link_ids[0].name() == a && cr.link_ids[1].name() == b) ||
+            (cr.link_ids[0].name() == b && cr.link_ids[1].name() == a));
   });
 }
 
 inline const ContactResult* findPair(const ContactResultVector& results, const std::string& a, const std::string& b)
 {
   auto it = std::find_if(results.begin(), results.end(), [&a, &b](const ContactResult& cr) {
-    return ((cr.link_names[0] == a && cr.link_names[1] == b) || (cr.link_names[0] == b && cr.link_names[1] == a));
+    return ((cr.link_ids[0].name() == a && cr.link_ids[1].name() == b) ||
+            (cr.link_ids[0].name() == b && cr.link_ids[1].name() == a));
   });
 
   if (it == results.end())
@@ -46,14 +48,14 @@ inline const ContactResult* findPair(const ContactResultVector& results, const s
 
 inline std::size_t getLinkIndex(const ContactResult& cr, const std::string& name)
 {
-  if (cr.link_names[0] == name)
+  if (cr.link_ids[0].name() == name)
     return 0;
 
-  if (cr.link_names[1] == name)
+  if (cr.link_ids[1].name() == name)
     return 1;
 
-  ADD_FAILURE() << "Link name '" << name << "' not found in contact result (link_names: '" << cr.link_names[0] << "', '"
-                << cr.link_names[1] << "')";
+  ADD_FAILURE() << "Link name '" << name << "' not found in contact result (link_names: '" << cr.link_ids[0] << "', '"
+                << cr.link_ids[1] << "')";
   return 0;
 }
 
@@ -127,9 +129,9 @@ inline void runDiscreteOctomapTransformOverloadUsageTest(DiscreteContactManager&
   EXPECT_FALSE(detail::hasPair(far_single, "octomap_link", "sphere_link"));
 
   // Vector overload
-  std::vector<std::string> names{ "octomap_link" };
+  std::vector<tesseract::common::LinkId> link_ids{ "octomap_link" };
   tesseract::common::VectorIsometry3d near_poses{ Eigen::Isometry3d::Identity() };
-  checker.setCollisionObjectsTransform(names, near_poses);
+  checker.setCollisionObjectsTransform(link_ids, near_poses);
   ContactResultVector near_vector = detail::runClosest(checker);
   EXPECT_TRUE(detail::hasPair(near_vector, "octomap_link", "sphere_link"));
   {
@@ -140,7 +142,7 @@ inline void runDiscreteOctomapTransformOverloadUsageTest(DiscreteContactManager&
   }
 
   // Map overload
-  tesseract::common::TransformMap map_far;
+  tesseract::common::LinkIdTransformMap map_far;
   map_far["octomap_link"] = far_pose;
   checker.setCollisionObjectsTransform(map_far);
   ContactResultVector far_map = detail::runClosest(checker);
@@ -170,15 +172,15 @@ inline void runContinuousOctomapTransformOverloadUsageTest(ContinuousContactMana
   EXPECT_FALSE(detail::hasPair(single_sweep_far, "octomap1_link", "octomap2_link"));
 
   // Rigid vector overload on static octree
-  std::vector<std::string> static_names{ "octomap2_link" };
+  std::vector<tesseract::common::LinkId> static_link_ids{ "octomap2_link" };
   tesseract::common::VectorIsometry3d static_near_poses{ static_near };
-  checker.setCollisionObjectsTransform(static_names, static_near_poses);
+  checker.setCollisionObjectsTransform(static_link_ids, static_near_poses);
 
   // Sweep vector overload on active octree
-  std::vector<std::string> active_names{ "octomap1_link" };
+  std::vector<tesseract::common::LinkId> active_link_ids{ "octomap1_link" };
   tesseract::common::VectorIsometry3d starts{ start };
   tesseract::common::VectorIsometry3d ends{ end };
-  checker.setCollisionObjectsTransform(active_names, starts, ends);
+  checker.setCollisionObjectsTransform(active_link_ids, starts, ends);
 
   ContactResultVector vector_sweep_near = detail::runClosest(checker);
   EXPECT_TRUE(detail::hasPair(vector_sweep_near, "octomap1_link", "octomap2_link"));
@@ -196,13 +198,13 @@ inline void runContinuousOctomapTransformOverloadUsageTest(ContinuousContactMana
   }
 
   // Rigid map overload on static octree
-  tesseract::common::TransformMap static_map_far;
+  tesseract::common::LinkIdTransformMap static_map_far;
   static_map_far["octomap2_link"] = static_far;
   checker.setCollisionObjectsTransform(static_map_far);
 
   // Sweep map overload on active octree
-  tesseract::common::TransformMap map_start;
-  tesseract::common::TransformMap map_end;
+  tesseract::common::LinkIdTransformMap map_start;
+  tesseract::common::LinkIdTransformMap map_end;
   map_start["octomap1_link"] = start;
   map_end["octomap1_link"] = end;
   checker.setCollisionObjectsTransform(map_start, map_end);

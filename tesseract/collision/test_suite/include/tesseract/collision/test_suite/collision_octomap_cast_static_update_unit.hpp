@@ -52,8 +52,8 @@ inline void addActiveOctreeAndProbeCylinder(ContinuousContactManager& checker)
 inline bool hasMovingOctreeProbePair(const ContactResultVector& result_vector)
 {
   return std::any_of(result_vector.begin(), result_vector.end(), [](const ContactResult& cr) {
-    return ((cr.link_names[0] == "moving_octree" && cr.link_names[1] == "probe_cylinder") ||
-            (cr.link_names[0] == "probe_cylinder" && cr.link_names[1] == "moving_octree"));
+    return ((cr.link_ids[0] == "moving_octree" && cr.link_ids[1] == "probe_cylinder") ||
+            (cr.link_ids[0] == "probe_cylinder" && cr.link_ids[1] == "moving_octree"));
   });
 }
 
@@ -64,12 +64,12 @@ inline void runStaticOctreeCylinderContinuousTransformUpdatesBroadphase(Continuo
 
   Eigen::Isometry3d static_far = Eigen::Isometry3d::Identity();
   static_far.translation() = Eigen::Vector3d(5.0, 0.0, 0.0);
-  tesseract::common::TransformMap static_far_tf;
+  tesseract::common::LinkIdTransformMap static_far_tf;
   static_far_tf["static_octree"] = static_far;
   checker.setCollisionObjectsTransform(static_far_tf);
 
   const Eigen::Isometry3d static_origin = Eigen::Isometry3d::Identity();
-  tesseract::common::TransformMap static_origin_tf;
+  tesseract::common::LinkIdTransformMap static_origin_tf;
   static_origin_tf["static_octree"] = static_origin;
   checker.setCollisionObjectsTransform(static_origin_tf);
 
@@ -77,8 +77,8 @@ inline void runStaticOctreeCylinderContinuousTransformUpdatesBroadphase(Continuo
   active_start.translation() = Eigen::Vector3d(-2.0, 0.0, 0.0);
   Eigen::Isometry3d active_end = Eigen::Isometry3d::Identity();
   active_end.translation() = Eigen::Vector3d(0.0, 0.0, 0.0);
-  tesseract::common::TransformMap active_tf1;
-  tesseract::common::TransformMap active_tf2;
+  tesseract::common::LinkIdTransformMap active_tf1;
+  tesseract::common::LinkIdTransformMap active_tf2;
   active_tf1["active_cylinder"] = active_start;
   active_tf2["active_cylinder"] = active_end;
   checker.setCollisionObjectsTransform(active_tf1, active_tf2);
@@ -94,8 +94,8 @@ inline void runStaticOctreeCylinderContinuousTransformUpdatesBroadphase(Continuo
     bool found_pair = false;
     for (const auto& cr : result_vector)
     {
-      if ((cr.link_names[0] == "static_octree" && cr.link_names[1] == "active_cylinder") ||
-          (cr.link_names[0] == "active_cylinder" && cr.link_names[1] == "static_octree"))
+      if ((cr.link_ids[0] == "static_octree" && cr.link_ids[1] == "active_cylinder") ||
+          (cr.link_ids[0] == "active_cylinder" && cr.link_ids[1] == "static_octree"))
       {
         found_pair = true;
         EXPECT_LT(cr.distance, 0.11) << "Expected contact/penetration for static_octree vs active_cylinder";
@@ -114,7 +114,7 @@ inline void runStaticOctreeCylinderActiveToggleStillCollides(ContinuousContactMa
   checker.setActiveCollisionObjects({});
   checker.setActiveCollisionObjects({ "active_cylinder" });
 
-  tesseract::common::TransformMap static_tf;
+  tesseract::common::LinkIdTransformMap static_tf;
   static_tf["static_octree"] = Eigen::Isometry3d::Identity();
   checker.setCollisionObjectsTransform(static_tf);
 
@@ -122,10 +122,10 @@ inline void runStaticOctreeCylinderActiveToggleStillCollides(ContinuousContactMa
   active_start.translation() = Eigen::Vector3d(-2.0, 0.0, 0.0);
   Eigen::Isometry3d active_end = Eigen::Isometry3d::Identity();
   active_end.translation() = Eigen::Vector3d(0.0, 0.0, 0.0);
-  std::vector<std::string> names{ "active_cylinder" };
+  std::vector<tesseract::common::LinkId> link_ids{ "active_cylinder" };
   tesseract::common::VectorIsometry3d starts{ active_start };
   tesseract::common::VectorIsometry3d ends{ active_end };
-  checker.setCollisionObjectsTransform(names, starts, ends);
+  checker.setCollisionObjectsTransform(link_ids, starts, ends);
 
   for (ContactTestType type : { ContactTestType::CLOSEST, ContactTestType::ALL })
   {
@@ -138,8 +138,8 @@ inline void runStaticOctreeCylinderActiveToggleStillCollides(ContinuousContactMa
     bool found_pair = false;
     for (const auto& cr : result_vector)
     {
-      if ((cr.link_names[0] == "static_octree" && cr.link_names[1] == "active_cylinder") ||
-          (cr.link_names[0] == "active_cylinder" && cr.link_names[1] == "static_octree"))
+      if ((cr.link_ids[0] == "static_octree" && cr.link_ids[1] == "active_cylinder") ||
+          (cr.link_ids[0] == "active_cylinder" && cr.link_ids[1] == "static_octree"))
       {
         found_pair = true;
         EXPECT_LT(cr.distance, 0.11) << "Expected contact/penetration after active set toggling";
@@ -175,12 +175,12 @@ inline void runStaticOctreeCylinderShapeIdUsesOriginalGeometryIndex(ContinuousCo
   bool found_pair = false;
   for (const auto& cr : result_vector)
   {
-    if ((cr.link_names[0] == "static_octree" && cr.link_names[1] == "active_cylinder") ||
-        (cr.link_names[0] == "active_cylinder" && cr.link_names[1] == "static_octree"))
+    if ((cr.link_ids[0] == "static_octree" && cr.link_ids[1] == "active_cylinder") ||
+        (cr.link_ids[0] == "active_cylinder" && cr.link_ids[1] == "static_octree"))
     {
       found_pair = true;
-      const int octree_shape_id = (cr.link_names[0] == "static_octree") ? cr.shape_id[0] : cr.shape_id[1];
-      const int cylinder_shape_id = (cr.link_names[0] == "active_cylinder") ? cr.shape_id[0] : cr.shape_id[1];
+      const int octree_shape_id = (cr.link_ids[0] == "static_octree") ? cr.shape_id[0] : cr.shape_id[1];
+      const int cylinder_shape_id = (cr.link_ids[0] == "active_cylinder") ? cr.shape_id[0] : cr.shape_id[1];
       EXPECT_EQ(octree_shape_id, 0) << "Static octree should report original geometry index 0, but got "
                                     << octree_shape_id;
       EXPECT_EQ(cylinder_shape_id, 0) << "Active cylinder should report original geometry index 0, but got "
@@ -218,12 +218,12 @@ inline void runStaticOctreeSubshapeIdReportsPrimitiveIdentity(ContinuousContactM
   bool found_octree_subshape = false;
   for (const auto& cr : result_vector)
   {
-    if ((cr.link_names[0] == "static_octree" && cr.link_names[1] == "active_cylinder") ||
-        (cr.link_names[0] == "active_cylinder" && cr.link_names[1] == "static_octree"))
+    if ((cr.link_ids[0] == "static_octree" && cr.link_ids[1] == "active_cylinder") ||
+        (cr.link_ids[0] == "active_cylinder" && cr.link_ids[1] == "static_octree"))
     {
       found_pair = true;
-      const std::size_t octree_idx = (cr.link_names[0] == "static_octree") ? 0U : 1U;
-      const std::size_t cylinder_idx = (cr.link_names[0] == "active_cylinder") ? 0U : 1U;
+      const std::size_t octree_idx = (cr.link_ids[0] == "static_octree") ? 0U : 1U;
+      const std::size_t cylinder_idx = (cr.link_ids[0] == "active_cylinder") ? 0U : 1U;
 
       EXPECT_EQ(cr.shape_id[octree_idx], 0)
           << "Static octree should report original geometry index 0, but got " << cr.shape_id[octree_idx];
@@ -374,12 +374,12 @@ inline void runActiveOctreeSubshapeIdReportsPrimitiveIdentity(ContinuousContactM
   bool found_octree_subshape = false;
   for (const auto& cr : result_vector)
   {
-    if ((cr.link_names[0] == "moving_octree" && cr.link_names[1] == "probe_cylinder") ||
-        (cr.link_names[0] == "probe_cylinder" && cr.link_names[1] == "moving_octree"))
+    if ((cr.link_ids[0] == "moving_octree" && cr.link_ids[1] == "probe_cylinder") ||
+        (cr.link_ids[0] == "probe_cylinder" && cr.link_ids[1] == "moving_octree"))
     {
       found_pair = true;
-      const std::size_t octree_idx = (cr.link_names[0] == "moving_octree") ? 0U : 1U;
-      const std::size_t cylinder_idx = (cr.link_names[0] == "probe_cylinder") ? 0U : 1U;
+      const std::size_t octree_idx = (cr.link_ids[0] == "moving_octree") ? 0U : 1U;
+      const std::size_t cylinder_idx = (cr.link_ids[0] == "probe_cylinder") ? 0U : 1U;
 
       EXPECT_EQ(cr.shape_id[octree_idx], 0)
           << "Active octree should report original geometry index 0, but got " << cr.shape_id[octree_idx];

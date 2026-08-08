@@ -49,7 +49,6 @@ TEST(CoalCastHullShapeBehaviorUnit, UpdateCastTransformRefreshesStateAndAABB)  /
   cast_hull.updateCastTransform(moved);
 
   EXPECT_NEAR(cast_hull.getCastTransform().getTranslation().x(), 1.0, 1e-9);
-  EXPECT_NEAR(cast_hull.getCastTransformInverse().getTranslation().x(), -1.0, 1e-9);
   EXPECT_GT(cast_hull.aabb_local.max_[0], original_x_max + 0.25);
 }
 

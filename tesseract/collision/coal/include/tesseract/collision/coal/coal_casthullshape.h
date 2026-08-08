@@ -99,12 +99,20 @@ public:
 
   const coal::Transform3s& getCastTransform() const { return castTransform_; }
 
-  const coal::Transform3s& getCastTransformInverse() const { return castTransformInv_; }
+  /// @brief Accessors for the GJK sweep's mutable vertex hints and
+  /// ShapeSupportData. After GJK converges, the hint vertex and its last_dir are
+  /// high-quality starting points for support queries along related directions
+  /// (e.g. the contact normal), so callers may read them to seed their own
+  /// queries. Callers should climb on their own scratch rather than mutating
+  /// these, so they do not perturb the sweep's warm-start chain.
+  int& getHint0() const { return hint0_; }
+  int& getHint1() const { return hint1_; }
+  coal::details::ShapeSupportData& getSupportData0() const { return support_data0_; }
+  coal::details::ShapeSupportData& getSupportData1() const { return support_data1_; }
 
 private:
   std::shared_ptr<coal::ShapeBase> shape_;
   coal::Transform3s castTransform_;
-  coal::Transform3s castTransformInv_;
 
   /// Separate support function vertex hints and data for pose 0 and pose 1.
   /// Each getSupport call uses hill-climbing from the hint, so sharing a single

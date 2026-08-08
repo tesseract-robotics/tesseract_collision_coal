@@ -38,7 +38,7 @@ macro(add_gtest test_name test_file)
             octomath
             ${LIBFCL_LIBRARIES})
   target_compile_options(${test_name} PRIVATE ${TESSERACT_COMPILE_OPTIONS_PRIVATE} ${TESSERACT_COMPILE_OPTIONS_PUBLIC})
-  target_compile_definitions(${test_name} PRIVATE ${TESSERACT_COMPILE_DEFINITIONS})
+  target_compile_definitions(${test_name} PRIVATE ${TESSERACT_COMPILE_DEFINITIONS_PUBLIC})
   target_cxx_version(${test_name} PRIVATE VERSION ${TESSERACT_CXX_VERSION})
   target_clang_tidy(${test_name} ENABLE ${TESSERACT_ENABLE_CLANG_TIDY})
   target_code_coverage(
@@ -82,6 +82,7 @@ add_gtest(${PROJECT_NAME}_octomap_cast_static_update_unit collision_octomap_cast
 add_gtest(${PROJECT_NAME}_factory_unit contact_managers_factory_unit.cpp)
 add_gtest(${PROJECT_NAME}_core_unit collision_core_unit.cpp)
 add_gtest(${PROJECT_NAME}_config_unit contact_managers_config_unit.cpp)
+add_gtest(${PROJECT_NAME}_get_objects_transform_unit get_collision_objects_transform_unit.cpp)
 
 add_gtest(${PROJECT_NAME}_coal_casthullshape_unit coal/coal_casthullshape_unit.cpp)
 add_gtest(${PROJECT_NAME}_coal_casthullshape_behavior_unit coal/coal_casthullshape_behavior_unit.cpp)
@@ -91,6 +92,7 @@ add_gtest(${PROJECT_NAME}_coal_utils_shape_conversion_unit coal/coal_utils_shape
 add_gtest(${PROJECT_NAME}_coal_collision_object_wrapper_unit coal/coal_collision_object_wrapper_unit.cpp)
 add_gtest(${PROJECT_NAME}_coal_vs_bullet_convex_cast_unit coal/coal_vs_bullet_convex_cast_unit.cpp)
 add_gtest(${PROJECT_NAME}_coal_cast_gradient_quality_unit coal/coal_cast_gradient_quality_unit.cpp)
+add_gtest(${PROJECT_NAME}_coal_batched_transform_unit coal/coal_batched_transform_unit.cpp)
 add_gtest(${PROJECT_NAME}_coal_deferred_octree_expansion_unit coal/coal_deferred_octree_expansion_unit.cpp)
 add_gtest(${PROJECT_NAME}_coal_gjk_guess_threshold_unit coal/coal_gjk_guess_threshold_unit.cpp)
 target_link_libraries(${PROJECT_NAME}_coal_gjk_guess_threshold_unit PRIVATE ${PROJECT_NAME}_coal_factories)

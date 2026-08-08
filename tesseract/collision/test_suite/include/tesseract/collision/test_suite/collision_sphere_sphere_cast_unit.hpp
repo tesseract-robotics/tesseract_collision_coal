@@ -6,6 +6,7 @@ TESSERACT_COMMON_IGNORE_WARNINGS_PUSH
 #include <gtest/gtest.h>
 #include <iomanip>
 #include <sstream>
+#include <unordered_set>
 TESSERACT_COMMON_IGNORE_WARNINGS_POP
 
 #include <tesseract/collision/bullet/convex_hull_utils.h>
@@ -154,7 +155,7 @@ inline std::string formatContactResult(const ContactResult& cr)
   std::ostringstream os;
   os << std::setprecision(6) << std::fixed;
   os << "Contact result state:"
-     << "\n  link_names: [" << cr.link_names[0] << ", " << cr.link_names[1] << "]"
+     << "\n  link_names: [" << cr.link_ids[0] << ", " << cr.link_ids[1] << "]"
      << "\n  distance: " << cr.distance << "\n  normal: (" << cr.normal[0] << ", " << cr.normal[1] << ", "
      << cr.normal[2] << ")"
      << "\n  nearest_points[0]: (" << cr.nearest_points[0][0] << ", " << cr.nearest_points[0][1] << ", "
@@ -180,10 +181,10 @@ inline void runTestPrimitive(ContinuousContactManager& checker)
   // At t=0.5 both pass through Y=0/Z=0, separated by 0.4 in X.
   // With r=0.25 each, they overlap by 0.1 at t=0.5.
   ///////////////////////////////////////////////////
-  std::vector<std::string> active_links{ "sphere_link", "sphere1_link" };
+  std::vector<tesseract::common::LinkId> active_links{ "sphere_link", "sphere1_link" };
   checker.setActiveCollisionObjects(active_links);
-  std::vector<std::string> check_active_links = checker.getActiveCollisionObjects();
-  EXPECT_TRUE(tesseract::common::isIdentical<std::string>(active_links, check_active_links, false));
+  EXPECT_EQ(checker.getActiveCollisionObjects(),
+            std::unordered_set<tesseract::common::LinkId>(active_links.begin(), active_links.end()));
 
   EXPECT_TRUE(checker.getContactAllowedValidator() == nullptr);
 
@@ -191,7 +192,7 @@ inline void runTestPrimitive(ContinuousContactManager& checker)
   EXPECT_NEAR(checker.getCollisionMarginData().getMaxCollisionMargin(), 0.1, 1e-5);
 
   // Set the start location
-  tesseract::common::TransformMap location_start;
+  tesseract::common::LinkIdTransformMap location_start;
   location_start["sphere_link"] = Eigen::Isometry3d::Identity();
   location_start["sphere_link"].translation()(0) = -0.2;
   location_start["sphere_link"].translation()(1) = -1.0;
@@ -201,7 +202,7 @@ inline void runTestPrimitive(ContinuousContactManager& checker)
   location_start["sphere1_link"].translation()(2) = -1.0;
 
   // Set the end location
-  tesseract::common::TransformMap location_end;
+  tesseract::common::LinkIdTransformMap location_end;
   location_end["sphere_link"] = Eigen::Isometry3d::Identity();
   location_end["sphere_link"].translation()(0) = -0.2;
   location_end["sphere_link"].translation()(1) = 1.0;
@@ -230,7 +231,7 @@ inline void runTestPrimitive(ContinuousContactManager& checker)
   EXPECT_NEAR(cr1.distance, -0.1, 0.0001) << "Penetration should be -0.1 (sphere separation 0.4, combined radii 0.5)";
 
   std::vector<int> idx = { 0, 1, 1 };
-  if (cr1.link_names[0] != "sphere_link")
+  if (cr1.link_ids[0] != "sphere_link")
     idx = { 1, 0, -1 };
 
   const std::string sphere_slot = (idx[0] == 0) ? "slot 0" : "slot 1";
@@ -380,7 +381,7 @@ inline void runTestPrimitive(ContinuousContactManager& checker)
   EXPECT_NEAR(cr2.distance, -0.1, 0.0001) << "Penetration should be -0.1 (same sphere geometry, same X separation)";
 
   idx = { 0, 1, 1 };
-  if (cr2.link_names[0] != "sphere_link")
+  if (cr2.link_ids[0] != "sphere_link")
     idx = { 1, 0, -1 };
 
   const std::string sphere_slot2 = (idx[0] == 0) ? "slot 0" : "slot 1";
@@ -488,10 +489,10 @@ inline void runTestConvex(ContinuousContactManager& checker)
   //   sphere_link:  (-0.2, -1.0, 0) -> (-0.2, 1.0, 0)
   //   sphere1_link: (0.2, 0, -1.0)  -> (0.2, 0, 1.0)
   ///////////////////////////////////////////////////
-  std::vector<std::string> active_links{ "sphere_link", "sphere1_link" };
+  std::vector<tesseract::common::LinkId> active_links{ "sphere_link", "sphere1_link" };
   checker.setActiveCollisionObjects(active_links);
-  std::vector<std::string> check_active_links = checker.getActiveCollisionObjects();
-  EXPECT_TRUE(tesseract::common::isIdentical<std::string>(active_links, check_active_links, false));
+  EXPECT_EQ(checker.getActiveCollisionObjects(),
+            std::unordered_set<tesseract::common::LinkId>(active_links.begin(), active_links.end()));
 
   EXPECT_TRUE(checker.getContactAllowedValidator() == nullptr);
 
@@ -499,7 +500,7 @@ inline void runTestConvex(ContinuousContactManager& checker)
   EXPECT_NEAR(checker.getCollisionMarginData().getMaxCollisionMargin(), 0.1, 1e-5);
 
   // Set the start location
-  tesseract::common::TransformMap location_start;
+  tesseract::common::LinkIdTransformMap location_start;
   location_start["sphere_link"] = Eigen::Isometry3d::Identity();
   location_start["sphere_link"].translation()(0) = -0.2;
   location_start["sphere_link"].translation()(1) = -1.0;
@@ -509,7 +510,7 @@ inline void runTestConvex(ContinuousContactManager& checker)
   location_start["sphere1_link"].translation()(2) = -1.0;
 
   // Set the end location
-  tesseract::common::TransformMap location_end;
+  tesseract::common::LinkIdTransformMap location_end;
   location_end["sphere_link"] = Eigen::Isometry3d::Identity();
   location_end["sphere_link"].translation()(0) = -0.2;
   location_end["sphere_link"].translation()(1) = 1.0;
@@ -540,7 +541,7 @@ inline void runTestConvex(ContinuousContactManager& checker)
                                                "radius slightly)";
 
   std::vector<int> idx = { 0, 1, 1 };
-  if (cr1.link_names[0] != "sphere_link")
+  if (cr1.link_ids[0] != "sphere_link")
     idx = { 1, 0, -1 };
 
   const std::string sphere_slot = (idx[0] == 0) ? "slot 0" : "slot 1";
@@ -683,7 +684,7 @@ inline void runTestConvex(ContinuousContactManager& checker)
   EXPECT_NEAR(cr2.distance, -0.0755, 0.001) << "Penetration for convex mesh spheres";
 
   idx = { 0, 1, 1 };
-  if (cr2.link_names[0] != "sphere_link")
+  if (cr2.link_ids[0] != "sphere_link")
     idx = { 1, 0, -1 };
 
   const std::string sphere_slot2 = (idx[0] == 0) ? "slot 0" : "slot 1";
