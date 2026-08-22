@@ -14,7 +14,6 @@ jobs:
     container:
       image: ubuntu:jammy
       env:
-        CCACHE_DIR: "$GITHUB_WORKSPACE/benchmark/.ccache"
         DEBIAN_FRONTEND: noninteractive
         TZ: Etc/UTC
     steps:
@@ -31,7 +30,7 @@ jobs:
           apt install -y liboctomap-dev
 
       - name: Build
-        uses: tesseract-robotics/colcon-action@v14
+        uses: tesseract-robotics/colcon-action@v15
         with:
           ccache-prefix: benchmarks
           vcs-file: dependencies.repos

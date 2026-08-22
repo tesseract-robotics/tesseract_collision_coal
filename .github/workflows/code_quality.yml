@@ -24,14 +24,13 @@ jobs:
         include:
           - job_type: clang-tidy
             env:
-              TARGET_CMAKE_ARGS: "-DCMAKE_CXX_COMPILER_LAUNCHER=ccache -DCMAKE_BUILD_TYPE=Debug -DTESSERACT_ENABLE_CLANG_TIDY=ON -DTESSERACT_ENABLE_TESTING=ON -DTESSERACT_ENABLE_BENCHMARKING=ON -DTESSERACT_ENABLE_RUN_BENCHMARKING=OFF -DCLANG_TIDY_NAMES=clang-tidy-17"
+              TARGET_CMAKE_ARGS: "-DCMAKE_BUILD_TYPE=Debug -DTESSERACT_ENABLE_CLANG_TIDY=ON -DTESSERACT_ENABLE_TESTING=ON -DTESSERACT_ENABLE_BENCHMARKING=ON -DTESSERACT_ENABLE_RUN_BENCHMARKING=OFF -DCLANG_TIDY_NAMES=clang-tidy-17"
           - job_type: codecov
             env:
-              TARGET_CMAKE_ARGS: "-DCMAKE_CXX_COMPILER_LAUNCHER=ccache -DCMAKE_BUILD_TYPE=Debug -DTESSERACT_ENABLE_CODE_COVERAGE=ON -DTESSERACT_WARNINGS_AS_ERRORS=OFF"
+              TARGET_CMAKE_ARGS: "-DCMAKE_BUILD_TYPE=Debug -DTESSERACT_ENABLE_CODE_COVERAGE=ON -DTESSERACT_WARNINGS_AS_ERRORS=OFF"
     container:
       image: ghcr.io/tesseract-robotics/tesseract:noble-master
       env:
-        CCACHE_DIR: "$GITHUB_WORKSPACE/${{ matrix.job_type }}/.ccache"
         DEBIAN_FRONTEND: noninteractive
         TZ: Etc/UTC
     steps:
@@ -53,10 +52,10 @@ jobs:
           apt install -y clang-tidy-17 libomp-17-dev
 
       - name: Build and Tests
-        uses: tesseract-robotics/colcon-action@v14
+        uses: tesseract-robotics/colcon-action@v15
         with:
           before-script: source /opt/tesseract/install/setup.bash
-          ccache-prefix: ${{ matrix.distro }}
+          ccache-prefix: ${{ matrix.job_type }}
           vcs-file: dependencies.repos
           run-tests: false
           rosdep-install-args: -iry --skip-keys=libomp-dev
