@@ -8,7 +8,7 @@ on:
   pull_request:
     paths:
       - 'tesseract**'
-      - '.github/workflows/ubuntu.yml'
+      - '.github/workflows/unstable.yml'
       - '**.repos'
   schedule:
     - cron: '0 5 * * *'
