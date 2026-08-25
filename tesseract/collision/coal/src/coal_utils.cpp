@@ -697,7 +697,25 @@ int getReportedSubshapeIndex(const coal::CollisionObject* object, int coal_subsh
   if (source_subshape_index >= 0)
     return source_subshape_index;
 
-  return coal_subshape_index;
+  // This backend collides against the whole tree rather than against per-voxel objects, so Coal
+  // names the node that was hit instead of reporting the occupied-leaf ordinal that an expanding
+  // backend reports. That value identifies the node within the tree and is stable while the node
+  // lives, which is what consumers group by, but it is not an index and must not be used to look a
+  // voxel up.
+  //
+  // Coal derives the value from the node address and can hand back a negative one, which a
+  // ContactResult reads as unset. Clearing the sign bit folds it onto the non-negative half, which
+  // preserves node identity for the magnitudes Coal produces. Keep the fold scoped to octrees:
+  // folding an unset value instead fabricates a large index.
+  //
+  // The branch above must stay ahead of this one: an object that carries a real subshape index
+  // reports it whatever its geometry type is.
+  if (object->getNodeType() == coal::GEOM_OCTREE)
+    return coal_subshape_index & 0x7FFFFFFF;
+
+  // Coal reports Contact::NONE for a shape that has no subshapes, and -1 is how a ContactResult
+  // spells unset. The two constants agree today; do not depend on that.
+  return (coal_subshape_index < 0) ? -1 : coal_subshape_index;
 }
 
 bool CollisionCallback::collide(coal::CollisionObject* o1, coal::CollisionObject* o2)

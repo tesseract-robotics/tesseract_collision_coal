@@ -79,6 +79,7 @@ add_gtest(${PROJECT_NAME}_octomap_octomap_unit collision_octomap_octomap_unit.cp
 add_gtest(${PROJECT_NAME}_octomap_usage_unit collision_octomap_usage_unit.cpp)
 add_gtest(${PROJECT_NAME}_octomap_cast_unit collision_octomap_cast_unit.cpp)
 add_gtest(${PROJECT_NAME}_octomap_cast_static_update_unit collision_octomap_cast_static_update_unit.cpp)
+add_gtest(${PROJECT_NAME}_octomap_subshape_id_unit collision_octomap_subshape_id_unit.cpp)
 add_gtest(${PROJECT_NAME}_factory_unit contact_managers_factory_unit.cpp)
 add_gtest(${PROJECT_NAME}_core_unit collision_core_unit.cpp)
 add_gtest(${PROJECT_NAME}_config_unit contact_managers_config_unit.cpp)
