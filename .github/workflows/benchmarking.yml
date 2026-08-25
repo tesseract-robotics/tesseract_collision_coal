@@ -54,7 +54,11 @@ jobs:
           colcon build --cmake-args -DCMAKE_BUILD_TYPE=Release -DTESSERACT_ENABLE_TESTING=OFF -DTESSERACT_ENABLE_BENCHMARKING=ON -DTESSERACT_ENABLE_RUN_BENCHMARKING=ON -DBENCHMARK_ARGS=CI_ONLY
           ./src/.run_combine_benchmark_results
 
+      # Disabled: benchmark-data-dir-path is tesseract's own chart directory in tesseract_docs,
+      # so publishing from this repository would overwrite tesseract's performance history.
+      # Re-enable once this repository has a directory of its own.
       - name: Store Bullet Discrete, FCL Discrete and Environment benchmark result
+        if: false
         uses: benchmark-action/github-action-benchmark@v1
         with:
           name: C++ Benchmark
@@ -71,7 +75,9 @@ jobs:
           alert-comment-cc-users: '@Levi-Armstrong'
           max-items-in-chart: 20
 
+      # Disabled with the step above; it publishes what that step stages.
       - name: Push benchmark result
+        if: false
         uses: cpina/github-action-push-to-another-repository@v1.7
         env:
           SSH_DEPLOY_KEY: ${{ secrets.DOCS_DEPLOY_KEY }}

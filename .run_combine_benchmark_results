@@ -2,23 +2,16 @@
 import json
 import os
 
-workspace_dir = "/__w/tesseract/tesseract/target_ws"
+workspace_dir = os.environ["GITHUB_WORKSPACE"] + "/target_ws"
 build_dir = workspace_dir + "/build"
 result_files = []
 
-search_path = build_dir + "/tesseract_collision/test/benchmarks"
+search_path = build_dir + "/tesseract_collision_coal/test/benchmarks"
 for file in os.listdir(search_path):
     if file.endswith(".json"):
         result_files.append(os.path.join(search_path, file))
     # endif
 # endfor
-
-search_path = build_dir + "/tesseract_environment/test/benchmarks"
-for file in os.listdir(search_path):
-    if file.endswith(".json"):
-        result_files.append(os.path.join(search_path, file))
-    # endif
-#endfor
 
 cnt = 0
 all_data = {}
