@@ -1,7 +1,7 @@
 
 colcon build --merge-install --install-base="%PREFIX%\opt\tesseract_robotics" ^
    --event-handlers console_cohesion+ ^
-   --packages-ignore gtest osqp osqp_eigen tesseract_examples trajopt_ifopt trajopt_sqp ^
+   --packages-ignore gtest osqp osqp_eigen_ext tesseract_examples trajopt_ifopt trajopt_sqp ^
    --cmake-args -GNinja -DCMAKE_BUILD_TYPE=Release ^
    -DCMAKE_CXX_FLAGS_RELWITHDEBINFO:STRING="/MD /O2 /Ob0 /Zi /DNDEBUG" ^
    -DCMAKE_RELWITHDEBINFO_POSTFIX="" ^
@@ -28,7 +28,7 @@ set TESSERACT_PYTHON_DLL_PATH=%PREFIX%\opt\tesseract_robotics\bin
 set TESSERACT_RESOURCE_PATH=%PREFIX%\opt\tesseract_robotics\share
 
 colcon test --event-handlers console_direct+ --return-code-on-test-failure ^
-   --packages-ignore gtest osqp osqp_eigen tesseract_examples trajopt_ifopt trajopt_sqp ^
+   --packages-ignore gtest osqp osqp_eigen_ext tesseract_examples trajopt_ifopt trajopt_sqp ^
    --merge-install --install-base="%PREFIX%\opt\tesseract_robotics"
 
 if %errorlevel% neq 0 exit /b %errorlevel%
