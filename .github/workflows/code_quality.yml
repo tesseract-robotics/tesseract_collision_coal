@@ -10,6 +10,7 @@ on:
       - 'tesseract**'
       - '.github/workflows/code_quality.yml'
       - '.clang-tidy'
+      - 'codecov.yml'
   schedule:
     - cron: '0 5 * * *'
 
@@ -30,9 +31,12 @@ jobs:
           - job_type: clang-tidy
             env:
               TARGET_CMAKE_ARGS: "-DCMAKE_BUILD_TYPE=Debug -DTESSERACT_ENABLE_CLANG_TIDY=ON -DTESSERACT_ENABLE_TESTING=ON -DTESSERACT_ENABLE_BENCHMARKING=ON -DTESSERACT_ENABLE_RUN_BENCHMARKING=OFF -DCLANG_TIDY_NAMES=clang-tidy-17"
+          # -fprofile-update=atomic: the multi-threaded collision tests run instrumented code on several
+          # threads, and the default non-atomic counters race there, which lcov reports as a negative
+          # execution count and treats as fatal.
           - job_type: codecov
             env:
-              TARGET_CMAKE_ARGS: "-DCMAKE_BUILD_TYPE=Debug -DTESSERACT_ENABLE_CODE_COVERAGE=ON -DTESSERACT_WARNINGS_AS_ERRORS=OFF"
+              TARGET_CMAKE_ARGS: "-DCMAKE_BUILD_TYPE=Debug -DTESSERACT_ENABLE_CODE_COVERAGE=ON -DTESSERACT_WARNINGS_AS_ERRORS=OFF -DCMAKE_CXX_FLAGS=-fprofile-update=atomic"
     container:
       image: ghcr.io/tesseract-robotics/tesseract:noble-master
       env:
@@ -43,6 +47,9 @@ jobs:
         uses: actions/checkout@v7
         with:
           path: target_ws/src
+          # Codecov resolves a pull request's head commit by walking back from the merge commit, which the
+          # default depth of 1 does not contain; without it the upload is rejected as an unknown commit.
+          fetch-depth: 0
 
       - name: Install Depends
         shell: bash
@@ -72,10 +79,25 @@ jobs:
         if: matrix.job_type == 'codecov'
         shell: bash
         run: |
+          # ccov-all runs each instrumented test binary itself, so the coverage data is produced here rather
+          # than by colcon test; the binaries resolve package:// resources and shared libraries out of all
+          # three prefixes.
+          source /opt/tesseract/install/setup.bash
+          source $GITHUB_WORKSPACE/upstream_ws/install/setup.bash
           source $GITHUB_WORKSPACE/target_ws/install/setup.bash
           cd $GITHUB_WORKSPACE/target_ws
-          colcon build --cmake-target ccov-all --packages-select tesseract_collision tesseract_common tesseract_environment tesseract_geometry tesseract_kinematics tesseract_srdf tesseract_state_solver tesseract_scene_graph tesseract_urdf
-          bash <(curl -s https://codecov.io/bash) -t 758610a6-d851-4185-a01a-5b9465889b62 -s $GITHUB_WORKSPACE/target_ws/build -f *all-merged.info
+          # lcov 2.x, which noble ships, promotes to fatal two things lcov 1.x tolerated: a GCC line-table
+          # mismatch in gtest's generated test bodies, and a coverage exclude pattern that matches nothing.
+          # The capture command in ros_industrial_cmake_boilerplate accepts no flags, so downgrade both
+          # through the rc file.
+          echo "ignore_errors = mismatch,unused" > ~/.lcovrc
+          colcon build --cmake-target ccov-all --packages-select tesseract_collision_coal
+          # Upload from the checkout, not the workspace root: the uploader reads the commit from git, and only
+          # here is there a repository to read. -Z makes a rejected upload fail the job rather than pass
+          # silently, and -X gcov stops a redundant sweep of every .gcda in the workspace.
+          cd $GITHUB_WORKSPACE/target_ws/src
+          bash <(curl -s https://codecov.io/bash) -Z -X gcov -t 3811264a-d3e4-4dfb-9d47-f1c211b0b1f1 \
+            -f $GITHUB_WORKSPACE/target_ws/build/tesseract_collision_coal/ccov/all-merged.info
 
       - name: Upload coverage artifacts
         if: matrix.job_type == 'codecov'
