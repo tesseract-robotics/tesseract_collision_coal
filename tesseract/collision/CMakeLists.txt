@@ -27,7 +27,7 @@ set(COVERAGE_EXCLUDE
     /usr/*
     /opt/*
     ${CMAKE_CURRENT_LIST_DIR}/test/*
-    ${CMAKE_CURRENT_LIST_DIR}/include/tesseract_collision/test_suite/*
+    ${CMAKE_CURRENT_LIST_DIR}/test_suite/*
     /*/install/*
     /*/devel/*
     /*/gtest/*
