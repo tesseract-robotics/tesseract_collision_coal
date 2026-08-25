@@ -72,7 +72,7 @@ TEST_F(DeferredOctreeExpansionUnit, PromotionExpandsOctree)  // NOLINT
 
   // All collision objects in the expanded cast COW should be CastHullShape (GEOM_CUSTOM).
   for (const auto& co : it->second->getCollisionObjects())
-    EXPECT_EQ(co->collisionGeometry()->getNodeType(), coal::GEOM_CUSTOM);
+    EXPECT_EQ(co->collisionGeometryPtr()->getNodeType(), coal::GEOM_CUSTOM);
 }
 
 TEST_F(DeferredOctreeExpansionUnit, PromotedOctreeProducesContacts)  // NOLINT

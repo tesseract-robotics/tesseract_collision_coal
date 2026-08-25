@@ -248,7 +248,7 @@ COW::Ptr makeCastCollisionObject(const COW::Ptr& cow, bool expand_octrees = true
 inline bool castCowNeedsOctreeExpansion(const COW::Ptr& cast_cow)
 {
   for (const auto& co : cast_cow->getCollisionObjects())
-    if (co->collisionGeometry()->getNodeType() == coal::GEOM_OCTREE)
+    if (co->collisionGeometryPtr()->getNodeType() == coal::GEOM_OCTREE)
       return true;
   return false;
 }

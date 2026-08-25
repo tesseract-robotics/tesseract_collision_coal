@@ -553,7 +553,7 @@ void populateContinuousCollisionFields(ContactResult& contact,
     if (cow == nullptr || cow->m_collisionFilterGroup != CollisionFilterGroups::KinematicFilter)
       continue;
 
-    const auto* cast_shape = dynamic_cast<const CastHullShape*>(objects[i]->collisionGeometry().get());
+    const auto* cast_shape = dynamic_cast<const CastHullShape*>(objects[i]->collisionGeometryPtr());
     if (cast_shape == nullptr)
       continue;
 
@@ -730,8 +730,8 @@ bool CollisionCallback::collide(coal::CollisionObject* o1, coal::CollisionObject
 
   if (col_cache_it == cdata->collision_cache->end())
   {
-    const bool is_cast = dynamic_cast<const CastHullShape*>(co1->collisionGeometry().get()) != nullptr ||
-                         dynamic_cast<const CastHullShape*>(co2->collisionGeometry().get()) != nullptr;
+    const bool is_cast = dynamic_cast<const CastHullShape*>(co1->collisionGeometryPtr()) != nullptr ||
+                         dynamic_cast<const CastHullShape*>(co2->collisionGeometryPtr()) != nullptr;
 
     coal::CollisionRequest col_request;
     // NesterovAcceleration + DualityGap/Relative for both cast and discrete pairs.
@@ -800,7 +800,7 @@ bool CollisionCallback::collide(coal::CollisionObject* o1, coal::CollisionObject
   // swap arguments without compensating in the result, causing Contact o1/o2, b1/b2,
   // nearest_points, and normal to not match the (co1, co2) ordering. Detect this by
   // checking if the first contact's o1 matches co1's geometry.
-  if (col_result.getContact(0).o1 != co1->collisionGeometry().get())
+  if (col_result.getContact(0).o1 != co1->collisionGeometryPtr())
     col_result.swapObjects();
 
   const Eigen::Isometry3d& tf1 = cd1->getCollisionObjectsTransform();

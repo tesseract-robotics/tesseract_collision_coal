@@ -25,7 +25,7 @@ CastHullShape* getCastHullShape(CoalCastBVHManager& mgr, const std::string& link
   auto& cos = it->second->getCollisionObjects();
   if (cos.empty())
     return nullptr;
-  return static_cast<CastHullShape*>(cos[0]->collisionGeometry().get());
+  return static_cast<CastHullShape*>(cos[0]->collisionGeometryPtr());
 }
 
 /// Helper: create a cast manager with a single sphere link.

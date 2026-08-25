@@ -630,7 +630,7 @@ void CoalCastBVHManager::collectCastTransformUpdate(Link2COW::iterator cast_it,
   // All objects in link2castcow_ are CastHullShape-wrapped (by makeCastCollisionObject).
   for (const auto& co : cow->getCollisionObjects())
   {
-    auto* cast_shape = static_cast<CastHullShape*>(co->collisionGeometry().get());
+    auto* cast_shape = static_cast<CastHullShape*>(co->collisionGeometryPtr());
     assert(cast_shape != nullptr);
     // Compute per-shape relative transform accounting for local offset.
     // Each shape's world transform is link_tf * local_tf, so the relative
