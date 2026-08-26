@@ -71,6 +71,23 @@ TEST(CoalCastHullShapeBehaviorUnit, SupportTieBreakPrefersPoseOne)  // NOLINT
   EXPECT_NEAR(support.y(), 1.0, 1e-9);
   EXPECT_NEAR(support.z(), 0.0, 1e-9);
 }
+
+TEST(CoalCastHullShapeBehaviorUnit, CloneCarriesLocalAABB)  // NOLINT
+{
+  auto box = std::make_shared<coal::Box>(1.0, 1.0, 1.0);
+  coal::Transform3s cast_tf = coal::Transform3s::Identity();
+  cast_tf.translation() = coal::Vec3s(1.0, 0.0, 0.0);
+  CastHullShape source(box, cast_tf);
+  source.setSweptSphereRadius(0.1);
+  source.computeLocalAABB();
+
+  std::unique_ptr<CastHullShape> cloned(source.clone());
+  ASSERT_NE(cloned, nullptr);
+  EXPECT_TRUE(cloned->aabb_local.min_.isApprox(source.aabb_local.min_));
+  EXPECT_TRUE(cloned->aabb_local.max_.isApprox(source.aabb_local.max_));
+  EXPECT_TRUE(cloned->aabb_center.isApprox(source.aabb_center));
+  EXPECT_DOUBLE_EQ(cloned->aabb_radius, source.aabb_radius);
+}
 }  // namespace tesseract::collision::tesseract_collision_coal
 
 int main(int argc, char** argv)

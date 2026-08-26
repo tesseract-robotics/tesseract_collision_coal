@@ -85,6 +85,8 @@ CastHullShape* CastHullShape::clone() const
 {
   auto* c = new CastHullShape(shape_, castTransform_);
   c->setSweptSphereRadius(getSweptSphereRadius());
+  // computeLocalAABB pads by the swept-sphere radius, so it must follow the radius copy.
+  c->computeLocalAABB();
   return c;
 }
 
