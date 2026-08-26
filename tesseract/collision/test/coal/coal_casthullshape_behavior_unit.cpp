@@ -88,6 +88,21 @@ TEST(CoalCastHullShapeBehaviorUnit, CloneCarriesLocalAABB)  // NOLINT
   EXPECT_TRUE(cloned->aabb_center.isApprox(source.aabb_center));
   EXPECT_DOUBLE_EQ(cloned->aabb_radius, source.aabb_radius);
 }
+
+TEST(CoalCastHullShapeBehaviorUnit, IsEqualSeesSweptSphereRadius)  // NOLINT
+{
+  auto sphere = std::make_shared<coal::Sphere>(0.5);
+  coal::Transform3s identity = coal::Transform3s::Identity();
+  CastHullShape plain(sphere, identity);
+  CastHullShape inflated(sphere, identity);
+  inflated.setSweptSphereRadius(0.02);
+
+  EXPECT_FALSE(plain.isEqual(inflated));
+  EXPECT_FALSE(inflated.isEqual(plain));
+
+  inflated.setSweptSphereRadius(0.0);
+  EXPECT_TRUE(plain.isEqual(inflated));
+}
 }  // namespace tesseract::collision::tesseract_collision_coal
 
 int main(int argc, char** argv)

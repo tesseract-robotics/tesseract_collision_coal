@@ -145,7 +145,8 @@ bool CastHullShape::isEqual(const coal::CollisionGeometry& _other) const
   if (other_ptr == nullptr)
     return false;
 
-  return shape_ == other_ptr->shape_ && castTransform_ == other_ptr->castTransform_;
+  return shape_ == other_ptr->shape_ && castTransform_ == other_ptr->castTransform_ &&
+         getSweptSphereRadius() == other_ptr->getSweptSphereRadius();
 }
 
 void CastHullShape::updateCastTransform(const coal::Transform3s& castTransform)
