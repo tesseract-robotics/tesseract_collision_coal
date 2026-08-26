@@ -107,7 +107,7 @@ double CastHullShape::computeVolume() const
   // computeShapeSupport ignores its hint/data parameters (they only satisfy the
   // override's signature) and warm-starts from hint0_/hint1_/support_data0_/
   // support_data1_ — the sweep's GJK warm-start chain, which a volume query
-  // must not perturb. Save and restore those members around the axis probes.
+  // must not perturb.
   const int saved_hint0 = hint0_;
   const int saved_hint1 = hint1_;
   const coal::details::ShapeSupportData saved_data0 = support_data0_;
