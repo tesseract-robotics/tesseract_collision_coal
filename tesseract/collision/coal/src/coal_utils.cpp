@@ -985,6 +985,7 @@ std::shared_ptr<CollisionObjectWrapper> CollisionObjectWrapper::clone() const
   }
 
   clone_cow->world_pose_ = world_pose_;
+  clone_cow->contact_distance_ = contact_distance_;
   clone_cow->m_collisionFilterGroup = m_collisionFilterGroup;
   clone_cow->m_collisionFilterMask = m_collisionFilterMask;
   clone_cow->m_enabled = m_enabled;
