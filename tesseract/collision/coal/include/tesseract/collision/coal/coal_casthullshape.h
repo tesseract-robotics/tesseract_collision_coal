@@ -90,6 +90,11 @@ public:
 
   void updateCastTransform(const coal::Transform3s& castTransform);
 
+  /// @brief Return this hull to the state of a shape that has not been swept: identity cast transform and
+  /// no swept-sphere inflation. computeLocalAABB reads both, so clearing one without the other leaves a
+  /// hull whose bounds still describe a sweep. Returns whether anything changed.
+  bool clearSweep();
+
   void computeShapeSupport(const coal::Vec3s& dir,
                            coal::Vec3s& support,
                            int& hint,

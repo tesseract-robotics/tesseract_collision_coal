@@ -495,38 +495,68 @@ void CoalCastBVHManager::addCollisionObjects(const std::vector<COW::Ptr>& cows, 
   }
 }
 
+void CoalCastBVHManager::appendRegularBroadphaseUpdate(COW& reg_cow)
+{
+  if (reg_cow.m_collisionFilterGroup == CollisionFilterGroups::StaticFilter)
+    reg_cow.appendCollisionObjectsRaw(static_update_);
+}
+
+void CoalCastBVHManager::appendCastBroadphaseUpdate(COW& cast_cow)
+{
+  if (cast_cow.m_collisionFilterGroup == CollisionFilterGroups::KinematicFilter)
+    cast_cow.appendCollisionObjectsRaw(dynamic_update_);
+}
+
+CoalCastBVHManager::TransformUpdate CoalCastBVHManager::collectRegularTransformUpdate(COW& reg_cow,
+                                                                                      const Eigen::Isometry3d& pose)
+{
+  const Eigen::Isometry3d& cur_tf = reg_cow.getCollisionObjectsTransform();
+
+  TransformUpdate update;
+  update.any_changed = transformChanged(cur_tf, pose);
+  if (!update.any_changed)
+    return update;
+
+  update.large_change = (pose.translation() - cur_tf.translation()).squaredNorm() > gjk_guess_threshold_sq_;
+  if (update.large_change)
+    reg_cow.gjk_generation_++;
+
+  reg_cow.setCollisionObjectsTransform(pose);
+  appendRegularBroadphaseUpdate(reg_cow);
+  return update;
+}
+
 void CoalCastBVHManager::collectTransformUpdate(Link2COW::iterator it, const Eigen::Isometry3d& pose)
 {
-  const Eigen::Isometry3d& cur_tf = it->second->getCollisionObjectsTransform();
-  if (!transformChanged(cur_tf, pose))
+  const TransformUpdate moved = collectRegularTransformUpdate(*it->second, pose);
+
+  auto cast_it = link2castcow_.find(it->first);
+  if (cast_it == link2castcow_.end())
     return;
 
-  const bool large_change = (pose.translation() - cur_tf.translation()).squaredNorm() > gjk_guess_threshold_sq_;
-  if (large_change)
-    it->second->gjk_generation_++;
+  COW& cast_cow = *cast_it->second;
 
-  it->second->setCollisionObjectsTransform(pose);
+  // A static link's cast wrapper carries no pose or sweep that anything reads: it is in no broadphase, and
+  // updateCollisionObjectFilters brings both current at the moment the link is promoted. Writing them here
+  // would recompute an AABB per shape, per state update, for state that promotion discards anyway.
+  if (cast_cow.m_collisionFilterGroup != CollisionFilterGroups::KinematicFilter)
+    return;
 
-  // Also update the cast version if it exists
-  auto cast_it = link2castcow_.find(it->first);
-  if (cast_it != link2castcow_.end())
-  {
-    if (large_change)
-      cast_it->second->gjk_generation_++;
-    cast_it->second->setCollisionObjectsTransform(pose);
+  // A pose set without a sweep must leave no sweep behind: the hulls hold whatever the last dual-pose call
+  // wrote, and re-applying that delta from the new pose sweeps the object through space it never crossed.
+  // Whether a hull holds a stale sweep is independent of whether the link moved, so the two are asked
+  // separately - setting a link back to the pose a sweep started from moves nothing and must still drop it.
+  const TransformUpdate sweep = updateCastShapeTransforms(cast_cow, pose, pose);
+  if (!sweep.any_changed && !moved.any_changed)
+    return;
 
-    if (it->second->m_collisionFilterGroup == CollisionFilterGroups::KinematicFilter)
-    {
-      // For kinematic objects, only the cast COW is in the broadphase — the regular
-      // COW is not registered in any manager, so skip its broadphase update.
-      cast_it->second->appendCollisionObjectsRaw(dynamic_update_);
-      return;
-    }
-  }
+  if (sweep.large_change || moved.large_change)
+    cast_cow.gjk_generation_++;
 
-  auto& update_vec =
-      (it->second->m_collisionFilterGroup == CollisionFilterGroups::StaticFilter) ? static_update_ : dynamic_update_;
-  it->second->appendCollisionObjectsRaw(update_vec);
+  // Re-applied even when the pose has not moved: this recomputes each object's AABB from the hull's local
+  // one, and the broadphase update copies that AABB rather than deriving it.
+  cast_cow.setCollisionObjectsTransform(pose);
+  appendCastBroadphaseUpdate(cast_cow);
 }
 
 /// Precomputed rotation-angle scalars for d_arc computation.
@@ -581,6 +611,81 @@ static double computeDArc(const coal::Transform3s& cast_tf, const coal::ShapeBas
   return r_max * s.sagitta_factor;
 }
 
+CoalCastBVHManager::TransformUpdate CoalCastBVHManager::updateCastShapeTransforms(COW& cast_cow,
+                                                                                  const Eigen::Isometry3d& pose1,
+                                                                                  const Eigen::Isometry3d& pose2) const
+{
+  assert(cast_cow.m_collisionFilterGroup == CollisionFilterGroups::KinematicFilter);
+  assert(!castCowNeedsOctreeExpansion(cast_cow));
+
+  TransformUpdate update;
+
+  // A zero-length sweep is the unswept state, which every hull resolves to regardless of its local offset,
+  // so it is clearSweep's business rather than a per-shape product - and the products would not reach it
+  // exactly anyway, since (tf * local)^-1 * (tf * local) leaves rounding noise that defeats the equality
+  // test below.
+  //
+  // The comparison must be exact because it stands in for that computation: whatever it accepts has to
+  // produce the identity, and a relative tolerance accepts real motion far from the origin.
+  if (pose1.matrix() == pose2.matrix())
+  {
+    for (const auto& co : cast_cow.getCollisionObjects())
+    {
+      auto* cast_shape = static_cast<CastHullShape*>(co->collisionGeometryPtr());
+      if (!update.large_change)
+      {
+        update.large_change = cast_shape->getCastTransform().getTranslation().squaredNorm() > gjk_guess_threshold_sq_;
+      }
+      update.any_changed = cast_shape->clearSweep() || update.any_changed;
+    }
+
+    return update;
+  }
+
+  const coal::Transform3s tf1(pose1.rotation(), pose1.translation());
+  const coal::Transform3s tf2(pose2.rotation(), pose2.translation());
+
+  // Precompute rotation-angle scalars once per link (conjugation-invariant).
+  DArcScalars d_arc_scalars;
+  if (d_arc_compensation_)
+    d_arc_scalars = computeDArcScalars(tf1.inverseTimes(tf2));
+
+  const auto& shape_poses = cast_cow.getCollisionGeometriesTransforms();
+
+  // Update cast transforms so computeLocalAABB reflects the swept volume.
+  for (const auto& co : cast_cow.getCollisionObjects())
+  {
+    auto* cast_shape = static_cast<CastHullShape*>(co->collisionGeometryPtr());
+    assert(cast_shape != nullptr);
+
+    // Compute per-shape relative transform accounting for local offset.
+    // Each shape's world transform is link_tf * local_tf, so the relative
+    // motion in the shape's local frame is:
+    //   (tf1 * local_tf)^-1 * (tf2 * local_tf)
+    // This matches Bullet's compound shape handling where each child gets
+    // its own delta_tf = (tf1 * local_tf).inverseTimes(tf2 * local_tf).
+    const auto& shape_pose = shape_poses[static_cast<std::size_t>(co->getShapeIndex())];
+    const auto local_tf = coal::Transform3s(shape_pose.rotation(), shape_pose.translation());
+    const coal::Transform3s new_cast_tf = (tf1 * local_tf).inverseTimes(tf2 * local_tf);
+
+    const auto& cur_cast_tf = cast_shape->getCastTransform();
+    if (new_cast_tf == cur_cast_tf)
+      continue;
+
+    update.any_changed = true;
+    if (!update.large_change)
+    {
+      update.large_change =
+          (new_cast_tf.getTranslation() - cur_cast_tf.getTranslation()).squaredNorm() > gjk_guess_threshold_sq_;
+    }
+    if (d_arc_compensation_)
+      cast_shape->setSweptSphereRadius(computeDArc(new_cast_tf, *cast_shape->getUnderlyingShape(), d_arc_scalars));
+    cast_shape->updateCastTransform(new_cast_tf);
+  }
+
+  return update;
+}
+
 void CoalCastBVHManager::collectCastTransformUpdate(Link2COW::iterator cast_it,
                                                     Link2COW::iterator reg_it,
                                                     const Eigen::Isometry3d& pose1,
@@ -591,9 +696,11 @@ void CoalCastBVHManager::collectCastTransformUpdate(Link2COW::iterator cast_it,
   const Eigen::Isometry3d& cur_tf = cow->getCollisionObjectsTransform();
   bool large_change = (pose1.translation() - cur_tf.translation()).squaredNorm() > gjk_guess_threshold_sq_;
 
-  // Keep regular object aligned at the start transform
+  // Publish the regular object before the early returns below: for a static link it is what static_manager_
+  // holds. Its GJK generation follows its own displacement, which is what the helper measures - the cast
+  // wrapper's displacement is a different quantity, and one the static path never publishes.
   if (reg_it != link2cow_.end())
-    reg_it->second->setCollisionObjectsTransform(pose1);
+    collectRegularTransformUpdate(*reg_it->second, pose1);
 
   // Match Bullet behavior: do not update cast sweep state/AABB for disabled objects.
   // Still sync the cast COW's transform so it's correct when re-enabled.
@@ -601,11 +708,7 @@ void CoalCastBVHManager::collectCastTransformUpdate(Link2COW::iterator cast_it,
   {
     cow->setCollisionObjectsTransform(pose1);
     if (large_change)
-    {
       cow->gjk_generation_++;
-      if (reg_it != link2cow_.end())
-        reg_it->second->gjk_generation_++;
-    }
     return;
   }
 
@@ -615,60 +718,18 @@ void CoalCastBVHManager::collectCastTransformUpdate(Link2COW::iterator cast_it,
   if (cow->m_collisionFilterGroup == CollisionFilterGroups::StaticFilter)
     return;
 
-  // Convert to coal::Transform3s format
-  const auto tf1 = coal::Transform3s(pose1.rotation(), pose1.translation());
-  const auto tf2 = coal::Transform3s(pose2.rotation(), pose2.translation());
+  large_change = updateCastShapeTransforms(*cow, pose1, pose2).large_change || large_change;
 
-  const auto& shape_poses = cow->getCollisionGeometriesTransforms();
-
-  // Precompute rotation-angle scalars once per link (conjugation-invariant).
-  DArcScalars d_arc_scalars;
-  if (d_arc_compensation_)
-    d_arc_scalars = computeDArcScalars(tf1.inverseTimes(tf2));
-
-  // Update cast transforms so computeLocalAABB reflects the swept volume.
-  // All objects in link2castcow_ are CastHullShape-wrapped (by makeCastCollisionObject).
-  for (const auto& co : cow->getCollisionObjects())
-  {
-    auto* cast_shape = static_cast<CastHullShape*>(co->collisionGeometryPtr());
-    assert(cast_shape != nullptr);
-    // Compute per-shape relative transform accounting for local offset.
-    // Each shape's world transform is link_tf * local_tf, so the relative
-    // motion in the shape's local frame is:
-    //   (tf1 * local_tf)^-1 * (tf2 * local_tf)
-    // This matches Bullet's compound shape handling where each child gets
-    // its own delta_tf = (tf1 * local_tf).inverseTimes(tf2 * local_tf).
-    const auto& shape_pose = shape_poses[static_cast<std::size_t>(co->getShapeIndex())];
-    const auto local_tf = coal::Transform3s(shape_pose.rotation(), shape_pose.translation());
-    const auto shape_tf1 = tf1 * local_tf;
-    const auto shape_tf2 = tf2 * local_tf;
-    const auto new_cast_tf = shape_tf1.inverseTimes(shape_tf2);
-    if (!large_change)
-    {
-      large_change = (new_cast_tf.getTranslation() - cast_shape->getCastTransform().getTranslation()).squaredNorm() >
-                     gjk_guess_threshold_sq_;
-    }
-    if (d_arc_compensation_)
-      cast_shape->setSweptSphereRadius(computeDArc(new_cast_tf, *cast_shape->getUnderlyingShape(), d_arc_scalars));
-    cast_shape->updateCastTransform(new_cast_tf);
-  }
-
-  // Bump generation counters if the transform change was significant.
+  // Bump the generation counter if the transform change was significant.
   if (large_change)
-  {
     cow->gjk_generation_++;
-    if (reg_it != link2cow_.end())
-      reg_it->second->gjk_generation_++;
-  }
 
   // Re-apply world transform so CoalCollisionObjectWrapper::updateAABB uses the
   // updated CastHullShape local AABB (swept volume).
   cow->setCollisionObjectsTransform(pose1);
 
-  // Append to broadphase update vectors (flushed by caller).
-  auto& update_vec =
-      (cow->m_collisionFilterGroup == CollisionFilterGroups::StaticFilter) ? static_update_ : dynamic_update_;
-  cow->appendCollisionObjectsRaw(update_vec);
+  // Append to the broadphase update vector (flushed by caller).
+  appendCastBroadphaseUpdate(*cow);
 }
 
 void CoalCastBVHManager::flushBatchUpdate()
@@ -717,8 +778,7 @@ void CoalCastBVHManager::onCollisionMarginDataChanged()
     if (new_threshold != cow.second->getContactDistanceThreshold())
     {
       cow.second->setContactDistanceThreshold(new_threshold);
-      if (cow.second->m_collisionFilterGroup == CollisionFilterGroups::StaticFilter)
-        cow.second->appendCollisionObjectsRaw(static_update_);
+      appendRegularBroadphaseUpdate(*cow.second);
     }
   }
 
@@ -730,8 +790,7 @@ void CoalCastBVHManager::onCollisionMarginDataChanged()
     if (new_threshold != cast_cow.second->getContactDistanceThreshold())
     {
       cast_cow.second->setContactDistanceThreshold(new_threshold);
-      if (cast_cow.second->m_collisionFilterGroup == CollisionFilterGroups::KinematicFilter)
-        cast_cow.second->appendCollisionObjectsRaw(dynamic_update_);
+      appendCastBroadphaseUpdate(*cast_cow.second);
     }
   }
 

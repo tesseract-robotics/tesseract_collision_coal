@@ -138,6 +138,17 @@ void CastHullShape::updateCastTransform(const coal::Transform3s& castTransform)
   computeLocalAABB();
 }
 
+bool CastHullShape::clearSweep()
+{
+  const coal::Transform3s identity_tf;
+  if (castTransform_ == identity_tf && getSweptSphereRadius() == 0.0)
+    return false;
+
+  setSweptSphereRadius(0.0);
+  updateCastTransform(identity_tf);
+  return true;
+}
+
 void CastHullShape::computeShapeSupport(const coal::Vec3s& dir,
                                         coal::Vec3s& support,
                                         int& /*hint*/,

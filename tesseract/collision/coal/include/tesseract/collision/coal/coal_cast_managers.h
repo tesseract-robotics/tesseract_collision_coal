@@ -215,6 +215,49 @@ private:
   /** @brief This is used to store dynamic collision objects to update */
   std::vector<CollisionObjectRawPtr> dynamic_update_;
 
+  /** @brief Append a regular collision object wrapper to the static batch update vector.
+   *
+   *  static_manager_ holds the regular wrapper of a static link, dynamic_manager_ the cast wrapper of a
+   *  kinematic one, and updateCollisionObjectFilters keeps both wrappers' filter groups equal. Appending a
+   *  wrapper the broadphase does not hold would flush an object no tree contains. */
+  void appendRegularBroadphaseUpdate(COW& reg_cow);
+
+  /** @brief Append a cast collision object wrapper to the dynamic batch update vector.
+   *  @see appendRegularBroadphaseUpdate for the registration rule both helpers encode. */
+  void appendCastBroadphaseUpdate(COW& cast_cow);
+
+  /** @brief What a pass over one wrapper changed. */
+  struct TransformUpdate
+  {
+    bool any_changed{ false };  /**< @brief Whether anything was rewritten */
+    bool large_change{ false }; /**< @brief Whether a change invalidates a cached GJK guess */
+  };
+
+  /** @brief Publish a link's new pose to its regular wrapper, and to the broadphase if it holds it.
+   *
+   *  The regular wrapper carries no sweep, so it has nothing to publish when the link has not moved. Its
+   *  stored pose is also the comparison, so writing a change too small to publish would keep sub-epsilon
+   *  moves from ever accumulating into one.
+   *
+   *  @return What this pass changed, which is also what the caller's cast wrapper needs to know: the link's
+   *          displacement is a property of the link, not of either wrapper. */
+  TransformUpdate collectRegularTransformUpdate(COW& reg_cow, const Eigen::Isometry3d& pose);
+
+  /** @brief Write the sweep from @p pose1 to @p pose2 into a cast wrapper's hulls.
+   *
+   *  Only a kinematic link's cast wrapper may be passed. A static link's can still hold raw OcTree geometry,
+   *  because octree expansion is deferred until the link goes active, and the static_cast below is undefined
+   *  behaviour on it. Callers check the filter group; the assertion here records that they must.
+   *
+   *  pose1 == pose2 is a zero-length sweep, which is the unswept state every hull resolves to regardless of
+   *  its local offset, so that case defers to CastHullShape::clearSweep rather than computing it per shape.
+   *
+   *  @return What this pass changed. A hull that changes while the link stays put still has to reach the
+   *          broadphase, so callers need the fact of a change as well as its size. */
+  TransformUpdate updateCastShapeTransforms(COW& cast_cow,
+                                            const Eigen::Isometry3d& pose1,
+                                            const Eigen::Isometry3d& pose2) const;
+
   /** @brief Collect a single link's transform update into the batch update vectors.
    *  Bumps the COW's GJK generation counter if the change exceeds the validity threshold. */
   void collectTransformUpdate(Link2COW::iterator it, const Eigen::Isometry3d& pose);

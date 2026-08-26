@@ -1116,12 +1116,21 @@ void updateCollisionObjectFilters(const std::unordered_set<tesseract::common::Li
     if (cow->m_collisionFilterGroup != CollisionFilterGroups::KinematicFilter)
     {
       // Static -> kinematic: expand deferred octrees, then swap broadphases.
-      if (castCowNeedsOctreeExpansion(cast_cow))
+      if (castCowNeedsOctreeExpansion(*cast_cow))
       {
         cast_cow = makeCastCollisionObject(cow);
         cast_cow->setContactDistanceThreshold(cow->getContactDistanceThreshold());
-        cast_cow->setCollisionObjectsTransform(cow->getCollisionObjectsTransform());
       }
+
+      // Clearing the hulls first is load-bearing: a hull's cast transform determines its geometry's local
+      // AABB, and setCollisionObjectsTransform derives each object's own AABB from that.
+      clearCastSweep(*cast_cow);
+      cast_cow->setCollisionObjectsTransform(cow->getCollisionObjectsTransform());
+
+      // Both writes above invalidate any cached GJK guess held against this wrapper: setActiveCollisionObjects
+      // keeps the narrowphase cache, whose entries are re-seeded only when a generation changes, and the
+      // guesses in it were formed against the pose and sweep the wrapper carried before it went static.
+      cast_cow->gjk_generation_++;
 
       for (const auto& co : reg_objects)
         static_manager->unregisterObject(co.get());
@@ -1135,6 +1144,17 @@ void updateCollisionObjectFilters(const std::unordered_set<tesseract::common::Li
 
   applyCollisionFilterMask(*cow);
   applyCollisionFilterMask(*cast_cow);
+}
+
+bool clearCastSweep(CollisionObjectWrapper& cast_cow)
+{
+  assert(!castCowNeedsOctreeExpansion(cast_cow));
+
+  bool changed = false;
+  for (const auto& co : cast_cow.getCollisionObjects())
+    changed = static_cast<CastHullShape*>(co->collisionGeometryPtr())->clearSweep() || changed;
+
+  return changed;
 }
 
 COW::Ptr makeCastCollisionObject(const COW::Ptr& cow, bool expand_octrees)

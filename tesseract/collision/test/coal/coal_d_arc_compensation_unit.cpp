@@ -161,6 +161,53 @@ TEST(CoalDArcCompensationUnit, OffsetShapeCorrectDArc)  // NOLINT
   EXPECT_LT(ssr, d_arc_upper * 1.1);
 }
 
+/// Verify the single-pose setter clears a swept-sphere radius the previous sweep left behind.
+TEST(CoalDArcCompensationUnit, SinglePoseClearsDArcRadius)  // NOLINT
+{
+  auto checker = makeCastSetup(true);
+
+  Eigen::Isometry3d pose1 = Eigen::Isometry3d::Identity();
+  Eigen::Isometry3d pose2 = Eigen::Isometry3d::Identity();
+  pose2.rotate(Eigen::AngleAxisd(M_PI / 4.0, Eigen::Vector3d::UnitZ()));
+  checker->setCollisionObjectsTransform("link_a", pose1, pose2);
+
+  auto* cast_shape = getCastHullShape(*checker, "link_a");
+  ASSERT_NE(cast_shape, nullptr);
+  ASSERT_GT(cast_shape->getSweptSphereRadius(), 0.0);
+
+  // A pose without a sweep is a zero-length sweep, whose arc sagitta is zero.
+  Eigen::Isometry3d pose3 = Eigen::Isometry3d::Identity();
+  pose3.translate(Eigen::Vector3d(1.0, 0.0, 0.0));
+  checker->setCollisionObjectsTransform("link_a", pose3);
+
+  EXPECT_DOUBLE_EQ(cast_shape->getSweptSphereRadius(), 0.0);
+}
+
+/// Verify promotion clears a swept-sphere radius carried from before the link went static.
+TEST(CoalDArcCompensationUnit, PromotionClearsDArcRadius)  // NOLINT
+{
+  auto checker = makeCastSetup(true);
+
+  Eigen::Isometry3d pose1 = Eigen::Isometry3d::Identity();
+  Eigen::Isometry3d pose2 = Eigen::Isometry3d::Identity();
+  pose2.rotate(Eigen::AngleAxisd(M_PI / 4.0, Eigen::Vector3d::UnitZ()));
+  checker->setCollisionObjectsTransform("link_a", pose1, pose2);
+
+  ASSERT_NE(getCastHullShape(*checker, "link_a"), nullptr);
+  ASSERT_GT(getCastHullShape(*checker, "link_a")->getSweptSphereRadius(), 0.0);
+
+  // Demote by naming a different link: an empty active set means every link is active, not none.
+  // No setter runs between the two calls, so the radius survives unless the swap itself clears it.
+  auto sphere = std::make_shared<tesseract::geometry::Sphere>(0.1);
+  checker->addCollisionObject("link_b", 0, { sphere }, { Eigen::Isometry3d::Identity() }, true);
+  checker->setActiveCollisionObjects({ "link_b" });
+  checker->setActiveCollisionObjects({ "link_a" });
+
+  auto* cast_shape = getCastHullShape(*checker, "link_a");
+  ASSERT_NE(cast_shape, nullptr);
+  EXPECT_DOUBLE_EQ(cast_shape->getSweptSphereRadius(), 0.0);
+}
+
 /// Verify clone() preserves the d_arc_compensation flag.
 TEST(CoalDArcCompensationUnit, ClonePreservesFlag)  // NOLINT
 {

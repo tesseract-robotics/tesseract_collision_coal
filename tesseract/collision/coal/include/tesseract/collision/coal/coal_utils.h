@@ -221,6 +221,12 @@ void updateCollisionObjectFilters(const std::unordered_set<tesseract::common::Li
 
 /**
  * @brief Update collision objects filters for continuous collision checking
+ *
+ * This is the only place a link changes between static and kinematic, and the swap registers the incoming
+ * wrapper exactly as it stands. Promoting a link to kinematic therefore also brings its cast wrapper
+ * current: the pose the regular wrapper has been carrying, no sweep, and a bumped GJK generation. A new
+ * registration site must do the same, or the broadphase receives a link at wherever it used to be.
+ *
  * @param active_ids Set of active collision object LinkIds
  * @param cow The regular collision object
  * @param cast_cow The cast collision object
@@ -242,12 +248,26 @@ void updateCollisionObjectFilters(const std::unordered_set<tesseract::common::Li
 COW::Ptr makeCastCollisionObject(const COW::Ptr& cow, bool expand_octrees = true);
 
 /**
+ * @brief Return every hull of a cast collision object to the unswept state
+ *
+ * A cast wrapper holds CastHullShapes and raw OcTrees and nothing else - makeCastCollisionObject accepts
+ * convex shapes and octrees and throws on anything else - so the downcast inside is safe exactly when the
+ * octrees are not still deferred. Check castCowNeedsOctreeExpansion first, or pass a rebuilt wrapper.
+ *
+ * @param cast_cow The cast collision object whose hulls to clear
+ * @return True if any hull changed. Publishing new bounds takes a world transform re-apply either way:
+ * clearing a hull moves the geometry's local AABB, and only setCollisionObjectsTransform recomputes the
+ * object's own from it.
+ */
+bool clearCastSweep(CollisionObjectWrapper& cast_cow);
+
+/**
  * @brief Check if a cast COW contains unexpanded octrees that need expansion for sweep support.
  * Expanded shapes have GEOM_CUSTOM (CastHullShape); unexpanded octrees have GEOM_OCTREE.
  */
-inline bool castCowNeedsOctreeExpansion(const COW::Ptr& cast_cow)
+inline bool castCowNeedsOctreeExpansion(const CollisionObjectWrapper& cast_cow)
 {
-  for (const auto& co : cast_cow->getCollisionObjects())
+  for (const auto& co : cast_cow.getCollisionObjects())
     if (co->collisionGeometryPtr()->getNodeType() == coal::GEOM_OCTREE)
       return true;
   return false;
