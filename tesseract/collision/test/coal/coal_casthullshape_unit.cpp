@@ -1,11 +1,55 @@
 #include <tesseract/common/macros.h>
 TESSERACT_COMMON_IGNORE_WARNINGS_PUSH
 #include <gtest/gtest.h>
+#include <cmath>
+#include <Eigen/Core>
 TESSERACT_COMMON_IGNORE_WARNINGS_POP
 
 #include <tesseract/collision/coal/coal_casthullshape.h>
+#include <tesseract/collision/coal/coal_utils.h>
+#include <tesseract/geometry/impl/convex_mesh.h>
 
 using namespace tesseract::collision;
+
+namespace
+{
+/** @brief A 35-vertex bipyramid: past coal's 32-vertex threshold, so support
+ * queries take the hill-climbing path that reads and writes the vertex hint
+ * and ShapeSupportData. */
+std::shared_ptr<coal::ShapeBase> makeLargeConvex()
+{
+  using tesseract::collision::tesseract_collision_coal::createShapePrimitive;
+
+  constexpr int ring = 33;
+  auto vertices = std::make_shared<tesseract::common::VectorVector3d>();
+  vertices->emplace_back(0.0, 0.0, 1.0);
+  vertices->emplace_back(0.0, 0.0, -1.0);
+  for (int i = 0; i < ring; ++i)
+  {
+    const double a = 2.0 * M_PI * i / ring;
+    vertices->emplace_back(std::cos(a), std::sin(a), 0.0);
+  }
+
+  auto faces = std::make_shared<Eigen::VectorXi>(8 * ring);
+  int idx = 0;
+  for (int i = 0; i < ring; ++i)
+  {
+    const int a = 2 + i;
+    const int b = 2 + ((i + 1) % ring);
+    (*faces)[idx++] = 3;
+    (*faces)[idx++] = 0;
+    (*faces)[idx++] = a;
+    (*faces)[idx++] = b;
+    (*faces)[idx++] = 3;
+    (*faces)[idx++] = 1;
+    (*faces)[idx++] = b;
+    (*faces)[idx++] = a;
+  }
+
+  auto mesh = std::make_shared<tesseract::geometry::ConvexMesh>(vertices, faces, 2 * ring);
+  return std::dynamic_pointer_cast<coal::ShapeBase>(createShapePrimitive(mesh));
+}
+}  // namespace
 
 TEST(CoalCastHullShapeUnit, LocalAABBUnit)
 {
@@ -282,6 +326,35 @@ TEST(CoalCastHullShapeUnit, ComputeVolumeUnit)
     EXPECT_GT(cast_hull_rotated_volume, 0.0);
     EXPECT_LT(cast_hull_rotated_volume, 20.0);  // Reasonable upper bound
   }
+}
+
+TEST(CoalCastHullShapeUnit, ComputeVolumeLeavesWarmStartStateUntouched)  // NOLINT
+{
+  using namespace tesseract::collision::tesseract_collision_coal;
+
+  auto convex = makeLargeConvex();
+  ASSERT_NE(convex, nullptr);
+
+  coal::Transform3s cast_tf;
+  cast_tf.setIdentity();
+  cast_tf.translation() = coal::Vec3s(0.5, 0.0, 0.0);
+  CastHullShape cast_hull(convex, cast_tf);
+
+  // Seed the warm-start state as a converged GJK run would have left it.
+  cast_hull.getHint0() = 4;
+  cast_hull.getHint1() = 7;
+  cast_hull.getSupportData0().last_dir = coal::Vec3s(1.0, 0.0, 0.0);
+  cast_hull.getSupportData1().last_dir = coal::Vec3s(1.0, 0.0, 0.0);
+
+  const double volume = cast_hull.computeVolume();
+
+  // The swept-hull AABB estimate must exceed the unswept base volume.
+  EXPECT_GT(volume, convex->computeVolume());
+
+  EXPECT_EQ(cast_hull.getHint0(), 4);
+  EXPECT_EQ(cast_hull.getHint1(), 7);
+  EXPECT_TRUE(cast_hull.getSupportData0().last_dir.isApprox(coal::Vec3s(1.0, 0.0, 0.0)));
+  EXPECT_TRUE(cast_hull.getSupportData1().last_dir.isApprox(coal::Vec3s(1.0, 0.0, 0.0)));
 }
 
 int main(int argc, char** argv)
