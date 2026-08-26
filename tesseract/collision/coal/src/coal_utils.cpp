@@ -1178,8 +1178,10 @@ COW::Ptr makeCastCollisionObject(const COW::Ptr& cow, bool expand_octrees)
 
   CollisionShapesConst new_shapes;
   tesseract::common::VectorIsometry3d new_shape_poses;
+  std::vector<CollisionGeometryPtr> new_collision_geometries;
   new_shapes.reserve(current_shapes.size());
   new_shape_poses.reserve(current_shape_poses.size());
+  new_collision_geometries.reserve(current_collision_objects.size());
 
   for (const auto& co : current_collision_objects)
   {
@@ -1206,6 +1208,7 @@ COW::Ptr makeCastCollisionObject(const COW::Ptr& cow, bool expand_octrees)
       new_collision_objects.push_back(cast_co);
       new_shapes.push_back(current_shapes[old_shape_index]);
       new_shape_poses.push_back(current_shape_poses[old_shape_index]);
+      new_collision_geometries.push_back(cast_shape);
     }
     else
     {
@@ -1225,6 +1228,7 @@ COW::Ptr makeCastCollisionObject(const COW::Ptr& cow, bool expand_octrees)
           new_collision_objects.reserve(new_collision_objects.size() + voxel_budget);
           new_shapes.reserve(new_shapes.size() + voxel_budget);
           new_shape_poses.reserve(new_shape_poses.size() + voxel_budget);
+          new_collision_geometries.reserve(new_collision_geometries.size() + voxel_budget);
 
           // Reuse one box shape per tree depth level (all voxels at the same depth
           // have the same size), matching Bullet's managed_shapes pattern.
@@ -1260,6 +1264,7 @@ COW::Ptr makeCastCollisionObject(const COW::Ptr& cow, bool expand_octrees)
             new_collision_objects.push_back(cast_co);
             new_shapes.push_back(current_shapes[old_shape_index]);
             new_shape_poses.push_back(shape_pose);
+            new_collision_geometries.push_back(cast_shape);
           }
         }
         else
@@ -1273,6 +1278,7 @@ COW::Ptr makeCastCollisionObject(const COW::Ptr& cow, bool expand_octrees)
           new_collision_objects.push_back(pass_co);
           new_shapes.push_back(current_shapes[old_shape_index]);
           new_shape_poses.push_back(current_shape_poses[old_shape_index]);
+          new_collision_geometries.push_back(geo);
         }
       }
       else
@@ -1286,6 +1292,7 @@ COW::Ptr makeCastCollisionObject(const COW::Ptr& cow, bool expand_octrees)
   // Replace the collision objects in the cast_cow with the cast versions
   cast_cow->getCollisionGeometries() = new_shapes;
   cast_cow->getCollisionGeometriesTransforms() = new_shape_poses;
+  cast_cow->getCoalCollisionGeometries() = new_collision_geometries;
   cast_cow->getCollisionObjects() = new_collision_objects;
 
   return cast_cow;

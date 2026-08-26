@@ -161,6 +161,11 @@ public:
 
   std::vector<CollisionObjectPtr>& getCollisionObjects() { return collision_objects_; }
 
+  /** @brief The coal geometries owned by this wrapper, index-aligned with getCollisionObjects(). */
+  const std::vector<CollisionGeometryPtr>& getCoalCollisionGeometries() const { return collision_geometries_; }
+
+  std::vector<CollisionGeometryPtr>& getCoalCollisionGeometries() { return collision_geometries_; }
+
   /** @brief Append raw pointers from this wrapper's collision objects into @p out. */
   void appendCollisionObjectsRaw(std::vector<CollisionObjectRawPtr>& out) const;
 
