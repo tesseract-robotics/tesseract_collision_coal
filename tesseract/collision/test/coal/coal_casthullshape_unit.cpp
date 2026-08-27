@@ -317,9 +317,9 @@ TEST(CoalCastHullShapeUnit, ComputeVolumeUnit)
     EXPECT_GT(cast_hull_translated_volume, box_volume);
     EXPECT_GT(cast_hull_translated_volume, 8.0);
 
-    // Should be reasonable (not infinite or negative)
-    EXPECT_LT(cast_hull_translated_volume, 100.0);  // Reasonable upper bound
-    EXPECT_GT(cast_hull_translated_volume, 0.0);
+    // Axis-aligned pure translation: the swept hull is exactly a 3 x 2 x 2 box,
+    // so the volume is stated rather than bounded.
+    EXPECT_NEAR(cast_hull_translated_volume, 12.0, tolerance);
   }
 
   // Test 3: Sphere with identity transform
@@ -366,9 +366,9 @@ TEST(CoalCastHullShapeUnit, ComputeVolumeUnit)
     double box_volume = box->computeVolume();
     double cast_hull_small_volume = cast_hull_small_translation.computeVolume();
 
-    // Should be larger but not dramatically so
+    // Same shape as test 2 at a smaller step: exactly a 1.1 x 1 x 1 hull.
     EXPECT_GT(cast_hull_small_volume, box_volume);
-    EXPECT_LT(cast_hull_small_volume, box_volume * 2.0);  // Shouldn't double the volume
+    EXPECT_NEAR(cast_hull_small_volume, 1.1, tolerance);
   }
 
   // Test 6: Rotation with translation
