@@ -883,7 +883,6 @@ CollisionObjectWrapper::CollisionObjectWrapper(tesseract::common::LinkId id,
   assert(!link_id_.name().empty());               // NOLINT
   assert(shapes_.size() == shape_poses_.size());  // NOLINT
 
-  collision_geometries_.reserve(shapes_.size());
   collision_objects_.reserve(shapes_.size());
   for (std::size_t i = 0; i < shapes_.size(); ++i)  // NOLINT
   {
@@ -896,7 +895,6 @@ CollisionObjectWrapper::CollisionObjectWrapper(tesseract::common::LinkId id,
         const CollisionGeometryPtr subshape = createShapePrimitive(mesh);
         if (subshape != nullptr)
         {
-          collision_geometries_.push_back(subshape);
           auto co = std::make_shared<CoalCollisionObjectWrapper>(subshape);
           co->setUserData(this);
           co->setShapeIndex(static_cast<int>(i));
@@ -913,7 +911,6 @@ CollisionObjectWrapper::CollisionObjectWrapper(tesseract::common::LinkId id,
       const CollisionGeometryPtr subshape = createShapePrimitive(shapes_[i]);
       if (subshape != nullptr)
       {
-        collision_geometries_.push_back(subshape);
         auto co = std::make_shared<CoalCollisionObjectWrapper>(subshape);
         co->setUserData(this);
         co->setShapeIndex(static_cast<int>(i));
@@ -970,7 +967,6 @@ std::shared_ptr<CollisionObjectWrapper> CollisionObjectWrapper::clone() const
   clone_cow->type_id_ = type_id_;
   clone_cow->shapes_ = shapes_;
   clone_cow->shape_poses_ = shape_poses_;
-  clone_cow->collision_geometries_ = collision_geometries_;
 
   clone_cow->collision_objects_.reserve(collision_objects_.size());
   for (const auto& co : collision_objects_)
@@ -1283,18 +1279,9 @@ COW::Ptr makeCastCollisionObject(const COW::Ptr& cow, bool expand_octrees)
     }
   }
 
-  // Derive the coal-geometry ownership list from the new collision objects so
-  // the index alignment getCoalCollisionGeometries() documents holds by
-  // construction.
-  std::vector<CollisionGeometryPtr> new_collision_geometries;
-  new_collision_geometries.reserve(new_collision_objects.size());
-  for (const auto& co : new_collision_objects)
-    new_collision_geometries.push_back(co->collisionGeometry());
-
   // Replace the collision objects in the cast_cow with the cast versions
   cast_cow->getCollisionGeometries() = new_shapes;
   cast_cow->getCollisionGeometriesTransforms() = new_shape_poses;
-  cast_cow->getCoalCollisionGeometries() = std::move(new_collision_geometries);
   cast_cow->getCollisionObjects() = new_collision_objects;
 
   return cast_cow;

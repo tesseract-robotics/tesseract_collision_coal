@@ -161,11 +161,6 @@ public:
 
   std::vector<CollisionObjectPtr>& getCollisionObjects() { return collision_objects_; }
 
-  /** @brief The coal geometries owned by this wrapper, index-aligned with getCollisionObjects(). */
-  const std::vector<CollisionGeometryPtr>& getCoalCollisionGeometries() const { return collision_geometries_; }
-
-  std::vector<CollisionGeometryPtr>& getCoalCollisionGeometries() { return collision_geometries_; }
-
   /** @brief Append raw pointers from this wrapper's collision objects into @p out. */
   void appendCollisionObjectsRaw(std::vector<CollisionObjectRawPtr>& out) const;
 
@@ -184,7 +179,6 @@ protected:
   Eigen::Isometry3d world_pose_{ Eigen::Isometry3d::Identity() }; /**< @brief Collision Object World Transformation */
   CollisionShapesConst shapes_;
   tesseract::common::VectorIsometry3d shape_poses_;
-  std::vector<CollisionGeometryPtr> collision_geometries_;
   std::vector<CollisionObjectPtr> collision_objects_;
 
   double contact_distance_{ 0 }; /**< @brief The contact distance threshold */

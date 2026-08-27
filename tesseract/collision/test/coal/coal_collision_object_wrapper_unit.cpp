@@ -7,7 +7,6 @@ TESSERACT_COMMON_IGNORE_WARNINGS_POP
 
 #include <tesseract/collision/coal/coal_collision_object_wrapper.h>
 #include <tesseract/collision/coal/coal_utils.h>
-#include <tesseract/geometry/impl/box.h>
 #include <tesseract/geometry/impl/sphere.h>
 
 namespace tesseract::collision::tesseract_collision_coal
@@ -37,20 +36,6 @@ TEST(CoalCollisionObjectWrapperUnit, ClonePreservesContactDistanceThreshold)  //
   EXPECT_DOUBLE_EQ(clone_cow->getContactDistanceThreshold(), 0.05);
 }
 
-TEST(CoalCollisionObjectWrapperUnit, CastRebuildKeepsGeometryOwnershipAligned)  // NOLINT
-{
-  CollisionShapePtr box = std::make_shared<tesseract::geometry::Box>(1, 1, 1);
-  CollisionShapesConst shapes{ box };
-  tesseract::common::VectorIsometry3d poses{ Eigen::Isometry3d::Identity() };
-  auto cow = std::make_shared<CollisionObjectWrapper>(tesseract::common::LinkId("link"), 0, shapes, poses);
-
-  COW::Ptr cast_cow = makeCastCollisionObject(cow);
-  const auto& objects = cast_cow->getCollisionObjects();
-  const auto& geometries = cast_cow->getCoalCollisionGeometries();
-  ASSERT_EQ(geometries.size(), objects.size());
-  for (std::size_t i = 0; i < objects.size(); ++i)
-    EXPECT_EQ(geometries[i].get(), objects[i]->collisionGeometryPtr());
-}
 }  // namespace tesseract::collision::tesseract_collision_coal
 
 int main(int argc, char** argv)
