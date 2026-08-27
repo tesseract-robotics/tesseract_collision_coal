@@ -74,41 +74,49 @@ void computeShapeAABB(const coal::ShapeBase& s, const coal::Transform3s& tf, coa
   {
     case coal::GEOM_BOX:
       coal::computeBV<coal::AABB>(static_cast<const coal::Box&>(s), tf, bv);
-      return;
+      break;
     case coal::GEOM_SPHERE:
       coal::computeBV<coal::AABB>(static_cast<const coal::Sphere&>(s), tf, bv);
-      return;
+      break;
     case coal::GEOM_ELLIPSOID:
       coal::computeBV<coal::AABB>(static_cast<const coal::Ellipsoid&>(s), tf, bv);
-      return;
+      break;
     case coal::GEOM_CAPSULE:
       coal::computeBV<coal::AABB>(static_cast<const coal::Capsule&>(s), tf, bv);
-      return;
+      break;
     case coal::GEOM_CONE:
       coal::computeBV<coal::AABB>(static_cast<const coal::Cone&>(s), tf, bv);
-      return;
+      break;
     case coal::GEOM_CYLINDER:
       coal::computeBV<coal::AABB>(static_cast<const coal::Cylinder&>(s), tf, bv);
-      return;
+      break;
     case coal::GEOM_TRIANGLE:
       coal::computeBV<coal::AABB>(static_cast<const coal::TriangleP&>(s), tf, bv);
-      return;
+      break;
     case coal::GEOM_HALFSPACE:
       coal::computeBV<coal::AABB>(static_cast<const coal::Halfspace&>(s), tf, bv);
-      return;
+      break;
     case coal::GEOM_PLANE:
       coal::computeBV<coal::AABB>(static_cast<const coal::Plane&>(s), tf, bv);
-      return;
+      break;
     case coal::GEOM_CONVEX32:
     case coal::GEOM_CONVEX16:
     default:
       // Convex hulls, GEOM_CUSTOM, and future types: conservative O(1)
       // |R|*half-extents from the precomputed local AABB. The exact convex fit
       // (computeAABBConvex) is O(num_points) and too costly on the per-check
-      // cast path for the broadphase tightness it buys.
+      // cast path for the broadphase tightness it buys. aabb_local already
+      // carries the swept-sphere radius, so this branch is done.
       coal::computeBV<coal::AABB, coal::ShapeBase>(s, tf, bv);
       return;
   }
+
+  // The parametric specializations above build the bound from shape parameters
+  // and leave the swept-sphere radius out. Every branch of this function
+  // includes it, so callers must not expand for it themselves.
+  const coal::Scalar ssr = s.getSweptSphereRadius();
+  if (ssr > 0)
+    bv.expand(ssr);
 }
 
 namespace

@@ -49,7 +49,72 @@ std::shared_ptr<coal::ShapeBase> makeLargeConvex()
   auto mesh = std::make_shared<tesseract::geometry::ConvexMesh>(vertices, faces, 2 * ring);
   return std::dynamic_pointer_cast<coal::ShapeBase>(createShapePrimitive(mesh));
 }
+/** @brief A unit cube as an 8-vertex convex hull: exact half-extents of 0.5 on
+ * every axis, and a node type that takes computeShapeAABB's convex branch. */
+std::shared_ptr<coal::ShapeBase> makeCubeConvex()
+{
+  using tesseract::collision::tesseract_collision_coal::createShapePrimitive;
+
+  auto vertices = std::make_shared<tesseract::common::VectorVector3d>();
+  for (int i = 0; i < 8; ++i)
+    vertices->emplace_back((i & 1) ? 0.5 : -0.5, (i & 2) ? 0.5 : -0.5, (i & 4) ? 0.5 : -0.5);
+
+  // Six quads, each written as [vertex count, indices...].
+  auto faces = std::make_shared<Eigen::VectorXi>(30);
+  (*faces) << 4, 0, 1, 3, 2,  // -z
+      4, 4, 6, 7, 5,          // +z
+      4, 0, 4, 5, 1,          // -y
+      4, 2, 3, 7, 6,          // +y
+      4, 0, 2, 6, 4,          // -x
+      4, 1, 5, 7, 3;          // +x
+
+  auto mesh = std::make_shared<tesseract::geometry::ConvexMesh>(vertices, faces, 6);
+  return std::dynamic_pointer_cast<coal::ShapeBase>(createShapePrimitive(mesh));
+}
 }  // namespace
+
+TEST(CoalCastHullShapeUnit, LocalAABBCountsWrappedSweptSphereRadiusOnce)
+{
+  using tesseract::collision::tesseract_collision_coal::CastHullShape;
+
+  constexpr double ssr = 0.1;
+  constexpr double tolerance = 1e-6;
+
+  coal::Transform3s shifted = coal::Transform3s::Identity();
+  shifted.translation() = coal::Vec3s(1.0, 0.0, 0.0);
+
+  // computeShapeAABB dispatches convex hulls to the computeBV<AABB, ShapeBase>
+  // fallback, which derives its bound from aabb_local and so already carries the
+  // radius; the parametric primitive branches do not and add it themselves. Both
+  // poses must end up with it exactly once, whichever branch ran.
+  {
+    auto convex = makeCubeConvex();
+    ASSERT_NE(convex, nullptr);
+    convex->setSweptSphereRadius(ssr);
+    CastHullShape cast_hull(convex, shifted);
+    cast_hull.computeLocalAABB();
+
+    // Pose 0 spans [-0.6, 0.6]; pose 1 is that box shifted 1 in x.
+    EXPECT_NEAR(cast_hull.aabb_local.min_[0], -0.5 - ssr, tolerance);
+    EXPECT_NEAR(cast_hull.aabb_local.max_[0], 1.5 + ssr, tolerance);
+    EXPECT_NEAR(cast_hull.aabb_local.min_[1], -0.5 - ssr, tolerance);
+    EXPECT_NEAR(cast_hull.aabb_local.max_[1], 0.5 + ssr, tolerance);
+    EXPECT_NEAR(cast_hull.aabb_local.min_[2], -0.5 - ssr, tolerance);
+    EXPECT_NEAR(cast_hull.aabb_local.max_[2], 0.5 + ssr, tolerance);
+  }
+
+  {
+    auto box = std::make_shared<coal::Box>(1.0, 1.0, 1.0);
+    box->setSweptSphereRadius(ssr);
+    CastHullShape cast_hull(box, shifted);
+    cast_hull.computeLocalAABB();
+
+    EXPECT_NEAR(cast_hull.aabb_local.min_[0], -0.5 - ssr, tolerance);
+    EXPECT_NEAR(cast_hull.aabb_local.max_[0], 1.5 + ssr, tolerance);
+    EXPECT_NEAR(cast_hull.aabb_local.min_[1], -0.5 - ssr, tolerance);
+    EXPECT_NEAR(cast_hull.aabb_local.max_[1], 0.5 + ssr, tolerance);
+  }
+}
 
 TEST(CoalCastHullShapeUnit, LocalAABBUnit)
 {

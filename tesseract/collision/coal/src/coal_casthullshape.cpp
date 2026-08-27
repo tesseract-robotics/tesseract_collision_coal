@@ -65,12 +65,9 @@ void CastHullShape::computeLocalAABB()
   coal::AABB pose1_aabb;
   computeShapeAABB(*shape_, castTransform_, pose1_aabb);
 
-  // Include the underlying shape's swept sphere radius in the pose-1 AABB
-  // (pose 0 already includes it via shape_->aabb_local).
-  const coal::Scalar shape_ssr = shape_->getSweptSphereRadius();
-  if (shape_ssr > 0)
-    pose1_aabb.expand(shape_ssr);
-
+  // Both poses carry the underlying shape's swept-sphere radius already —
+  // aabb_local by coal's computeLocalAABB convention, pose 1 by
+  // computeShapeAABB's — so neither is expanded for it here.
   aabb_local += pose1_aabb;
 
   // Pad by CastHullShape's own swept-sphere radius (zero by default).

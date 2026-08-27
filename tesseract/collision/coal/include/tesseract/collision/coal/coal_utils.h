@@ -102,6 +102,8 @@ inline constexpr bool kDefaultDArcCompensation = false;
  *  specialization. Convex hulls use the conservative O(1) computeBV<AABB, ShapeBase>
  *  bound rather than the exact O(num_points) per-vertex fit, which is too costly for
  *  the tightness it buys on the per-check cast path (computeLocalAABB).
+ *  The returned bound includes the shape's swept-sphere radius on every branch, so a
+ *  caller must not expand for it again.
  *  @pre s.computeLocalAABB() must have been called (convex/fallback read aabb_local). */
 void computeShapeAABB(const coal::ShapeBase& s, const coal::Transform3s& tf, coal::AABB& bv);
 
