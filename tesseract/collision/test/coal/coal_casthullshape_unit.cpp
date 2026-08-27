@@ -204,14 +204,16 @@ TEST(CoalCastHullShapeUnit, LocalAABBUnit)
     EXPECT_NEAR(cast_hull_sphere.aabb_local.min_[2], -0.5, tolerance);
     EXPECT_NEAR(cast_hull_sphere.aabb_local.max_[2], 0.5, tolerance);
 
-    // Verify AABB center and radius are computed correctly
-    coal::Vec3s expected_center = cast_hull_sphere.aabb_local.center();
+    // Centre and radius of the bounds written above, stated independently of the
+    // shape: midpoint (0, 0.5, 0) and half-diagonal sqrt(0.5^2 + 1.0^2 + 0.5^2).
+    const coal::Vec3s expected_min(-0.5, -0.5, -0.5);
+    const coal::Vec3s expected_max(0.5, 1.5, 0.5);
+    const coal::Vec3s expected_center = (expected_min + expected_max) * 0.5;
     EXPECT_NEAR(cast_hull_sphere.aabb_center[0], expected_center[0], tolerance);
     EXPECT_NEAR(cast_hull_sphere.aabb_center[1], expected_center[1], tolerance);
     EXPECT_NEAR(cast_hull_sphere.aabb_center[2], expected_center[2], tolerance);
 
-    double expected_radius = (cast_hull_sphere.aabb_local.min_ - expected_center).norm();
-    EXPECT_NEAR(cast_hull_sphere.aabb_radius, expected_radius, tolerance);
+    EXPECT_NEAR(cast_hull_sphere.aabb_radius, std::sqrt(1.5), tolerance);
   }
 
   // Test case 4: Translation and rotation combined
@@ -267,14 +269,16 @@ TEST(CoalCastHullShapeUnit, LocalAABBUnit)
     EXPECT_LE(cast_hull_rotated.aabb_local.min_[1], 1.0 - sqrt2_half - tolerance);
     EXPECT_GE(cast_hull_rotated.aabb_local.max_[1], 1.0 + sqrt2_half - tolerance);
 
-    // Verify AABB center and radius are computed correctly
-    coal::Vec3s computed_center = cast_hull_rotated.aabb_center;
-    coal::Vec3s expected_center_from_aabb = cast_hull_rotated.aabb_local.center();
-    EXPECT_NEAR(computed_center[0], expected_center_from_aabb[0], tolerance);
-    EXPECT_NEAR(computed_center[1], expected_center_from_aabb[1], tolerance);
-    EXPECT_NEAR(computed_center[2], expected_center_from_aabb[2], tolerance);
+    // Centre and radius of the union stated independently: pose 0 spans
+    // [-0.5, 0.5] and pose 1 reaches 1 +/- sqrt(2)/2 in x and y, 0.5 in z.
+    const coal::Vec3s expected_min(-0.5, -0.5, -0.5);
+    const coal::Vec3s expected_max(1.0 + sqrt2_half, 1.0 + sqrt2_half, 0.5);
+    const coal::Vec3s expected_center = (expected_min + expected_max) * 0.5;
+    EXPECT_NEAR(cast_hull_rotated.aabb_center[0], expected_center[0], tolerance);
+    EXPECT_NEAR(cast_hull_rotated.aabb_center[1], expected_center[1], tolerance);
+    EXPECT_NEAR(cast_hull_rotated.aabb_center[2], expected_center[2], tolerance);
 
-    double expected_radius = (cast_hull_rotated.aabb_local.min_ - computed_center).norm();
+    const double expected_radius = (expected_min - expected_center).norm();
     EXPECT_NEAR(cast_hull_rotated.aabb_radius, expected_radius, tolerance);
   }
 }
