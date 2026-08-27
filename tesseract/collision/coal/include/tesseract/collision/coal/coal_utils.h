@@ -103,8 +103,12 @@ inline constexpr bool kDefaultDArcCompensation = false;
  *  bound rather than the exact O(num_points) per-vertex fit, which is too costly for
  *  the tightness it buys on the per-check cast path (computeLocalAABB).
  *  The returned bound includes the shape's swept-sphere radius on every branch, so a
- *  caller must not expand for it again.
- *  @pre s.computeLocalAABB() must have been called (convex/fallback read aabb_local). */
+ *  caller must not expand for it again -- but the two branches obtain it differently, and
+ *  only one of them is self-sufficient: the parametric specializations add the radius
+ *  here, while the fallback inherits whatever aabb_local holds.
+ *  @pre s.computeLocalAABB() must have been called since the swept-sphere radius was last
+ *  set. The fallback reads aabb_local, so a stale one drops the radius from the bound
+ *  silently, and the result is then smaller than the shape rather than larger. */
 void computeShapeAABB(const coal::ShapeBase& s, const coal::Transform3s& tf, coal::AABB& bv);
 
 /** @brief Erase cache entries involving any of the given collision objects (for object removal) */

@@ -67,7 +67,9 @@ void CastHullShape::computeLocalAABB()
 
   // Both poses carry the underlying shape's swept-sphere radius already —
   // aabb_local by coal's computeLocalAABB convention, pose 1 by
-  // computeShapeAABB's — so neither is expanded for it here.
+  // computeShapeAABB's — so neither is expanded for it here. Both readings are
+  // only as current as shape_->aabb_local: the constructor computes it, and
+  // nothing recomputes it if the wrapped shape's radius is set afterwards.
   aabb_local += pose1_aabb;
 
   // Pad by CastHullShape's own swept-sphere radius (zero by default).
