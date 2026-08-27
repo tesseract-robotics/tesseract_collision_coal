@@ -103,18 +103,12 @@ double CastHullShape::computeVolume() const
   if (translation_length < 1e-6 && !has_rotation)
     return baseVolume;
 
-  // Use support functions for a tight AABB volume estimate.
-  // computeShapeSupport ignores its hint/data parameters (they only satisfy the
-  // override's signature) and warm-starts from hint0_/hint1_/support_data0_/
-  // support_data1_ — the sweep's GJK warm-start chain, which a volume query
-  // must not perturb.
-  const int saved_hint0 = hint0_;
-  const int saved_hint1 = hint1_;
-  const coal::details::ShapeSupportData saved_data0 = support_data0_;
-  const coal::details::ShapeSupportData saved_data1 = support_data1_;
-
-  int hint = 0;
-  coal::details::ShapeSupportData data;
+  // Use support functions for a tight AABB volume estimate, climbing on local
+  // scratch: a volume query must not perturb the sweep's GJK warm-start chain.
+  int hint0 = 0;
+  int hint1 = 0;
+  coal::details::ShapeSupportData data0;
+  coal::details::ShapeSupportData data1;
   coal::AABB swept_aabb;
 
   for (int i = 0; i < 3; ++i)
@@ -123,18 +117,13 @@ double CastHullShape::computeVolume() const
     coal::Vec3s s;
 
     dir[i] = 1;
-    computeShapeSupport(dir, s, hint, data);
+    computeShapeSupport(dir, s, hint0, hint1, data0, data1);
     swept_aabb.max_[i] = s[i];
 
     dir[i] = -1;
-    computeShapeSupport(dir, s, hint, data);
+    computeShapeSupport(dir, s, hint0, hint1, data0, data1);
     swept_aabb.min_[i] = s[i];
   }
-
-  hint0_ = saved_hint0;
-  hint1_ = saved_hint1;
-  support_data0_ = saved_data0;
-  support_data1_ = saved_data1;
 
   return std::max(baseVolume, swept_aabb.volume());
 }
@@ -171,23 +160,33 @@ void CastHullShape::computeShapeSupport(const coal::Vec3s& dir,
                                         int& /*hint*/,
                                         coal::details::ShapeSupportData& /*data*/) const
 {
+  // The signature's single hint/data pair cannot serve the two poses, so the
+  // sweep's queries hill-climb from the mutable members instead, one hint/data
+  // pair per pose, reused across calls to warm-start.
+  computeShapeSupport(dir, support, hint0_, hint1_, support_data0_, support_data1_);
+}
+
+void CastHullShape::computeShapeSupport(const coal::Vec3s& dir,
+                                        coal::Vec3s& support,
+                                        int& hint0,
+                                        int& hint1,
+                                        coal::details::ShapeSupportData& data0,
+                                        coal::details::ShapeSupportData& data1) const
+{
   // Support at pose 0 (shape in its local frame, identity transform).
   // Use WithSweptSphere so that shapes with intrinsic radii (Sphere, Capsule)
   // include that radius in the support point — necessary for correct swept-hull
   // geometry and matching the behavior of the former castHullGetSupportFunc.
-  // Each pose gets its own vertex hint and ShapeSupportData so the two
-  // hill-climbing searches warm-start independently and reuse their visited
-  // buffers across calls.
-  const coal::Vec3s s0 = coal::details::getSupport<coal::details::SupportOptions::WithSweptSphere>(
-      shape_.get(), dir, hint0_, support_data0_);
+  const coal::Vec3s s0 =
+      coal::details::getSupport<coal::details::SupportOptions::WithSweptSphere>(shape_.get(), dir, hint0, data0);
 
   // Support at pose 1 (shape at castTransform_).
   // Rotate the query direction into the local frame of pose 1, compute support,
   // then transform the result back to the local frame of pose 0.
   const coal::Vec3s dir_local1 =
       castTransform_.getRotation().transpose() * dir;  // Transpose of a rotation matrix is its inverse.
-  const coal::Vec3s s1_local = coal::details::getSupport<coal::details::SupportOptions::WithSweptSphere>(
-      shape_.get(), dir_local1, hint1_, support_data1_);
+  const coal::Vec3s s1_local =
+      coal::details::getSupport<coal::details::SupportOptions::WithSweptSphere>(shape_.get(), dir_local1, hint1, data1);
   const coal::Vec3s s1 = castTransform_.transform(s1_local);
 
   // Return the support of the convex hull of both poses (Schulman et al. 2013).

@@ -116,6 +116,16 @@ public:
   coal::details::ShapeSupportData& getSupportData1() const { return support_data1_; }
 
 private:
+  /// @brief Support of the two-pose convex hull along @p dir, hill-climbing
+  /// from the caller's per-pose hint/data pairs. The virtual override forwards
+  /// the mutable warm-start members; state-neutral queries pass local scratch.
+  void computeShapeSupport(const coal::Vec3s& dir,
+                           coal::Vec3s& support,
+                           int& hint0,
+                           int& hint1,
+                           coal::details::ShapeSupportData& data0,
+                           coal::details::ShapeSupportData& data1) const;
+
   std::shared_ptr<coal::ShapeBase> shape_;
   coal::Transform3s castTransform_;
 
