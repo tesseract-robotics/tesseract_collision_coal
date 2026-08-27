@@ -24,7 +24,11 @@ TEST(CoalCastHullShapeBehaviorUnit, IsEqualAndCloneSemantics)  // NOLINT
   CastHullShape different_tf(base_shape, translated);
   EXPECT_FALSE(reference.isEqual(different_tf));
 
-  auto different_shape_ptr = std::make_shared<coal::Sphere>(0.5);
+  auto equivalent_shape_ptr = std::make_shared<coal::Sphere>(0.5);
+  CastHullShape equivalent_shape(equivalent_shape_ptr, identity);
+  EXPECT_TRUE(reference.isEqual(equivalent_shape));
+
+  auto different_shape_ptr = std::make_shared<coal::Sphere>(0.75);
   CastHullShape different_shape(different_shape_ptr, identity);
   EXPECT_FALSE(reference.isEqual(different_shape));
 

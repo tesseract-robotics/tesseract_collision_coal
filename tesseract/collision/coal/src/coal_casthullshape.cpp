@@ -134,7 +134,9 @@ bool CastHullShape::isEqual(const coal::CollisionGeometry& _other) const
   if (other_ptr == nullptr)
     return false;
 
-  return shape_ == other_ptr->shape_ && castTransform_ == other_ptr->castTransform_ &&
+  // The wrapped shape is compared by value, per coal's geometric-equality
+  // convention: casts of two distinct but identical shapes are equal.
+  return *shape_ == *other_ptr->shape_ && castTransform_ == other_ptr->castTransform_ &&
          getSweptSphereRadius() == other_ptr->getSweptSphereRadius();
 }
 
