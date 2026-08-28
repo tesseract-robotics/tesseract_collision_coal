@@ -76,8 +76,8 @@ struct CollisionCacheEntry
 {
   coal::CollisionRequest request;
   coal::ComputeCollision functor;
-  bool is_cast{ false };  ///< Cached at creation to avoid dynamic_cast on every re-seed.
-                          ///< Controls GJK seed strategy: cast pairs cannot use BoundingVolumeGuess.
+  bool is_cast{ false };  ///< Cached at creation to avoid a dynamic_cast per contact.
+                          ///< Gates population of the continuous-collision fields on each result.
   uint32_t gen0{ 0 };     ///< COW generation when GJK guess was last seeded (shape 0).
   uint32_t gen1{ 0 };     ///< COW generation when GJK guess was last seeded (shape 1).
 };

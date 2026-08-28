@@ -803,27 +803,22 @@ bool CollisionCallback::collide(coal::CollisionObject* o1, coal::CollisionObject
   auto& entry = col_cache_it->second;
   auto& cached_request = entry.request;
 
-  // Re-seed GJK guess when COW generation has changed (transform or enable/disable change).
-  // Deferred to here because the correct seed depends on the actual transforms.
+  // Drop the warm-start seed when a COW generation changes (transform or enable/disable), so the
+  // next check re-derives the guess from the current bounding volumes rather than reusing one
+  // aimed at the previous poses.
   // Reuse cd1/cd2 from above, applying the same swap to match cache key ordering.
   const auto* cow1 = pair_swapped ? cd2 : cd1;
   const auto* cow2 = pair_swapped ? cd1 : cd2;
   if (entry.gen0 != cow1->gjk_generation_ || entry.gen1 != cow2->gjk_generation_)
   {
-    // Cast pairs use center-to-center direction: BoundingVolumeGuess causes solver failure for
-    // swept volumes, and DefaultGuess(1,0,0) degrades contact accuracy.
-    if (entry.is_cast)
-    {
-      cached_request.gjk_initial_guess = coal::CachedGuess;
-      coal::Vec3s guess = co1->getTransform().getTranslation() - co2->getTransform().getTranslation();
-      if (guess.squaredNorm() < 1e-12)
-        guess = coal::Vec3s(1, 0, 0);
-      cached_request.cached_gjk_guess = guess;
-    }
-    else
-    {
-      cached_request.gjk_initial_guess = coal::BoundingVolumeGuess;
-    }
+    // A swept pair's deepest-point set degenerates to a face whose long axis is the sweep
+    // direction, so the witness EPA returns -- and with it cc_time -- is seed-dependent whatever
+    // the seed; depth, normal and the witness separation are not. The seed must therefore be
+    // derived from the bounding volumes, which share the geometry's symmetries: a seed taken from
+    // the pair's centre-to-centre direction does not, and on a shape penetrating several
+    // symmetrically placed octree voxels it yields a normal set that is not mirror-symmetric
+    // either, with two voxels reporting the same normal.
+    cached_request.gjk_initial_guess = coal::BoundingVolumeGuess;
 
     entry.gen0 = cow1->gjk_generation_;
     entry.gen1 = cow2->gjk_generation_;
@@ -840,8 +835,8 @@ bool CollisionCallback::collide(coal::CollisionObject* o1, coal::CollisionObject
   // Warm-start: cache the GJK/EPA result for the next call on this pair.
   // The cached separating direction (NoCollision) or penetration vector (EPA)
   // is a better seed than recomputing from geometry each time.
-  // Cached guesses are only updated if gjk_initial_guess == CachedGuess. Our first
-  // discrete collision check uses BoundingVolumeGuess, so we have to update manually.
+  // Cached guesses are only updated if gjk_initial_guess == CachedGuess. Every first
+  // collision check uses BoundingVolumeGuess, so we have to update manually.
   cached_request.gjk_initial_guess = coal::CachedGuess;
   cached_request.cached_gjk_guess = col_result.cached_gjk_guess;
   cached_request.cached_support_func_guess = col_result.cached_support_func_guess;
