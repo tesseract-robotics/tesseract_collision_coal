@@ -93,6 +93,32 @@ TEST(CoalCastHullShapeBehaviorUnit, CloneCarriesLocalAABB)  // NOLINT
   EXPECT_DOUBLE_EQ(cloned->aabb_radius, source.aabb_radius);
 }
 
+TEST(CoalCastHullShapeBehaviorUnit, CloneCarriesBaseCollisionGeometryState)  // NOLINT
+{
+  auto box = std::make_shared<coal::Box>(1.0, 1.0, 1.0);
+  CastHullShape source(box, coal::Transform3s::Identity());
+
+  // Fields the clone inherits from coal::CollisionGeometry rather than declaring itself.
+  // Nothing in this plugin sets them, but CastHullShape is installed API and a clone that
+  // drops them is a clone that silently loses caller state.
+  int marker = 0;
+  source.user_data = &marker;
+  source.cost_density = 2.5;
+  source.threshold_occupied = 0.75;
+  source.threshold_free = 0.25;
+  source.setSweptSphereRadius(0.1);
+
+  std::unique_ptr<CastHullShape> cloned(source.clone());
+  ASSERT_NE(cloned, nullptr);
+  // user_data is a raw pointer, so the clone shares the pointee -- coal's convention for
+  // every shape, not an oversight here.
+  EXPECT_EQ(cloned->user_data, source.user_data);
+  EXPECT_DOUBLE_EQ(cloned->cost_density, source.cost_density);
+  EXPECT_DOUBLE_EQ(cloned->threshold_occupied, source.threshold_occupied);
+  EXPECT_DOUBLE_EQ(cloned->threshold_free, source.threshold_free);
+  EXPECT_DOUBLE_EQ(cloned->getSweptSphereRadius(), source.getSweptSphereRadius());
+}
+
 TEST(CoalCastHullShapeBehaviorUnit, IsEqualSeesSweptSphereRadius)  // NOLINT
 {
   auto sphere = std::make_shared<coal::Sphere>(0.5);

@@ -104,12 +104,15 @@ void CastHullShape::computeLocalAABB()
   aabb_radius = (aabb_local.min_ - aabb_center).norm();
 }
 
-// NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
 CastHullShape* CastHullShape::clone() const
 {
-  auto* c = new CastHullShape(shape_, castTransform_);
-  c->setSweptSphereRadius(getSweptSphereRadius());
-  // computeLocalAABB pads by the swept-sphere radius, so it must follow the radius copy.
+  // Copy-construct, as coal's own shapes do, so every CollisionGeometry field travels --
+  // user_data, cost_density and the occupancy thresholds included. Reconstructing from the
+  // wrapped shape and the cast transform would silently drop them.
+  // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
+  auto* c = new CastHullShape(*this);
+  // The copy carries the source's bound, but a source whose AABB was never computed has
+  // none worth carrying, so recompute rather than trust it.
   c->computeLocalAABB();
   return c;
 }

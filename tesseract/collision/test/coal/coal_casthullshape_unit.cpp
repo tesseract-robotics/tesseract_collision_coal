@@ -57,7 +57,7 @@ std::shared_ptr<coal::ShapeBase> makeCubeConvex()
 
   auto vertices = std::make_shared<tesseract::common::VectorVector3d>();
   for (int i = 0; i < 8; ++i)
-    vertices->emplace_back((i & 1) ? 0.5 : -0.5, (i & 2) ? 0.5 : -0.5, (i & 4) ? 0.5 : -0.5);
+    vertices->emplace_back(((i & 1) != 0) ? 0.5 : -0.5, ((i & 2) != 0) ? 0.5 : -0.5, ((i & 4) != 0) ? 0.5 : -0.5);
 
   // Six quads, each written as [vertex count, indices...].
   auto faces = std::make_shared<Eigen::VectorXi>(30);
@@ -401,7 +401,7 @@ TEST(CoalCastHullShapeUnit, ComputeVolumeUnit)
 
     double cast_hull_small_volume = cast_hull_small_translation.computeVolume();
 
-    // Same shape as test 2 at a smaller step: exactly a 1.1 x 1 x 1 hull.
+    // Axis-aligned pure translation, as in test 2: exactly a 1.1 x 1 x 1 hull.
     EXPECT_NEAR(cast_hull_small_volume, 1.1, tolerance);
   }
 
