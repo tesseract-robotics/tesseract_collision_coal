@@ -108,8 +108,21 @@ inline constexpr bool kDefaultDArcCompensation = false;
  *  here, while the fallback inherits whatever aabb_local holds.
  *  @pre s.computeLocalAABB() must have been called since the swept-sphere radius was last
  *  set. The fallback reads aabb_local, so a stale one drops the radius from the bound
- *  silently, and the result is then smaller than the shape rather than larger. */
+ *  silently, and the result is then smaller than the shape rather than larger. Callers that
+ *  cannot guarantee this should hold their own radius-free bound and use the overload. */
 void computeShapeAABB(const coal::ShapeBase& s, const coal::Transform3s& tf, coal::AABB& bv);
+
+/** @brief Compute an AABB for a ShapeBase at transform tf, bounding the shapes with no
+ *  parametric computeBV specialization -- convex hulls, GEOM_CUSTOM, future types -- from
+ *  @p local_aabb instead of from s.aabb_local.
+ *  The swept-sphere radius is read live and added on every branch, so this overload carries
+ *  no precondition: it never reads s.aabb_local, and so cannot inherit a stale one.
+ *  @param local_aabb the shape's local AABB *without* its swept-sphere radius. Passing a
+ *  bound that already includes the radius counts it twice. */
+void computeShapeAABB(const coal::ShapeBase& s,
+                      const coal::Transform3s& tf,
+                      const coal::AABB& local_aabb,
+                      coal::AABB& bv);
 
 /** @brief Erase cache entries involving any of the given collision objects (for object removal) */
 void invalidateCacheFor(CollisionCacheMap& cache, const std::vector<CollisionObjectPtr>& objects);

@@ -116,6 +116,48 @@ TEST(CoalCastHullShapeUnit, LocalAABBCountsWrappedSweptSphereRadiusOnce)
   }
 }
 
+TEST(CoalCastHullShapeUnit, LocalAABBIgnoresTheWrappedShapesStaleCache)
+{
+  using tesseract::collision::tesseract_collision_coal::CastHullShape;
+
+  constexpr double ssr = 0.1;
+  constexpr double tolerance = 1e-6;
+
+  coal::Transform3s shifted = coal::Transform3s::Identity();
+  shifted.translation() = coal::Vec3s(1.0, 0.0, 0.0);
+
+  // Same sweep and same radius as the test above, but the radius is set after the wrapper is
+  // built. coal leaves aabb_local stale on setSweptSphereRadius, so a bound taken from it
+  // would come out smaller than the shape and the broadphase would drop the pair. The bound
+  // must not depend on which side of construction the radius was set.
+  {
+    auto convex = makeCubeConvex();
+    ASSERT_NE(convex, nullptr);
+    CastHullShape cast_hull(convex, shifted);
+    convex->setSweptSphereRadius(ssr);
+    cast_hull.computeLocalAABB();
+
+    EXPECT_NEAR(cast_hull.aabb_local.min_[0], -0.5 - ssr, tolerance);
+    EXPECT_NEAR(cast_hull.aabb_local.max_[0], 1.5 + ssr, tolerance);
+    EXPECT_NEAR(cast_hull.aabb_local.min_[1], -0.5 - ssr, tolerance);
+    EXPECT_NEAR(cast_hull.aabb_local.max_[1], 0.5 + ssr, tolerance);
+    EXPECT_NEAR(cast_hull.aabb_local.min_[2], -0.5 - ssr, tolerance);
+    EXPECT_NEAR(cast_hull.aabb_local.max_[2], 0.5 + ssr, tolerance);
+  }
+
+  {
+    auto box = std::make_shared<coal::Box>(1.0, 1.0, 1.0);
+    CastHullShape cast_hull(box, shifted);
+    box->setSweptSphereRadius(ssr);
+    cast_hull.computeLocalAABB();
+
+    EXPECT_NEAR(cast_hull.aabb_local.min_[0], -0.5 - ssr, tolerance);
+    EXPECT_NEAR(cast_hull.aabb_local.max_[0], 1.5 + ssr, tolerance);
+    EXPECT_NEAR(cast_hull.aabb_local.min_[1], -0.5 - ssr, tolerance);
+    EXPECT_NEAR(cast_hull.aabb_local.max_[1], 0.5 + ssr, tolerance);
+  }
+}
+
 TEST(CoalCastHullShapeUnit, LocalAABBUnit)
 {
   using namespace tesseract::collision::tesseract_collision_coal;

@@ -129,6 +129,14 @@ private:
   std::shared_ptr<coal::ShapeBase> shape_;
   coal::Transform3s castTransform_;
 
+  /// @brief The wrapped shape's local AABB with its swept-sphere radius removed, captured at
+  /// construction. computeLocalAABB re-inflates it by the shape's live radius rather than
+  /// reading shape_->aabb_local, which coal refreshes only on computeLocalAABB() and which
+  /// setSweptSphereRadius() leaves stale -- a stale one would make the cast bound smaller
+  /// than the shape, and the broadphase would drop the pair. This bound needs no refreshing
+  /// because it does not depend on the radius at all.
+  coal::AABB wrapped_aabb_;
+
   /// Separate support function vertex hints and data for pose 0 and pose 1.
   /// Each getSupport call uses hill-climbing from the hint, so sharing a single
   /// hint between the two poses (which query different directions) would cause

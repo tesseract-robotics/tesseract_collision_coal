@@ -47,29 +47,54 @@ TESSERACT_COMMON_IGNORE_WARNINGS_POP
 
 namespace tesseract::collision::tesseract_collision_coal
 {
-CastHullShape::CastHullShape(std::shared_ptr<coal::ShapeBase> shape, const coal::Transform3s& castTransform)
-  : shape_(std::move(shape)), castTransform_(castTransform)
+namespace
 {
-  // Ensure the underlying shape's local AABB is computed.
-  // Shapes from CollisionObjects already have this set, but freshly constructed
+/** @brief Refresh the shape's local AABB and return it with the swept-sphere radius removed.
+ *
+ * coal's computeLocalAABB is a tight bound inflated by the radius, and nothing runs between
+ * that call and the read below, so the radius read back is necessarily the one it baked in
+ * and removing it recovers the tight bound exactly. That identity holds only here, which is
+ * why the result is kept rather than re-derived per check -- re-deriving it would cost the
+ * O(num_points) fit for a convex hull. */
+coal::AABB refreshTightAABB(coal::ShapeBase& s)
+{
+  // Shapes from CollisionObjects already have their local AABB set, but freshly constructed
   // shapes (e.g. in tests) may not.
-  shape_->computeLocalAABB();
+  s.computeLocalAABB();
+
+  coal::AABB tight = s.aabb_local;
+  const coal::Scalar ssr = s.getSweptSphereRadius();
+  if (ssr > 0)
+  {
+    tight.min_ += coal::Vec3s::Constant(ssr);
+    tight.max_ -= coal::Vec3s::Constant(ssr);
+  }
+
+  return tight;
+}
+}  // namespace
+
+CastHullShape::CastHullShape(std::shared_ptr<coal::ShapeBase> shape, const coal::Transform3s& castTransform)
+  : shape_(std::move(shape)), castTransform_(castTransform), wrapped_aabb_(refreshTightAABB(*shape_))
+{
 }
 
 void CastHullShape::computeLocalAABB()
 {
-  // Pose 0: underlying shape's local AABB (tight, precomputed).
-  aabb_local = shape_->aabb_local;
+  // Pose 0: the wrapped shape in its own frame, re-inflated by its swept-sphere radius read
+  // live. Reading it live rather than taking shape_->aabb_local is what lets a radius set
+  // through getUnderlyingShape() after construction still reach the bound.
+  aabb_local = wrapped_aabb_;
+  const coal::Scalar wrapped_ssr = shape_->getSweptSphereRadius();
+  if (wrapped_ssr > 0)
+    aabb_local.expand(wrapped_ssr);
 
-  // Pose 1: AABB of the underlying shape at the cast transform.
+  // Pose 1: the wrapped shape at the cast transform. The overload bounds the shapes with no
+  // parametric form from wrapped_aabb_ instead of shape_->aabb_local, and applies the same
+  // live radius itself, so neither pose can inherit a stale one.
   coal::AABB pose1_aabb;
-  computeShapeAABB(*shape_, castTransform_, pose1_aabb);
+  computeShapeAABB(*shape_, castTransform_, wrapped_aabb_, pose1_aabb);
 
-  // Both poses carry the underlying shape's swept-sphere radius already —
-  // aabb_local by coal's computeLocalAABB convention, pose 1 by
-  // computeShapeAABB's — so neither is expanded for it here. Both readings are
-  // only as current as shape_->aabb_local: the constructor computes it, and
-  // nothing recomputes it if the wrapped shape's radius is set afterwards.
   aabb_local += pose1_aabb;
 
   // Pad by CastHullShape's own swept-sphere radius (zero by default).

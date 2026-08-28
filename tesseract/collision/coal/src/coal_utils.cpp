@@ -68,7 +68,13 @@ TESSERACT_COMMON_IGNORE_WARNINGS_POP
 
 namespace tesseract::collision::tesseract_collision_coal
 {
-void computeShapeAABB(const coal::ShapeBase& s, const coal::Transform3s& tf, coal::AABB& bv)
+namespace
+{
+/** @brief Bound the shape from its parameters, for the node types coal specializes computeBV
+ * for. The parametric specializations leave the swept-sphere radius out; callers add it.
+ * @return false for convex hulls, GEOM_CUSTOM and future types, which have no parametric form
+ * and must be bounded from a local AABB instead. */
+bool computeParametricShapeAABB(const coal::ShapeBase& s, const coal::Transform3s& tf, coal::AABB& bv)
 {
   switch (s.getNodeType())
   {
@@ -102,21 +108,61 @@ void computeShapeAABB(const coal::ShapeBase& s, const coal::Transform3s& tf, coa
     case coal::GEOM_CONVEX32:
     case coal::GEOM_CONVEX16:
     default:
-      // Convex hulls, GEOM_CUSTOM, and future types: conservative O(1)
-      // |R|*half-extents from the precomputed local AABB. The exact convex fit
-      // (computeAABBConvex) is O(num_points) and too costly on the per-check
-      // cast path for the broadphase tightness it buys. aabb_local already
-      // carries the swept-sphere radius, so this branch is done.
-      coal::computeBV<coal::AABB, coal::ShapeBase>(s, tf, bv);
-      return;
+      return false;
   }
 
-  // The parametric specializations above build the bound from shape parameters
-  // and leave the swept-sphere radius out. Every branch of this function
-  // includes it, so callers must not expand for it themselves.
+  return true;
+}
+
+/** @brief coal's computeBV<AABB, ShapeBase> formula against a caller-supplied local AABB:
+ * conservative O(1) |R|*half-extents about the transformed centre. The exact convex fit
+ * (computeAABBConvex) is O(num_points) and too costly on the per-check cast path for the
+ * broadphase tightness it buys. */
+void computeShapeAABBFromLocal(const coal::AABB& local_aabb, const coal::Transform3s& tf, coal::AABB& bv)
+{
+  const coal::Matrix3s& rotation = tf.getRotation();
+  const coal::Vec3s half = (local_aabb.max_ - local_aabb.min_) * 0.5;
+  const coal::Vec3s center = rotation * local_aabb.center() + tf.getTranslation();
+  const coal::Vec3s delta(rotation.cwiseAbs() * half);
+
+  bv.min_ = center - delta;
+  bv.max_ = center + delta;
+}
+
+void expandBySweptSphereRadius(const coal::ShapeBase& s, coal::AABB& bv)
+{
   const coal::Scalar ssr = s.getSweptSphereRadius();
   if (ssr > 0)
     bv.expand(ssr);
+}
+}  // namespace
+
+void computeShapeAABB(const coal::ShapeBase& s, const coal::Transform3s& tf, coal::AABB& bv)
+{
+  if (!computeParametricShapeAABB(s, tf, bv))
+  {
+    // s.aabb_local already carries the swept-sphere radius, so this branch is done.
+    coal::computeBV<coal::AABB, coal::ShapeBase>(s, tf, bv);
+    return;
+  }
+
+  // Every branch of this function includes the radius, so callers must not expand for it
+  // themselves.
+  expandBySweptSphereRadius(s, bv);
+}
+
+void computeShapeAABB(const coal::ShapeBase& s,
+                      const coal::Transform3s& tf,
+                      const coal::AABB& local_aabb,
+                      coal::AABB& bv)
+{
+  if (!computeParametricShapeAABB(s, tf, bv))
+    computeShapeAABBFromLocal(local_aabb, tf, bv);
+
+  // Uniform across both branches here, because local_aabb is radius-free by contract --
+  // unlike s.aabb_local, which fuses the radius in and is what the three-argument overload
+  // has to live with.
+  expandBySweptSphereRadius(s, bv);
 }
 
 namespace
