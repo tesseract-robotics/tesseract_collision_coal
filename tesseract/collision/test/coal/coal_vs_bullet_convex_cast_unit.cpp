@@ -59,6 +59,10 @@ TEST(CoalVsBulletUnit, ConvexHullSphereSphereSweptComparison)  // NOLINT
   int ci0 = (coal_cr.link_ids[0] == "sphere_link") ? 0 : 1;
 
   EXPECT_NEAR(coal_cr.distance, bullet_cr.distance, 0.01) << "Penetration depth";
+  // The cc_time tolerances are wide because coal does not canonicalise the witness on the
+  // degenerate contact face this scenario produces: it returns an arbitrary point of the face and
+  // cc_time follows it. Bullet lands on the face midpoint, which runTestConvex pins under
+  // canonical_cast_witness. Do not tighten these without giving coal a canonical witness first.
   EXPECT_NEAR(coal_cr.cc_time[ci0], bullet_cr.cc_time[bi0], 0.05) << "sphere_link cc_time";
   EXPECT_NEAR(coal_cr.cc_time[1 - ci0], bullet_cr.cc_time[1 - bi0], 0.05) << "sphere1_link cc_time";
   EXPECT_EQ(coal_cr.cc_type[ci0], bullet_cr.cc_type[bi0]) << "sphere_link cc_type";

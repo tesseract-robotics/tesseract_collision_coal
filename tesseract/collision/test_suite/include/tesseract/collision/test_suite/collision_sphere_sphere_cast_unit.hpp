@@ -20,6 +20,10 @@ namespace tesseract::collision::test_suite
 {
 namespace detail
 {
+/// Local z offset of both spheres within their links, so a witness on a sphere sits this far above
+/// its link origin.
+constexpr double SPHERE_LOCAL_Z = 0.25;
+
 inline void addCollisionObjects(ContinuousContactManager& checker, bool use_convex_mesh = false)
 {
   tesseract::common::GeneralResourceLocator locator;
@@ -49,7 +53,7 @@ inline void addCollisionObjects(ContinuousContactManager& checker, bool use_conv
 
   Eigen::Isometry3d sphere_pose;
   sphere_pose.setIdentity();
-  sphere_pose.translation()[2] = 0.25;
+  sphere_pose.translation()[2] = SPHERE_LOCAL_Z;
 
   CollisionShapesConst obj1_shapes;
   tesseract::common::VectorIsometry3d obj1_poses;
@@ -105,7 +109,7 @@ inline void addCollisionObjects(ContinuousContactManager& checker, bool use_conv
 
   Eigen::Isometry3d sphere1_pose;
   sphere1_pose.setIdentity();
-  sphere1_pose.translation()[2] = 0.25;
+  sphere1_pose.translation()[2] = SPHERE_LOCAL_Z;
 
   CollisionShapesConst obj3_shapes;
   tesseract::common::VectorIsometry3d obj3_poses;
@@ -480,7 +484,15 @@ inline void runTestPrimitive(ContinuousContactManager& checker)
   EXPECT_NEAR(cr2.normal[2], idx[2] * 0.0, 0.001) << "Contact normal z: should be ~0";
 }
 
-inline void runTestConvex(ContinuousContactManager& checker)
+/**
+ * @param canonical_cast_witness Whether the backend resolves the witness on a degenerate contact
+ * face to a single canonical point. The convex hull of a shape's two swept poses has a facet
+ * extruded along the sweep, so where two such facets meet, every point of the overlap is equally
+ * deep. A backend that does not canonicalise returns an arbitrary one of them, sliding both
+ * witnesses together along the sweeps; only that choice varies, so the checks below split into
+ * those that hold for any point of the overlap and those that pin the canonical one.
+ */
+inline void runTestConvex(ContinuousContactManager& checker, bool canonical_cast_witness)
 {
   ///////////////////////////////////////////////////
   // Test when object is in collision at cc_time 0.5
@@ -547,10 +559,21 @@ inline void runTestConvex(ContinuousContactManager& checker)
   const std::string sphere_slot = (idx[0] == 0) ? "slot 0" : "slot 1";
   const std::string sphere1_slot = (idx[1] == 0) ? "slot 0" : "slot 1";
 
-  EXPECT_NEAR(cr1.cc_time[static_cast<size_t>(idx[0])], 0.5, 0.001)
-      << "sphere_link (" << sphere_slot << ") cc_time should be 0.5 (collision at midpoint)";
-  EXPECT_NEAR(cr1.cc_time[static_cast<size_t>(idx[1])], 0.5, 0.001)
-      << "sphere1_link (" << sphere1_slot << ") cc_time should be 0.5 (collision at midpoint)";
+  const auto i0 = static_cast<size_t>(idx[0]);
+  const auto i1 = static_cast<size_t>(idx[1]);
+
+  // Each shape's centre sweeps its link origin's own segment, offset by the shape's local pose.
+  // The witness sits on the shape, so it is that segment cc_time must locate it on -- a witness
+  // anywhere on the degenerate contact overlap is valid, but cc_time has to follow it.
+  const double sphere_y_start = location_start["sphere_link"].translation().y();
+  const double sphere_y_end = location_end["sphere_link"].translation().y();
+  const double sphere1_z_start = location_start["sphere1_link"].translation().z() + SPHERE_LOCAL_Z;
+  const double sphere1_z_end = location_end["sphere1_link"].translation().z() + SPHERE_LOCAL_Z;
+
+  EXPECT_NEAR(cr1.cc_time[i0], (cr1.nearest_points[i0][1] - sphere_y_start) / (sphere_y_end - sphere_y_start), 0.001)
+      << "sphere_link (" << sphere_slot << ") cc_time must locate its own witness along the sweep";
+  EXPECT_NEAR(cr1.cc_time[i1], (cr1.nearest_points[i1][2] - sphere1_z_start) / (sphere1_z_end - sphere1_z_start), 0.001)
+      << "sphere1_link (" << sphere1_slot << ") cc_time must locate its own witness along the sweep";
 
   EXPECT_EQ(cr1.cc_type[static_cast<size_t>(idx[0])], ContinuousCollisionType::CCType_Between)
       << "sphere_link (" << sphere_slot << ") cc_type should be CCType_Between (3), "
@@ -562,14 +585,20 @@ inline void runTestConvex(ContinuousContactManager& checker)
   // World-frame nearest points (convex mesh values)
   EXPECT_NEAR(cr1.nearest_points[static_cast<size_t>(idx[0])][0], 0.0377, 0.001) << "sphere_link nearest_point.x "
                                                                                     "(convex mesh)";
-  EXPECT_NEAR(cr1.nearest_points[static_cast<size_t>(idx[0])][1], 0.0, 0.001) << "sphere_link nearest_point.y: at y=0 "
-                                                                                 "(midpoint of sweep at t=0.5)";
+  EXPECT_NEAR(cr1.nearest_points[i0][1], cr1.nearest_points[i1][1], 1e-9) << "both witnesses lie on the same point of "
+                                                                             "the contact overlap, so they share its y";
+  if (canonical_cast_witness)
+  {
+    // The one fact a backend without a canonical witness loses. With the two invariants above it
+    // also pins both cc_times to 0.5 and sphere1_link's witness y to 0.
+    EXPECT_NEAR(cr1.nearest_points[i0][1], 0.0, 0.001) << "sphere_link nearest_point.y: at y=0 (midpoint of sweep at "
+                                                          "t=0.5)";
+  }
   EXPECT_NEAR(cr1.nearest_points[static_cast<size_t>(idx[0])][2], 0.25, 0.001) << "sphere_link nearest_point.z: "
                                                                                   "sphere_pose z=0.25 offset";
 
   EXPECT_NEAR(cr1.nearest_points[static_cast<size_t>(idx[1])][0], -0.0377, 0.001) << "sphere1_link nearest_point.x "
                                                                                      "(convex mesh)";
-  EXPECT_NEAR(cr1.nearest_points[static_cast<size_t>(idx[1])][1], 0.0, 0.001) << "sphere1_link nearest_point.y";
   EXPECT_NEAR(cr1.nearest_points[static_cast<size_t>(idx[1])][2], 0.25, 0.001) << "sphere1_link nearest_point.z: "
                                                                                   "sphere_pose z=0.25 offset";
 
@@ -789,7 +818,9 @@ inline void runTestConvex(ContinuousContactManager& checker)
 }
 }  // namespace detail
 
-inline void runTest(ContinuousContactManager& checker, bool use_convex_mesh)
+/** @param canonical_cast_witness See detail::runTestConvex; irrelevant to the primitive geometry,
+ * whose curved swept flank has no degenerate contact face. */
+inline void runTest(ContinuousContactManager& checker, bool use_convex_mesh, bool canonical_cast_witness = true)
 {
   // Add collision objects
   detail::addCollisionObjects(checker, use_convex_mesh);
@@ -798,7 +829,7 @@ inline void runTest(ContinuousContactManager& checker, bool use_convex_mesh)
   detail::addCollisionObjects(checker, use_convex_mesh);
 
   if (use_convex_mesh)
-    detail::runTestConvex(checker);
+    detail::runTestConvex(checker, canonical_cast_witness);
   else
     detail::runTestPrimitive(checker);
 }
