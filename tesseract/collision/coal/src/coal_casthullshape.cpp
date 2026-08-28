@@ -89,9 +89,9 @@ void CastHullShape::computeLocalAABB()
   if (wrapped_ssr > 0)
     aabb_local.expand(wrapped_ssr);
 
-  // Pose 1: the wrapped shape at the cast transform. The overload bounds the shapes with no
-  // parametric form from wrapped_aabb_ instead of shape_->aabb_local, and applies the same
-  // live radius itself, so neither pose can inherit a stale one.
+  // Pose 1: the wrapped shape at the cast transform. computeShapeAABB bounds the shapes
+  // with no parametric form from wrapped_aabb_ rather than shape_->aabb_local, and applies
+  // the same live radius itself, so neither pose can inherit a stale one.
   coal::AABB pose1_aabb;
   computeShapeAABB(*shape_, castTransform_, wrapped_aabb_, pose1_aabb);
 

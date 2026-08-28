@@ -99,24 +99,14 @@ inline constexpr bool kDefaultDArcCompensation = false;
 
 /** @brief Compute an AABB for a ShapeBase at transform tf, dispatching on getNodeType().
  *  Primitive shapes (Box, Sphere, Capsule, ...) use their exact analytic computeBV
- *  specialization. Convex hulls use the conservative O(1) computeBV<AABB, ShapeBase>
- *  bound rather than the exact O(num_points) per-vertex fit, which is too costly for
- *  the tightness it buys on the per-check cast path (computeLocalAABB).
- *  The returned bound includes the shape's swept-sphere radius on every branch, so a
- *  caller must not expand for it again -- but the two branches obtain it differently, and
- *  only one of them is self-sufficient: the parametric specializations add the radius
- *  here, while the fallback inherits whatever aabb_local holds.
- *  @pre s.computeLocalAABB() must have been called since the swept-sphere radius was last
- *  set. The fallback reads aabb_local, so a stale one drops the radius from the bound
- *  silently, and the result is then smaller than the shape rather than larger. Callers that
- *  cannot guarantee this should hold their own radius-free bound and use the overload. */
-void computeShapeAABB(const coal::ShapeBase& s, const coal::Transform3s& tf, coal::AABB& bv);
-
-/** @brief Compute an AABB for a ShapeBase at transform tf, bounding the shapes with no
- *  parametric computeBV specialization -- convex hulls, GEOM_CUSTOM, future types -- from
- *  @p local_aabb instead of from s.aabb_local.
- *  The swept-sphere radius is read live and added on every branch, so this overload carries
- *  no precondition: it never reads s.aabb_local, and so cannot inherit a stale one.
+ *  specialization. The shapes with no such specialization -- convex hulls, GEOM_CUSTOM,
+ *  future types -- are bounded from @p local_aabb by the conservative O(1) computeBV
+ *  formula rather than the exact O(num_points) per-vertex fit, which is too costly for the
+ *  tightness it buys on the per-check cast path (computeLocalAABB).
+ *  The shape's swept-sphere radius is read live and added on every branch, so a caller must
+ *  not expand for it again. No branch reads s.aabb_local, which coal refreshes only on
+ *  computeLocalAABB() and leaves stale on setSweptSphereRadius(), so no bound here can
+ *  inherit a stale radius and come out smaller than the shape.
  *  @param local_aabb the shape's local AABB *without* its swept-sphere radius. Passing a
  *  bound that already includes the radius counts it twice. */
 void computeShapeAABB(const coal::ShapeBase& s,

@@ -129,27 +129,7 @@ void computeShapeAABBFromLocal(const coal::AABB& local_aabb, const coal::Transfo
   bv.max_ = center + delta;
 }
 
-void expandBySweptSphereRadius(const coal::ShapeBase& s, coal::AABB& bv)
-{
-  const coal::Scalar ssr = s.getSweptSphereRadius();
-  if (ssr > 0)
-    bv.expand(ssr);
-}
 }  // namespace
-
-void computeShapeAABB(const coal::ShapeBase& s, const coal::Transform3s& tf, coal::AABB& bv)
-{
-  if (!computeParametricShapeAABB(s, tf, bv))
-  {
-    // s.aabb_local already carries the swept-sphere radius, so this branch is done.
-    coal::computeBV<coal::AABB, coal::ShapeBase>(s, tf, bv);
-    return;
-  }
-
-  // Every branch of this function includes the radius, so callers must not expand for it
-  // themselves.
-  expandBySweptSphereRadius(s, bv);
-}
 
 void computeShapeAABB(const coal::ShapeBase& s,
                       const coal::Transform3s& tf,
@@ -159,10 +139,11 @@ void computeShapeAABB(const coal::ShapeBase& s,
   if (!computeParametricShapeAABB(s, tf, bv))
     computeShapeAABBFromLocal(local_aabb, tf, bv);
 
-  // Uniform across both branches here, because local_aabb is radius-free by contract --
-  // unlike s.aabb_local, which fuses the radius in and is what the three-argument overload
-  // has to live with.
-  expandBySweptSphereRadius(s, bv);
+  // Uniform across both branches: the parametric specializations leave the radius out, and
+  // local_aabb is radius-free by contract.
+  const coal::Scalar ssr = s.getSweptSphereRadius();
+  if (ssr > 0)
+    bv.expand(ssr);
 }
 
 namespace

@@ -83,10 +83,10 @@ TEST(CoalCastHullShapeUnit, LocalAABBCountsWrappedSweptSphereRadiusOnce)
   coal::Transform3s shifted = coal::Transform3s::Identity();
   shifted.translation() = coal::Vec3s(1.0, 0.0, 0.0);
 
-  // computeShapeAABB dispatches convex hulls to the computeBV<AABB, ShapeBase>
-  // fallback, which derives its bound from aabb_local and so already carries the
-  // radius; the parametric primitive branches do not and add it themselves. Both
-  // poses must end up with it exactly once, whichever branch ran.
+  // computeShapeAABB bounds convex hulls from the caller's radius-free AABB and the
+  // primitives from their analytic computeBV, and neither carries the swept-sphere
+  // radius until it adds it live. Both poses must end up with it exactly once,
+  // whichever branch ran.
   {
     auto convex = makeCubeConvex();
     ASSERT_NE(convex, nullptr);
