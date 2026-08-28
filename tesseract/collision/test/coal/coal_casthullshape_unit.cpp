@@ -197,23 +197,22 @@ TEST(CoalCastHullShapeUnit, LocalAABBUnit)
     // Original sphere: all axes=[-0.5,0.5], translated sphere: y=[0.5,1.5], x&z=[-0.5,0.5]
     // Combined swept AABB: x=[-0.5,0.5], y=[-0.5,1.5], z=[-0.5,0.5]
     const double tolerance = 1e-6;
-    EXPECT_NEAR(cast_hull_sphere.aabb_local.min_[0], -0.5, tolerance);
-    EXPECT_NEAR(cast_hull_sphere.aabb_local.max_[0], 0.5, tolerance);
-    EXPECT_NEAR(cast_hull_sphere.aabb_local.min_[1], -0.5, tolerance);
-    EXPECT_NEAR(cast_hull_sphere.aabb_local.max_[1], 1.5, tolerance);
-    EXPECT_NEAR(cast_hull_sphere.aabb_local.min_[2], -0.5, tolerance);
-    EXPECT_NEAR(cast_hull_sphere.aabb_local.max_[2], 0.5, tolerance);
-
-    // Centre and radius of the bounds written above, stated independently of the
-    // shape: midpoint (0, 0.5, 0) and half-diagonal sqrt(0.5^2 + 1.0^2 + 0.5^2).
     const coal::Vec3s expected_min(-0.5, -0.5, -0.5);
     const coal::Vec3s expected_max(0.5, 1.5, 0.5);
+    for (int i = 0; i < 3; ++i)
+    {
+      EXPECT_NEAR(cast_hull_sphere.aabb_local.min_[i], expected_min[i], tolerance);
+      EXPECT_NEAR(cast_hull_sphere.aabb_local.max_[i], expected_max[i], tolerance);
+    }
+
+    // Centre and radius of those same bounds, stated independently of the shape:
+    // midpoint (0, 0.5, 0) and half-diagonal sqrt(0.5^2 + 1.0^2 + 0.5^2).
     const coal::Vec3s expected_center = (expected_min + expected_max) * 0.5;
     EXPECT_NEAR(cast_hull_sphere.aabb_center[0], expected_center[0], tolerance);
     EXPECT_NEAR(cast_hull_sphere.aabb_center[1], expected_center[1], tolerance);
     EXPECT_NEAR(cast_hull_sphere.aabb_center[2], expected_center[2], tolerance);
 
-    EXPECT_NEAR(cast_hull_sphere.aabb_radius, std::sqrt(1.5), tolerance);
+    EXPECT_NEAR(cast_hull_sphere.aabb_radius, sqrt(1.5), tolerance);
   }
 
   // Test case 4: Translation and rotation combined
@@ -310,12 +309,7 @@ TEST(CoalCastHullShapeUnit, ComputeVolumeUnit)
     translation.translation() = coal::Vec3s(1.0, 0.0, 0.0);
     CastHullShape cast_hull_translated(box, translation);
 
-    double box_volume = box->computeVolume();
     double cast_hull_translated_volume = cast_hull_translated.computeVolume();
-
-    // Swept volume should be larger than original
-    EXPECT_GT(cast_hull_translated_volume, box_volume);
-    EXPECT_GT(cast_hull_translated_volume, 8.0);
 
     // Axis-aligned pure translation: the swept hull is exactly a 3 x 2 x 2 box,
     // so the volume is stated rather than bounded.
@@ -363,11 +357,9 @@ TEST(CoalCastHullShapeUnit, ComputeVolumeUnit)
     small_translation.translation() = coal::Vec3s(0.1, 0.0, 0.0);  // Small translation
     CastHullShape cast_hull_small_translation(box, small_translation);
 
-    double box_volume = box->computeVolume();
     double cast_hull_small_volume = cast_hull_small_translation.computeVolume();
 
     // Same shape as test 2 at a smaller step: exactly a 1.1 x 1 x 1 hull.
-    EXPECT_GT(cast_hull_small_volume, box_volume);
     EXPECT_NEAR(cast_hull_small_volume, 1.1, tolerance);
   }
 
