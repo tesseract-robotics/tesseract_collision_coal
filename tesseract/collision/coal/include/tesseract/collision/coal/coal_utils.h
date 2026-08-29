@@ -76,10 +76,12 @@ struct CollisionCacheEntry
 {
   coal::CollisionRequest request;
   coal::ComputeCollision functor;
-  bool is_cast{ false };  ///< Cached at creation to avoid a dynamic_cast per contact.
-                          ///< Gates population of the continuous-collision fields on each result.
-  uint32_t gen0{ 0 };     ///< COW generation when GJK guess was last seeded (shape 0).
-  uint32_t gen1{ 0 };     ///< COW generation when GJK guess was last seeded (shape 1).
+  bool is_cast{ false };     ///< Cached at creation to avoid a dynamic_cast per contact.
+                             ///< Gates population of the continuous-collision fields on each result.
+  bool multi_leaf{ false };  ///< Cached at creation. Marks a pair with no usable warm start, which
+                             ///< keeps the bounding-volume guess it was constructed with.
+  uint32_t gen0{ 0 };        ///< COW generation when GJK guess was last seeded (shape 0).
+  uint32_t gen1{ 0 };        ///< COW generation when GJK guess was last seeded (shape 1).
 };
 
 /** @brief Cache mapping collision object pairs to their precomputed collision functor and warm-start state */

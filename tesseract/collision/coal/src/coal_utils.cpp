@@ -753,6 +753,12 @@ int getReportedSubshapeIndex(const coal::CollisionObject* object, int coal_subsh
   return (coal_subshape_index < 0) ? -1 : coal_subshape_index;
 }
 
+/// True when a geometry is traversed as a tree of leaves rather than collided as a single convex
+/// body, so that one query runs many narrowphase calls against it. Octrees, meshes and height
+/// fields all traverse; only a shape does not. An unrecognised geometry is reported as traversing,
+/// which costs it a warm start it may not have needed but cannot leave its leaves sharing a seed.
+static bool isMultiLeaf(const coal::CollisionGeometry& geometry) { return geometry.getObjectType() != coal::OT_GEOM; }
+
 bool CollisionCallback::collide(coal::CollisionObject* o1, coal::CollisionObject* o2)
 {
   if (cdata->done)
@@ -785,6 +791,7 @@ bool CollisionCallback::collide(coal::CollisionObject* o1, coal::CollisionObject
   {
     const bool is_cast = dynamic_cast<const CastHullShape*>(co1->collisionGeometryPtr()) != nullptr ||
                          dynamic_cast<const CastHullShape*>(co2->collisionGeometryPtr()) != nullptr;
+    const bool multi_leaf = isMultiLeaf(*co1->collisionGeometryPtr()) || isMultiLeaf(*co2->collisionGeometryPtr());
 
     coal::CollisionRequest col_request;
     // NesterovAcceleration + DualityGap/Relative for both cast and discrete pairs.
@@ -793,11 +800,16 @@ bool CollisionCallback::collide(coal::CollisionObject* o1, coal::CollisionObject
     col_request.gjk_variant = coal::GJKVariant::NesterovAcceleration;
     col_request.gjk_convergence_criterion = coal::GJKConvergenceCriterion::DualityGap;
     col_request.gjk_convergence_criterion_type = coal::GJKConvergenceCriterionType::Relative;
+    // Stated here rather than left to the staleness branch below, so that a pair's guess mode does
+    // not depend on that branch having run. Coal constructs a request with a single constant
+    // direction, which every leaf of a multi-leaf pair would then share.
+    col_request.gjk_initial_guess = coal::BoundingVolumeGuess;
 
     auto col_functor = coal::ComputeCollision(co1->collisionGeometryPtr(), co2->collisionGeometryPtr());
-    col_cache_it = cdata->collision_cache
-                       ->try_emplace(object_pair, CollisionCacheEntry{ std::move(col_request), col_functor, is_cast })
-                       .first;
+    col_cache_it =
+        cdata->collision_cache
+            ->try_emplace(object_pair, CollisionCacheEntry{ std::move(col_request), col_functor, is_cast, multi_leaf })
+            .first;
   }
 
   auto& entry = col_cache_it->second;
@@ -837,9 +849,18 @@ bool CollisionCallback::collide(coal::CollisionObject* o1, coal::CollisionObject
   // is a better seed than recomputing from geometry each time.
   // Cached guesses are only updated if gjk_initial_guess == CachedGuess. Every first
   // collision check uses BoundingVolumeGuess, so we have to update manually.
-  cached_request.gjk_initial_guess = coal::CachedGuess;
-  cached_request.cached_gjk_guess = col_result.cached_gjk_guess;
-  cached_request.cached_support_func_guess = col_result.cached_support_func_guess;
+  //
+  // A multi-leaf pair keeps its bounding-volume guess instead. One direction is cached per pair
+  // but a query runs a separate GJK per leaf, so the value Coal returns is residue from whichever
+  // leaf was visited last, and reusing it seeds every leaf of the next query from that one
+  // direction. Skipping the support-function copy costs such a pair nothing: that hint is
+  // warm-started in every mode, from the solver held by the cached functor.
+  if (!entry.multi_leaf)
+  {
+    cached_request.gjk_initial_guess = coal::CachedGuess;
+    cached_request.cached_gjk_guess = col_result.cached_gjk_guess;
+    cached_request.cached_support_func_guess = col_result.cached_support_func_guess;
+  }
 
   if (!col_result.isCollision())
     return false;

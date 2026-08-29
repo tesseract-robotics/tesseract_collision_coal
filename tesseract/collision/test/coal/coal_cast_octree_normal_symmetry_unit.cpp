@@ -21,6 +21,11 @@ using namespace tesseract::collision;
  * transverse axes, each the mirror of another. A narrowphase that resolves the tie inconsistently
  * returns two voxels claiming the same normal, which no per-contact check catches: every contact
  * still carries the correct depth, and only the set as a whole is wrong.
+ *
+ * The pair is queried twice, because a first query is what leaves a warm-start guess behind. A
+ * guess cached against the pair is a single direction, while the query runs one narrowphase call
+ * per voxel, so a second query that reused it would seed every voxel from one direction and
+ * collapse the tie the same way for all of them.
  */
 namespace
 {
@@ -40,6 +45,10 @@ ContactResultVector sweptBoxContacts(const Eigen::Vector3d& axis)
   Eigen::Isometry3d end = Eigen::Isometry3d::Identity();
   end.translation() = axis * 0.85;
   checker.setCollisionObjectsTransform("box_link", start, end);
+
+  // Discarded: this first query is what leaves a warm-start guess behind, so the query under test
+  // is the one that must not reuse it.
+  test_suite::detail::runContact(checker);
 
   return test_suite::detail::runContact(checker);
 }
