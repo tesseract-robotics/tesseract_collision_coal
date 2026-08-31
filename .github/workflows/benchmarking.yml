@@ -32,7 +32,7 @@ jobs:
           apt install -y liboctomap-dev
 
       - name: Build
-        uses: tesseract-robotics/colcon-action@v15
+        uses: tesseract-robotics/colcon-action@v16
         with:
           before-script: source /opt/tesseract/install/setup.bash
           ccache-prefix: benchmarks
