@@ -87,11 +87,6 @@ struct CollisionCacheEntry
 /** @brief Cache mapping collision object pairs to their precomputed collision functor and warm-start state */
 using CollisionCacheMap = std::unordered_map<CollisionObjectPair, CollisionCacheEntry, CollisionObjectPairHash>;
 
-/// Default GJK guess validity threshold (5mm). Stale GJK warm-start guesses from larger
-/// moves can cause solver failures (zero gradients, degraded contact accuracy).
-/// Configurable per-manager via the plugin YAML config key `gjk_guess_threshold`.
-inline constexpr double kDefaultGJKGuessThreshold = 5e-3;
-
 /// Default d_arc compensation setting (disabled). When enabled, CastHullShape's swept-sphere
 /// radius is set to the arc-chord sagitta of the shape's rotation, compensating for the gap
 /// between the convex hull (chord) and the true swept arc in continuous collision checks.

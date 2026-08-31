@@ -55,11 +55,8 @@ namespace tesseract::collision::tesseract_collision_coal
 static const CollisionShapesConst EMPTY_COLLISION_SHAPES_CONST;
 static const tesseract::common::VectorIsometry3d EMPTY_COLLISION_SHAPES_TRANSFORMS;
 
-CoalCastBVHManager::CoalCastBVHManager(std::string name, double gjk_guess_threshold, bool d_arc_compensation)
-  : name_(std::move(name))
-  , gjk_guess_threshold_(gjk_guess_threshold)
-  , gjk_guess_threshold_sq_(gjk_guess_threshold * gjk_guess_threshold)
-  , d_arc_compensation_(d_arc_compensation)
+CoalCastBVHManager::CoalCastBVHManager(std::string name, bool d_arc_compensation)
+  : name_(std::move(name)), d_arc_compensation_(d_arc_compensation)
 {
   static_manager_ = std::make_unique<coal::DynamicAABBTreeCollisionManager>();
   dynamic_manager_ = std::make_unique<coal::DynamicAABBTreeCollisionManager>();
@@ -73,7 +70,7 @@ ContinuousContactManager::UPtr CoalCastBVHManager::clone() const
 {
   CoalCollisionGeometryCache::prune();
 
-  auto manager = std::make_unique<CoalCastBVHManager>(name_, gjk_guess_threshold_, d_arc_compensation_);
+  auto manager = std::make_unique<CoalCastBVHManager>(name_, d_arc_compensation_);
 
   std::vector<COW::Ptr> cloned_cows;
   cloned_cows.reserve(collision_objects_.size());
@@ -507,28 +504,21 @@ void CoalCastBVHManager::appendCastBroadphaseUpdate(COW& cast_cow)
     cast_cow.appendCollisionObjectsRaw(dynamic_update_);
 }
 
-CoalCastBVHManager::TransformUpdate CoalCastBVHManager::collectRegularTransformUpdate(COW& reg_cow,
-                                                                                      const Eigen::Isometry3d& pose)
+bool CoalCastBVHManager::collectRegularTransformUpdate(COW& reg_cow, const Eigen::Isometry3d& pose)
 {
   const Eigen::Isometry3d& cur_tf = reg_cow.getCollisionObjectsTransform();
+  if (!transformChanged(cur_tf, pose))
+    return false;
 
-  TransformUpdate update;
-  update.any_changed = transformChanged(cur_tf, pose);
-  if (!update.any_changed)
-    return update;
-
-  update.large_change = (pose.translation() - cur_tf.translation()).squaredNorm() > gjk_guess_threshold_sq_;
-  if (update.large_change)
-    reg_cow.gjk_generation_++;
-
+  reg_cow.gjk_generation_++;
   reg_cow.setCollisionObjectsTransform(pose);
   appendRegularBroadphaseUpdate(reg_cow);
-  return update;
+  return true;
 }
 
 void CoalCastBVHManager::collectTransformUpdate(Link2COW::iterator it, const Eigen::Isometry3d& pose)
 {
-  const TransformUpdate moved = collectRegularTransformUpdate(*it->second, pose);
+  const bool moved = collectRegularTransformUpdate(*it->second, pose);
 
   auto cast_it = link2castcow_.find(it->first);
   if (cast_it == link2castcow_.end())
@@ -546,12 +536,11 @@ void CoalCastBVHManager::collectTransformUpdate(Link2COW::iterator it, const Eig
   // wrote, and re-applying that delta from the new pose sweeps the object through space it never crossed.
   // Whether a hull holds a stale sweep is independent of whether the link moved, so the two are asked
   // separately - setting a link back to the pose a sweep started from moves nothing and must still drop it.
-  const TransformUpdate sweep = updateCastShapeTransforms(cast_cow, pose, pose);
-  if (!sweep.any_changed && !moved.any_changed)
+  const bool swept = updateCastShapeTransforms(cast_cow, pose, pose);
+  if (!swept && !moved)
     return;
 
-  if (sweep.large_change || moved.large_change)
-    cast_cow.gjk_generation_++;
+  cast_cow.gjk_generation_++;
 
   // Re-applied even when the pose has not moved: this recomputes each object's AABB from the hull's local
   // one, and the broadphase update copies that AABB rather than deriving it.
@@ -611,14 +600,14 @@ static double computeDArc(const coal::Transform3s& cast_tf, const coal::ShapeBas
   return r_max * s.sagitta_factor;
 }
 
-CoalCastBVHManager::TransformUpdate CoalCastBVHManager::updateCastShapeTransforms(COW& cast_cow,
-                                                                                  const Eigen::Isometry3d& pose1,
-                                                                                  const Eigen::Isometry3d& pose2) const
+bool CoalCastBVHManager::updateCastShapeTransforms(COW& cast_cow,
+                                                   const Eigen::Isometry3d& pose1,
+                                                   const Eigen::Isometry3d& pose2) const
 {
   assert(cast_cow.m_collisionFilterGroup == CollisionFilterGroups::KinematicFilter);
   assert(!castCowNeedsOctreeExpansion(cast_cow));
 
-  TransformUpdate update;
+  bool changed = false;
 
   // A zero-length sweep is the unswept state, which every hull resolves to regardless of its local offset,
   // so it is clearSweep's business rather than a per-shape product - and the products would not reach it
@@ -632,14 +621,10 @@ CoalCastBVHManager::TransformUpdate CoalCastBVHManager::updateCastShapeTransform
     for (const auto& co : cast_cow.getCollisionObjects())
     {
       auto* cast_shape = static_cast<CastHullShape*>(co->collisionGeometryPtr());
-      if (!update.large_change)
-      {
-        update.large_change = cast_shape->getCastTransform().getTranslation().squaredNorm() > gjk_guess_threshold_sq_;
-      }
-      update.any_changed = cast_shape->clearSweep() || update.any_changed;
+      changed = cast_shape->clearSweep() || changed;
     }
 
-    return update;
+    return changed;
   }
 
   const coal::Transform3s tf1(pose1.rotation(), pose1.translation());
@@ -672,18 +657,13 @@ CoalCastBVHManager::TransformUpdate CoalCastBVHManager::updateCastShapeTransform
     if (new_cast_tf == cur_cast_tf)
       continue;
 
-    update.any_changed = true;
-    if (!update.large_change)
-    {
-      update.large_change =
-          (new_cast_tf.getTranslation() - cur_cast_tf.getTranslation()).squaredNorm() > gjk_guess_threshold_sq_;
-    }
+    changed = true;
     if (d_arc_compensation_)
       cast_shape->setSweptSphereRadius(computeDArc(new_cast_tf, *cast_shape->getUnderlyingShape(), d_arc_scalars));
     cast_shape->updateCastTransform(new_cast_tf);
   }
 
-  return update;
+  return changed;
 }
 
 void CoalCastBVHManager::collectCastTransformUpdate(Link2COW::iterator cast_it,
@@ -694,11 +674,10 @@ void CoalCastBVHManager::collectCastTransformUpdate(Link2COW::iterator cast_it,
   COW::Ptr& cow = cast_it->second;
 
   const Eigen::Isometry3d& cur_tf = cow->getCollisionObjectsTransform();
-  bool large_change = (pose1.translation() - cur_tf.translation()).squaredNorm() > gjk_guess_threshold_sq_;
 
   // Publish the regular object before the early returns below: for a static link it is what static_manager_
-  // holds. Its GJK generation follows its own displacement, which is what the helper measures - the cast
-  // wrapper's displacement is a different quantity, and one the static path never publishes.
+  // holds. Its GJK generation follows whether it changed, which is what the helper reports - whether the
+  // cast wrapper changed is a separate question, and one the static path never publishes.
   if (reg_it != link2cow_.end())
     collectRegularTransformUpdate(*reg_it->second, pose1);
 
@@ -706,9 +685,11 @@ void CoalCastBVHManager::collectCastTransformUpdate(Link2COW::iterator cast_it,
   // Still sync the cast COW's transform so it's correct when re-enabled.
   if (!cow->m_enabled)
   {
-    cow->setCollisionObjectsTransform(pose1);
-    if (large_change)
+    // Ahead of the write: cur_tf aliases the wrapper's stored pose, so comparing after it would compare
+    // pose1 against itself.
+    if (transformChanged(cur_tf, pose1))
       cow->gjk_generation_++;
+    cow->setCollisionObjectsTransform(pose1);
     return;
   }
 
@@ -718,10 +699,8 @@ void CoalCastBVHManager::collectCastTransformUpdate(Link2COW::iterator cast_it,
   if (cow->m_collisionFilterGroup == CollisionFilterGroups::StaticFilter)
     return;
 
-  large_change = updateCastShapeTransforms(*cow, pose1, pose2).large_change || large_change;
-
-  // Bump the generation counter if the transform change was significant.
-  if (large_change)
+  // The sweep write is unconditional, so it leads the disjunction rather than being short-circuited away.
+  if (updateCastShapeTransforms(*cow, pose1, pose2) || transformChanged(cur_tf, pose1))
     cow->gjk_generation_++;
 
   // Re-apply world transform so CoalCollisionObjectWrapper::updateAABB uses the

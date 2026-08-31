@@ -72,9 +72,8 @@ public:
   using UPtr = std::unique_ptr<CoalCastBVHManager>;
   using ConstUPtr = std::unique_ptr<const CoalCastBVHManager>;
 
-  CoalCastBVHManager(std::string name = "CoalCastBVHManager",
-                     double gjk_guess_threshold = kDefaultGJKGuessThreshold,
-                     bool d_arc_compensation = kDefaultDArcCompensation);
+  explicit CoalCastBVHManager(std::string name = "CoalCastBVHManager",
+                              bool d_arc_compensation = kDefaultDArcCompensation);
   ~CoalCastBVHManager() override = default;
   CoalCastBVHManager(const CoalCastBVHManager&) = delete;
   CoalCastBVHManager& operator=(const CoalCastBVHManager&) = delete;
@@ -205,8 +204,6 @@ private:
   std::vector<tesseract::common::LinkId> collision_objects_; /** @brief A list of the collision objects */
   ContactTestDataWrapper contact_test_data_; /**< @brief Persistent contact test data (Bullet pattern) */
   std::size_t coal_co_count_{ 0 };           /**< @brief The number of coal collision objects */
-  double gjk_guess_threshold_;               /**< @brief GJK guess validity threshold (meters) */
-  double gjk_guess_threshold_sq_;            /**< @brief Squared GJK guess validity threshold */
   bool d_arc_compensation_; /**< @brief When true, set CastHullShape swept-sphere radius to arc-sagitta */
 
   /** @brief This is used to store static collision objects to update */
@@ -226,22 +223,15 @@ private:
    *  @see appendRegularBroadphaseUpdate for the registration rule both helpers encode. */
   void appendCastBroadphaseUpdate(COW& cast_cow);
 
-  /** @brief What a pass over one wrapper changed. */
-  struct TransformUpdate
-  {
-    bool any_changed{ false };  /**< @brief Whether anything was rewritten */
-    bool large_change{ false }; /**< @brief Whether a change invalidates a cached GJK guess */
-  };
-
   /** @brief Publish a link's new pose to its regular wrapper, and to the broadphase if it holds it.
    *
    *  The regular wrapper carries no sweep, so it has nothing to publish when the link has not moved. Its
    *  stored pose is also the comparison, so writing a change too small to publish would keep sub-epsilon
    *  moves from ever accumulating into one.
    *
-   *  @return What this pass changed, which is also what the caller's cast wrapper needs to know: the link's
-   *          displacement is a property of the link, not of either wrapper. */
-  TransformUpdate collectRegularTransformUpdate(COW& reg_cow, const Eigen::Isometry3d& pose);
+   *  @return Whether anything was rewritten, which is also what the caller's cast wrapper needs to know:
+   *          whether the link moved is a property of the link, not of either wrapper. */
+  bool collectRegularTransformUpdate(COW& reg_cow, const Eigen::Isometry3d& pose);
 
   /** @brief Write the sweep from @p pose1 to @p pose2 into a cast wrapper's hulls.
    *
@@ -252,20 +242,18 @@ private:
    *  pose1 == pose2 is a zero-length sweep, which is the unswept state every hull resolves to regardless of
    *  its local offset, so that case defers to CastHullShape::clearSweep rather than computing it per shape.
    *
-   *  @return What this pass changed. A hull that changes while the link stays put still has to reach the
-   *          broadphase, so callers need the fact of a change as well as its size. */
-  TransformUpdate updateCastShapeTransforms(COW& cast_cow,
-                                            const Eigen::Isometry3d& pose1,
-                                            const Eigen::Isometry3d& pose2) const;
+   *  @return Whether any hull was rewritten. A hull that changes while the link stays put still has to reach
+   *          the broadphase, so a change here is not implied by the link having moved. */
+  bool updateCastShapeTransforms(COW& cast_cow, const Eigen::Isometry3d& pose1, const Eigen::Isometry3d& pose2) const;
 
   /** @brief Collect a single link's transform update into the batch update vectors.
-   *  Bumps the COW's GJK generation counter if the change exceeds the validity threshold. */
+   *  Bumps the COW's GJK generation counter whenever anything was rewritten. */
   void collectTransformUpdate(Link2COW::iterator it, const Eigen::Isometry3d& pose);
 
   /** @brief Collect a single link's cast transform update into the batch update vectors.
    *  Updates cast shape swept volumes, world transforms, and appends to broadphase
-   *  update vectors without flushing. Bumps GJK generation counters if the change
-   *  exceeds the validity threshold.
+   *  update vectors without flushing. Bumps GJK generation counters whenever anything
+   *  was rewritten.
    *  @param cast_it Iterator into link2castcow_ for the link to update
    *  @param reg_it Iterator into link2cow_ for the same link (may be link2cow_.end()) */
   void collectCastTransformUpdate(Link2COW::iterator cast_it,

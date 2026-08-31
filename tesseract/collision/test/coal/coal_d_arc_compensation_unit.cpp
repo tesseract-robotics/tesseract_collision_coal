@@ -31,7 +31,7 @@ CastHullShape* getCastHullShape(CoalCastBVHManager& mgr, const std::string& link
 /// Helper: create a cast manager with a single sphere link.
 std::unique_ptr<CoalCastBVHManager> makeCastSetup(bool d_arc_compensation)
 {
-  auto checker = std::make_unique<CoalCastBVHManager>("test", kDefaultGJKGuessThreshold, d_arc_compensation);
+  auto checker = std::make_unique<CoalCastBVHManager>("test", d_arc_compensation);
 
   auto sphere = std::make_shared<tesseract::geometry::Sphere>(0.1);
   CollisionShapesConst shapes = { sphere };
@@ -118,7 +118,7 @@ TEST(CoalDArcCompensationUnit, KnownRotationCorrectDArc)  // NOLINT
 /// Verify d_arc with shape offset from rotation axis (nonzero screw axis distance).
 TEST(CoalDArcCompensationUnit, OffsetShapeCorrectDArc)  // NOLINT
 {
-  auto checker = std::make_unique<CoalCastBVHManager>("test", kDefaultGJKGuessThreshold, true);
+  auto checker = std::make_unique<CoalCastBVHManager>("test", true);
 
   // Place a small sphere at local offset (0.5, 0, 0) from the link frame.
   auto sphere = std::make_shared<tesseract::geometry::Sphere>(0.05);
@@ -342,7 +342,7 @@ TEST(CoalDArcCompensationUnit, MissedCollisionCaught)  // NOLINT
   const Eigen::Vector3d obstacle_pos = arc_dir.normalized() * obstacle_dist;
 
   auto run_test = [&](bool compensation) -> bool {
-    auto checker = std::make_unique<CoalCastBVHManager>("test", kDefaultGJKGuessThreshold, compensation);
+    auto checker = std::make_unique<CoalCastBVHManager>("test", compensation);
 
     // Moving shape: small sphere at local offset (0.5, 0, 0) from link frame.
     auto sphere = std::make_shared<tesseract::geometry::Sphere>(shape_radius);

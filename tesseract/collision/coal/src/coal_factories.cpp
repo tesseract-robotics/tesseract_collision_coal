@@ -40,17 +40,15 @@ T getConfigValue(const YAML::Node& config, const char* key, T default_value)
 }
 
 std::unique_ptr<tesseract::collision::DiscreteContactManager>
-CoalDiscreteBVHManagerFactory::create(const std::string& name, const YAML::Node& config) const
+CoalDiscreteBVHManagerFactory::create(const std::string& name, const YAML::Node& /*config*/) const
 {
-  return std::make_unique<CoalDiscreteBVHManager>(
-      name, getConfigValue(config, "gjk_guess_threshold", kDefaultGJKGuessThreshold));
+  return std::make_unique<CoalDiscreteBVHManager>(name);
 }
 
 std::unique_ptr<tesseract::collision::ContinuousContactManager>
 CoalCastBVHManagerFactory::create(const std::string& name, const YAML::Node& config) const
 {
   return std::make_unique<CoalCastBVHManager>(name,
-                                              getConfigValue(config, "gjk_guess_threshold", kDefaultGJKGuessThreshold),
                                               getConfigValue(config, "d_arc_compensation", kDefaultDArcCompensation));
 }
 
