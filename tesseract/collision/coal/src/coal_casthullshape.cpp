@@ -49,20 +49,25 @@ namespace tesseract::collision::tesseract_collision_coal
 {
 namespace
 {
-/** @brief Refresh the shape's local AABB and return it with the swept-sphere radius removed.
+/** @brief The shape's local AABB with the swept-sphere radius removed.
  *
- * coal's computeLocalAABB is a tight bound inflated by the radius, and nothing runs between
- * that call and the read below, so the radius read back is necessarily the one it baked in
- * and removing it recovers the tight bound exactly. That identity holds only here, which is
- * why the result is kept rather than re-derived per check -- re-deriving it would cost the
- * O(num_points) fit for a convex hull. */
-coal::AABB refreshTightAABB(coal::ShapeBase& s)
+ * Derived from the shape's parameters, so wrapping a shape does not write to it -- collision
+ * geometry is shared between per-thread manager clones, and a refresh is a write another thread
+ * may be reading. The result is kept rather than re-derived per check because the convex fit is
+ * O(num_points). */
+coal::AABB tightAABB(coal::ShapeBase& s)
 {
-  // Shapes from CollisionObjects already have their local AABB set, but freshly constructed
-  // shapes (e.g. in tests) may not.
+  coal::AABB tight;
+  if (computeTightLocalAABB(s, tight))
+    return tight;
+
+  // No exact form for this node type. Fall back to coal's own refresh and undo the radius it
+  // bakes in: the radius read back is necessarily the one it just baked in, because nothing runs
+  // in between, so removing it recovers the tight bound exactly. Unreachable for the shapes the
+  // plugin wraps, all of which computeTightLocalAABB covers.
   s.computeLocalAABB();
 
-  coal::AABB tight = s.aabb_local;
+  tight = s.aabb_local;
   const coal::Scalar ssr = s.getSweptSphereRadius();
   if (ssr > 0)
   {
@@ -75,7 +80,7 @@ coal::AABB refreshTightAABB(coal::ShapeBase& s)
 }  // namespace
 
 CastHullShape::CastHullShape(std::shared_ptr<coal::ShapeBase> shape, const coal::Transform3s& castTransform)
-  : shape_(std::move(shape)), castTransform_(castTransform), wrapped_aabb_(refreshTightAABB(*shape_))
+  : shape_(std::move(shape)), castTransform_(castTransform), wrapped_aabb_(tightAABB(*shape_))
 {
 }
 

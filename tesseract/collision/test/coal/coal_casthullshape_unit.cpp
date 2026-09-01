@@ -636,6 +636,98 @@ TEST(CoalCastHullShapeUnit, TightLocalAABBReportsFailureForCustomNodeTypes)  // 
   }
 }
 
+TEST(CoalCastHullShapeUnit, ConstructionDoesNotWriteThroughTheWrappedShape)  // NOLINT
+{
+  using tesseract::collision::tesseract_collision_coal::CastHullShape;
+
+  constexpr double tolerance = 1e-6;
+
+  coal::Transform3s shifted = coal::Transform3s::Identity();
+  shifted.translation() = coal::Vec3s(1.0, 0.0, 0.0);
+
+  // Per-thread manager clones share one wrapped shape. Wrapping it must not write to it, and the
+  // resulting bound must not depend on what its cached AABB happened to hold.
+  {
+    auto box = std::make_shared<coal::Box>(1.0, 1.0, 1.0);
+    box->computeLocalAABB();
+    poison(*box);
+
+    CastHullShape cast_hull(box, shifted);
+    expectPoisonIntact(*box);
+
+    cast_hull.computeLocalAABB();
+    EXPECT_NEAR(cast_hull.aabb_local.min_[0], -0.5, tolerance);
+    EXPECT_NEAR(cast_hull.aabb_local.max_[0], 1.5, tolerance);
+    EXPECT_NEAR(cast_hull.aabb_local.min_[1], -0.5, tolerance);
+    EXPECT_NEAR(cast_hull.aabb_local.max_[1], 0.5, tolerance);
+  }
+
+  {
+    auto convex = makeCubeConvex();
+    ASSERT_NE(convex, nullptr);
+    convex->computeLocalAABB();
+    poison(*convex);
+
+    CastHullShape cast_hull(convex, shifted);
+    expectPoisonIntact(*convex);
+
+    cast_hull.computeLocalAABB();
+    EXPECT_NEAR(cast_hull.aabb_local.min_[0], -0.5, tolerance);
+    EXPECT_NEAR(cast_hull.aabb_local.max_[0], 1.5, tolerance);
+    EXPECT_NEAR(cast_hull.aabb_local.min_[2], -0.5, tolerance);
+    EXPECT_NEAR(cast_hull.aabb_local.max_[2], 0.5, tolerance);
+  }
+}
+
+TEST(CoalCastHullShapeUnit, ConstructionStillBoundsAShapeThatWasNeverComputed)  // NOLINT
+{
+  using tesseract::collision::tesseract_collision_coal::CastHullShape;
+
+  constexpr double tolerance = 1e-6;
+
+  coal::Transform3s shifted = coal::Transform3s::Identity();
+  shifted.translation() = coal::Vec3s(1.0, 0.0, 0.0);
+
+  // A shape straight from its constructor has no local AABB. Deriving the bound from the shape's
+  // parameters rather than its cache is what lets this case work at all.
+  auto box = std::make_shared<coal::Box>(1.0, 1.0, 1.0);
+  CastHullShape cast_hull(box, shifted);
+  cast_hull.computeLocalAABB();
+
+  EXPECT_NEAR(cast_hull.aabb_local.min_[0], -0.5, tolerance);
+  EXPECT_NEAR(cast_hull.aabb_local.max_[0], 1.5, tolerance);
+}
+
+TEST(CoalCastHullShapeUnit, WrappingACustomNodeTypeFallsBackToARefresh)  // NOLINT
+{
+  using tesseract::collision::tesseract_collision_coal::CastHullShape;
+
+  constexpr double tolerance = 1e-6;
+
+  coal::Transform3s shifted = coal::Transform3s::Identity();
+  shifted.translation() = coal::Vec3s(1.0, 0.0, 0.0);
+
+  // GEOM_CUSTOM has no parametric or convex form, so the bound comes from refreshing the wrapped
+  // shape. That is the one path that still writes, and the only one a third-party ShapeBase could
+  // take. A CastHullShape is itself a ShapeBase, so wrapping one reaches it.
+  auto box = std::make_shared<coal::Box>(1.0, 1.0, 1.0);
+  auto inner = std::make_shared<CastHullShape>(box, coal::Transform3s::Identity());
+  ASSERT_EQ(inner->getNodeType(), coal::GEOM_CUSTOM);
+
+  CastHullShape outer(inner, shifted);
+  outer.computeLocalAABB();
+
+  // inner sweeps nowhere, so it spans the box; outer sweeps that 1 in x.
+  EXPECT_NEAR(outer.aabb_local.min_[0], -0.5, tolerance);
+  EXPECT_NEAR(outer.aabb_local.max_[0], 1.5, tolerance);
+  EXPECT_NEAR(outer.aabb_local.min_[1], -0.5, tolerance);
+  EXPECT_NEAR(outer.aabb_local.max_[1], 0.5, tolerance);
+
+  // The fallback refreshed what it wrapped. This write is the documented exception, kept because a
+  // bound taken from an unset aabb_local could come out smaller than the shape.
+  EXPECT_GT(inner->aabb_radius, 0.0);
+}
+
 int main(int argc, char** argv)
 {
   testing::InitGoogleTest(&argc, argv);
