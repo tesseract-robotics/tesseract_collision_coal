@@ -233,6 +233,34 @@ TEST_F(DeferredCastShapeUnit, DemotionPreservesConvexHulls)  // NOLINT
   EXPECT_FALSE(castCowNeedsSweptBuild(*it->second));
 }
 
+TEST_F(DeferredCastShapeUnit, PromotionSkipsUnoccupiedVoxels)  // NOLINT
+{
+  // A leaf that exists but is not occupied is skipped by the expansion, so the built wrapper holds
+  // one hull per occupied voxel and none for the free leaf.
+  auto ot = std::make_shared<octomap::OcTree>(0.5);
+  ot->updateNode(octomap::point3d(0.25, 0.25, 0.25), true);
+  ot->updateNode(octomap::point3d(0.75, 0.25, 0.25), false);
+
+  auto octree_geom = std::make_shared<tesseract::geometry::Octree>(ot, tesseract::geometry::OctreeSubType::BOX);
+
+  // The free leaf has to be stored for the skip to be reachable at all: a tree holding only the
+  // occupied leaf would satisfy every assertion below without ever taking that branch.
+  ASSERT_EQ(ot->getNumLeafNodes(), 2U);
+  ASSERT_EQ(octree_geom->calcNumSubShapes(), 1);
+
+  CollisionShapesConst shapes{ octree_geom };
+  const tesseract::common::VectorIsometry3d poses{ Eigen::Isometry3d::Identity() };
+  checker_.addCollisionObject("mixed_octree_link", 0, shapes, poses);
+
+  checker_.setActiveCollisionObjects({ "mixed_octree_link" });
+
+  const auto& cast_map = checker_.getCastCollisionObjectMap();
+  auto it = cast_map.find("mixed_octree_link");
+  ASSERT_NE(it, cast_map.end());
+  ASSERT_EQ(it->second->getCollisionObjects().size(), 1U);
+  EXPECT_EQ(it->second->getCollisionObjects()[0]->collisionGeometryPtr()->getNodeType(), coal::GEOM_CUSTOM);
+}
+
 int main(int argc, char** argv)
 {
   testing::InitGoogleTest(&argc, argv);
