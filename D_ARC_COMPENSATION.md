@@ -108,24 +108,64 @@ The exact formula can be evaluated without any trigonometric function calls by e
 
 3. **Sagitta factor** is then simply `1 - cos(φ/2)`, already computed.
 
-4. **Rotation axis from skew-symmetric part of R** (no `atan2`):
+4. **Rotation axis from skew-symmetric part of R** (no `atan2`), below a 120-degree handoff:
    ```
-   k = [R(2,1)-R(1,2), R(0,2)-R(2,0), R(1,0)-R(0,1)] / (2·sin(φ))
+   w = [R(2,1)-R(1,2), R(0,2)-R(2,0), R(1,0)-R(0,1)]   (= 2·sin(φ)·k̂, unnormalised)
    ```
-   where `sin(φ) = 2·sin(φ/2)·cos(φ/2)`, both already computed.
+   `w` is used **unnormalised**. It appears only inside projections onto the plane perpendicular to
+   the axis, which are scale-free once divided by `|w|²`, and a single factor
+   `1/(2·(1 - cos φ)) == 1/(4·sin²(φ/2))` absorbs both the `2·sin(φ)` normalisation and the
+   `cot(φ/2)` factor step 5 needs. Nothing here ever divides by `sin(φ)` on its own, so the fast path
+   has no singularity beyond the φ ≈ 0 case step 1 already excludes.
+
+   Past 120 degrees the axis is read from the symmetric part instead:
+   ```
+   R + Rᵀ = 2·cos(φ)·I + 2·(1 - cos φ)·k̂k̂ᵀ
+   ```
+   whose divisor (`1 - cos φ`) grows to 2 exactly where the skew part's divisor (`sin φ`) shrinks to
+   0, reaching exactly 0 at φ = π. The best-determined column of `k̂k̂ᵀ` (the one with the largest
+   diagonal entry) gives `k̂` up to sign; the sign is recovered by agreeing with the skew part where
+   it still carries one, and where it doesn't (at φ = π exactly) `cot(φ/2)` has vanished with it, so
+   both signs give the same downstream result anyway.
+
+   The handoff sits at 120 degrees rather than a tolerance close to π because both extractions are
+   well conditioned across a wide overlap around there — it is not a cliff either extraction needs to
+   be timed against.
 
 5. **Screw axis position** (closest point to origin in shape-local frame):
    ```
-   t_perp = t - (t·k)k
-   c = t_perp/2 + (k × t_perp)·cos(φ/2) / (2·sin(φ/2))
+   t_perp = t - (t·k̂)k̂
+   c = t_perp/2 + (k̂ × t_perp)·cos(φ/2) / (2·sin(φ/2))
    ```
-   The `cos(φ/2)/sin(φ/2)` ratio reuses the values from step 2.
+   Past the handoff this is computed directly: `cos(φ/2)` is already available from step 3 as
+   `1 - sagitta_factor`, and `sin(φ/2)` is recomputed from `cos(φ)` via step 2's identity. Below the
+   handoff `cos(φ/2)/sin(φ/2)` never appears as its own ratio — the single `1/(4·sin²(φ/2))` factor
+   from step 4 plays its role instead, applied directly to the unnormalised `w` and `w × t_perp`, so
+   `sin(φ/2)` alone is never isolated or computed on that path.
 
 6. **r_max**: distance from shape bounding sphere center to screw axis, plus bounding radius.
 
-Total cost: 2 `sqrt` calls, 1 division, a few dot/cross products, and 1 `norm`. No `acos`, `cos`, `sin`, or `atan2`. This is ~60 flops, comparable to the `inverseTimes` matrix operation already performed per shape in the transform update path.
+**Cost**, split by what `computeDArcScalars` does once per link and what `computeDArc` does once per
+shape on that link:
 
-**Numerical stability:** When φ < ~10⁻⁷ rad (cos(φ) ≈ 1), d_arc is below double-precision noise and the function returns 0 immediately. When φ ≈ π, the axis extraction from the skew-symmetric part becomes noisy (sin(φ) → 0), but d_arc is dominated by the sagitta factor ≈ 1.0 and r_max, both stable. Per-segment rotations near π should not occur in practice.
+- **Per link** (`computeDArcScalars`), only when the rotation exceeds the ~10⁻⁷ rad early-return
+  threshold: 1 `sqrt` (the half-angle cosine) and 1 division (the `1/(4·sin²(φ/2))` factor). Zero
+  cost otherwise.
+- **Per shape, below the 120-degree handoff** (`computeDArc`'s common case): 1 division (`1/|w|²`)
+  and 1 `sqrt` (the final distance-to-axis norm).
+- **Per shape, past the 120-degree handoff** (rare — the branch is taken for any rotation past 120
+  degrees, a 60-degree range, but a single trajectory segment seldom turns that far): 3 `sqrt` calls
+  and 2 divisions.
+
+No `acos`, `cos`, `sin`, or `atan2` on either path.
+
+**Numerical stability:** When φ < ~10⁻⁷ rad (cos(φ) ≈ 1), d_arc is below double-precision noise and the function returns 0 immediately. This early return is also what keeps `1/|w|²` finite on the fast path below the handoff — nothing else bounds `|w| = 2·sin(φ)` away from zero there.
+
+When φ ≈ π, the original unconditional `k = [...] / (2·sin φ)` extraction did not merely get noisy: at φ = π exactly, `2·sin(φ)` is exactly zero and the skew-symmetric part being divided is also exactly zero there, so the division was `0/0` — a NaN, not an imprecise number. Coal's only validation of a swept-sphere radius is `radius < 0`, and `NaN < 0` is false, so the NaN reached the reported contact distance as an arbitrary, silently accepted zero rather than a rejected or flagged one. The claim that "d_arc is dominated by the sagitta factor and r_max, both stable" was itself the error: `r_max = dist_to_axis + aabb_radius`, and `dist_to_axis` is computed from the very axis just conceded to be noisy — r_max is not independent of it.
+
+Nor is the failure confined to exactly φ = π: within roughly a degree of a half turn, the old extraction could return a value that was finite but grossly wrong, which no finiteness check — let alone `radius < 0` — can catch. "Per-segment rotations near π should not occur in practice" was never a safety argument even where true, since a silently accepted wrong answer is worse than a rejected one. The current code instead guarantees a finite, correctly signed d_arc at every φ, including exactly π, by switching to the symmetric-part extraction once the skew part's precision has degraded too far to trust; `HalfTurnProducesFiniteDArc` pins that guarantee against the independent oracle across a set of axes and a bracket of angles around π.
+
+The two extractions must also agree with each other across the overlap where both are well conditioned, so the handoff itself is not a visible cliff in the reported d_arc; `HandoffIsContinuousAcrossTheBranch` pins that agreement by sweeping 110 to 130 degrees against the same oracle.
 
 ## Practical impact with 1 mm collision margin
 
