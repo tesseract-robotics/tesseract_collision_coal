@@ -55,8 +55,10 @@ TEST(CoalVsBulletUnit, ConvexHullSphereSphereSweptComparison)  // NOLINT
   std::printf("%-15s: %s\n", "Coal", test_suite::detail::formatContactResult(coal_cr).c_str());
 
   // Find matching link indices
-  int bi0 = (bullet_cr.link_ids[0] == "sphere_link") ? 0 : 1;
-  int ci0 = (coal_cr.link_ids[0] == "sphere_link") ? 0 : 1;
+  const std::size_t bi0 = (bullet_cr.link_ids[0] == "sphere_link") ? 0U : 1U;
+  const std::size_t ci0 = (coal_cr.link_ids[0] == "sphere_link") ? 0U : 1U;
+  const std::size_t bi1 = 1U - bi0;
+  const std::size_t ci1 = 1U - ci0;
 
   EXPECT_NEAR(coal_cr.distance, bullet_cr.distance, 0.01) << "Penetration depth";
   // The cc_time tolerances are wide because coal does not canonicalise the witness on the
@@ -64,15 +66,15 @@ TEST(CoalVsBulletUnit, ConvexHullSphereSphereSweptComparison)  // NOLINT
   // cc_time follows it. Bullet lands on the face midpoint, which runTestConvex pins under
   // canonical_cast_witness. Do not tighten these without giving coal a canonical witness first.
   EXPECT_NEAR(coal_cr.cc_time[ci0], bullet_cr.cc_time[bi0], 0.05) << "sphere_link cc_time";
-  EXPECT_NEAR(coal_cr.cc_time[1 - ci0], bullet_cr.cc_time[1 - bi0], 0.05) << "sphere1_link cc_time";
+  EXPECT_NEAR(coal_cr.cc_time[ci1], bullet_cr.cc_time[bi1], 0.05) << "sphere1_link cc_time";
   EXPECT_EQ(coal_cr.cc_type[ci0], bullet_cr.cc_type[bi0]) << "sphere_link cc_type";
-  EXPECT_EQ(coal_cr.cc_type[1 - ci0], bullet_cr.cc_type[1 - bi0]) << "sphere1_link cc_type";
+  EXPECT_EQ(coal_cr.cc_type[ci1], bullet_cr.cc_type[bi1]) << "sphere1_link cc_type";
 
   for (int d = 0; d < 3; ++d)
   {
     EXPECT_NEAR(coal_cr.nearest_points[ci0][d], bullet_cr.nearest_points[bi0][d], 0.1)
         << "sphere_link nearest_point[" << d << "]";
-    EXPECT_NEAR(coal_cr.nearest_points[1 - ci0][d], bullet_cr.nearest_points[1 - bi0][d], 0.1)
+    EXPECT_NEAR(coal_cr.nearest_points[ci1][d], bullet_cr.nearest_points[bi1][d], 0.1)
         << "sphere1_link nearest_point[" << d << "]";
   }
 }

@@ -61,8 +61,8 @@ TEST(CoalCachePairUnit, RepeatedContactTestReusesCache)  // NOLINT
   const auto& c1 = result1_vec[0];
 
   // Identify which slot corresponds to link_a vs link_b
-  int a_idx = (c1.link_ids[0] == "link_a") ? 0 : 1;
-  int b_idx = 1 - a_idx;
+  const std::size_t a_idx = (c1.link_ids[0] == "link_a") ? 0U : 1U;
+  const std::size_t b_idx = 1U - a_idx;
 
   EXPECT_EQ(c1.link_ids[a_idx], "link_a");
   EXPECT_EQ(c1.link_ids[b_idx], "link_b");

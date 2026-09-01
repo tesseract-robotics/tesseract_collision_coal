@@ -195,13 +195,14 @@ CollisionGeometryPtr createShapePrimitive(const tesseract::geometry::Mesh::Const
   auto g = std::make_shared<coal::BVHModel<coal::OBBRSS>>();
   if (vertex_count > 0 && triangle_count > 0)
   {
-    std::vector<coal::Triangle> tri_indices(static_cast<size_t>(triangle_count));
+    using Index = coal::Triangle32::IndexType;
+    std::vector<coal::Triangle32> tri_indices(static_cast<size_t>(triangle_count));
     for (int i = 0; i < triangle_count; ++i)
     {
       assert(triangles[4L * i] == 3);
-      tri_indices[static_cast<size_t>(i)] = coal::Triangle(static_cast<size_t>(triangles[(4 * i) + 1]),
-                                                           static_cast<size_t>(triangles[(4 * i) + 2]),
-                                                           static_cast<size_t>(triangles[(4 * i) + 3]));
+      tri_indices[static_cast<size_t>(i)] = coal::Triangle32(static_cast<Index>(triangles[(4 * i) + 1]),
+                                                             static_cast<Index>(triangles[(4 * i) + 2]),
+                                                             static_cast<Index>(triangles[(4 * i) + 3]));
     }
 
     g->beginModel();
@@ -288,7 +289,7 @@ CollisionGeometryPtr createShapePrimitive(const tesseract::geometry::ConvexMesh:
     auto vertices = std::const_pointer_cast<tesseract::common::VectorVector3d>(geom->getVertices());
 
     auto new_faces = std::make_shared<std::vector<Polygon>>();
-    new_faces->reserve(face_count);
+    new_faces->reserve(static_cast<size_t>(face_count));
     for (int i = 0; i < faces.size(); ++i)
     {
       Polygon new_face;
@@ -297,11 +298,11 @@ CollisionGeometryPtr createShapePrimitive(const tesseract::geometry::ConvexMesh:
       for (std::uint32_t& j : new_face)
       {
         ++i;
-        j = faces[i];
+        j = static_cast<std::uint32_t>(faces[i]);
       }
       new_faces->emplace_back(new_face);
     }
-    assert(new_faces->size() == face_count);
+    assert(new_faces->size() == static_cast<size_t>(face_count));
 
     return std::make_shared<coal::Convex<Polygon>>(vertices, vertex_count, new_faces, face_count);
   }
@@ -876,8 +877,8 @@ bool CollisionCallback::collide(coal::CollisionObject* o1, coal::CollisionObject
   const Eigen::Isometry3d& tf2 = cd2->getCollisionObjectsTransform();
 
   // Coal result fields are in normalized (co1, co2) order; map back to original (o1, o2).
-  const int idx0 = pair_swapped ? 1 : 0;
-  const int idx1 = pair_swapped ? 0 : 1;
+  const std::size_t idx0 = pair_swapped ? 1U : 0U;
+  const std::size_t idx1 = pair_swapped ? 0U : 1U;
 
   bool found = false;
   for (size_t i = 0; i < col_result.numContacts(); ++i)
