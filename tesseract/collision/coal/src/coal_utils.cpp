@@ -570,9 +570,10 @@ bool needsCollisionCheck(const CollisionObjectWrapper* cd1,
  * finds the shape's extreme points along the contact normal at t=0 and t=1, then
  * classifies the collision time based on which pose has greater support.
  *
- * Only kinematic objects should receive CCD metadata. Static objects may still be
- * represented by CastHullShape proxies as a Coal narrowphase workaround (for example,
- * static octrees expanded to boxes), but they should keep the default CCD fields.
+ * Only kinematic objects carry CastHullShape geometry: a static link is collided through its regular
+ * wrapper, and its cast wrapper joins no broadphase, so it never surfaces here as o1/o2. The group
+ * check and dynamic_cast below are defensive against that becoming reachable, not against a state seen
+ * today.
  */
 void populateContinuousCollisionFields(ContactResult& contact,
                                        const coal::CollisionObject* o1,

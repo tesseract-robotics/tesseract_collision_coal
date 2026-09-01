@@ -277,6 +277,9 @@ bool clearCastSweep(CollisionObjectWrapper& cast_cow);
  *
  * A built wrapper holds CastHullShape (GEOM_CUSTOM) throughout; a deferred one holds the link's own
  * geometry, whatever that is. Node type is therefore the whole test.
+ *
+ * An empty wrapper reads as built. The deferred placeholder is therefore required to carry the link's
+ * own collision objects; a placeholder with none would make promotion skip the build silently.
  */
 inline bool castCowNeedsSweptBuild(const CollisionObjectWrapper& cast_cow)
 {

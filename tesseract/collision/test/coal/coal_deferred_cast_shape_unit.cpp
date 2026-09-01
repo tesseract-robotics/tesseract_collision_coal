@@ -14,13 +14,14 @@ using namespace tesseract::collision;
 using namespace tesseract_collision_coal;
 
 /**
- * @brief Verify deferred octree voxel expansion in CoalCastBVHManager.
+ * @brief Verify deferred cast shape construction in CoalCastBVHManager.
  *
- * Static octrees should keep raw OcTree geometry in their cast COW (no CastHullShape wrapping).
- * Expansion to per-voxel CastHullShape boxes happens only on promotion to active (kinematic).
- * Once expanded, demotion/re-promotion reuses the cached expansion.
+ * A static link keeps its own geometry in its cast COW - a raw OcTree, a raw convex shape - because a
+ * static link is collided through its regular wrapper. Construction of CastHullShapes, including an
+ * octree's expansion into per-voxel boxes, happens only on promotion to active (kinematic). Once built,
+ * demotion and re-promotion reuse the wrapper.
  */
-class DeferredOctreeExpansionUnit : public ::testing::Test
+class DeferredCastShapeUnit : public ::testing::Test
 {
 protected:
   void SetUp() override
@@ -52,7 +53,7 @@ protected:
   CoalCastBVHManager checker_;
 };
 
-TEST_F(DeferredOctreeExpansionUnit, StaticOctreeNotExpandedOnAdd)  // NOLINT
+TEST_F(DeferredCastShapeUnit, StaticOctreeNotExpandedOnAdd)  // NOLINT
 {
   // Both objects start static — octree cast COW should contain raw OcTree (deferred).
   const auto& cast_map = checker_.getCastCollisionObjectMap();
@@ -61,7 +62,7 @@ TEST_F(DeferredOctreeExpansionUnit, StaticOctreeNotExpandedOnAdd)  // NOLINT
   EXPECT_TRUE(castCowNeedsSweptBuild(*it->second));
 }
 
-TEST_F(DeferredOctreeExpansionUnit, PromotionExpandsOctree)  // NOLINT
+TEST_F(DeferredCastShapeUnit, PromotionExpandsOctree)  // NOLINT
 {
   checker_.setActiveCollisionObjects({ "octree_link", "cyl_link" });
 
@@ -71,11 +72,12 @@ TEST_F(DeferredOctreeExpansionUnit, PromotionExpandsOctree)  // NOLINT
   EXPECT_FALSE(castCowNeedsSweptBuild(*it->second));
 
   // All collision objects in the expanded cast COW should be CastHullShape (GEOM_CUSTOM).
+  ASSERT_FALSE(it->second->getCollisionObjects().empty());
   for (const auto& co : it->second->getCollisionObjects())
     EXPECT_EQ(co->collisionGeometryPtr()->getNodeType(), coal::GEOM_CUSTOM);
 }
 
-TEST_F(DeferredOctreeExpansionUnit, PromotedOctreeProducesContacts)  // NOLINT
+TEST_F(DeferredCastShapeUnit, PromotedOctreeProducesContacts)  // NOLINT
 {
   checker_.setActiveCollisionObjects({ "octree_link", "cyl_link" });
 
@@ -94,7 +96,7 @@ TEST_F(DeferredOctreeExpansionUnit, PromotedOctreeProducesContacts)  // NOLINT
   EXPECT_FALSE(result.empty());
 }
 
-TEST_F(DeferredOctreeExpansionUnit, DemotionPreservesExpansion)  // NOLINT
+TEST_F(DeferredCastShapeUnit, DemotionPreservesExpansion)  // NOLINT
 {
   // Promote, then demote
   checker_.setActiveCollisionObjects({ "octree_link", "cyl_link" });
@@ -107,7 +109,7 @@ TEST_F(DeferredOctreeExpansionUnit, DemotionPreservesExpansion)  // NOLINT
   EXPECT_FALSE(castCowNeedsSweptBuild(*it->second));
 }
 
-TEST_F(DeferredOctreeExpansionUnit, RePromotionSkipsReExpansion)  // NOLINT
+TEST_F(DeferredCastShapeUnit, RePromotionSkipsReExpansion)  // NOLINT
 {
   // Promote -> demote -> re-promote
   checker_.setActiveCollisionObjects({ "octree_link", "cyl_link" });
@@ -134,7 +136,7 @@ TEST_F(DeferredOctreeExpansionUnit, RePromotionSkipsReExpansion)  // NOLINT
   EXPECT_FALSE(result.empty());
 }
 
-TEST_F(DeferredOctreeExpansionUnit, DualPoseTransformOnStaticOctreeIsHarmless)  // NOLINT
+TEST_F(DeferredCastShapeUnit, DualPoseTransformOnStaticOctreeIsHarmless)  // NOLINT
 {
   // Octree is static. Calling dual-pose setCollisionObjectsTransform should not crash
   // (exercises the StaticFilter guard in collectCastTransformUpdate).
@@ -161,7 +163,7 @@ TEST_F(DeferredOctreeExpansionUnit, DualPoseTransformOnStaticOctreeIsHarmless)  
   EXPECT_FALSE(result.empty());
 }
 
-TEST_F(DeferredOctreeExpansionUnit, CloneWithActiveOctreeExpands)  // NOLINT
+TEST_F(DeferredCastShapeUnit, CloneWithActiveOctreeExpands)  // NOLINT
 {
   // Promote octree, then clone. The clone's addCollisionObject kinematic branch
   // should expand the deferred octree.
@@ -189,6 +191,46 @@ TEST_F(DeferredOctreeExpansionUnit, CloneWithActiveOctreeExpands)  // NOLINT
   ContactRequest request(ContactTestType::ALL);
   cast_clone->contactTest(result, request);
   EXPECT_FALSE(result.empty());
+}
+
+TEST_F(DeferredCastShapeUnit, StaticConvexLinkIsDeferred)  // NOLINT
+{
+  // Deferral is not octree-specific. A static convex link keeps its own geometry too, since nothing reads
+  // a static link's cast wrapper before promotion.
+  const auto& cast_map = checker_.getCastCollisionObjectMap();
+  auto it = cast_map.find("cyl_link");
+  ASSERT_NE(it, cast_map.end());
+
+  EXPECT_TRUE(castCowNeedsSweptBuild(*it->second));
+  ASSERT_FALSE(it->second->getCollisionObjects().empty());
+  EXPECT_EQ(it->second->getCollisionObjects()[0]->collisionGeometryPtr()->getNodeType(), coal::GEOM_CYLINDER);
+}
+
+TEST_F(DeferredCastShapeUnit, PromotionBuildsConvexHulls)  // NOLINT
+{
+  checker_.setActiveCollisionObjects({ "cyl_link" });
+
+  const auto& cast_map = checker_.getCastCollisionObjectMap();
+  auto it = cast_map.find("cyl_link");
+  ASSERT_NE(it, cast_map.end());
+
+  EXPECT_FALSE(castCowNeedsSweptBuild(*it->second));
+  ASSERT_FALSE(it->second->getCollisionObjects().empty());
+  for (const auto& co : it->second->getCollisionObjects())
+    EXPECT_EQ(co->collisionGeometryPtr()->getNodeType(), coal::GEOM_CUSTOM);
+}
+
+TEST_F(DeferredCastShapeUnit, DemotionPreservesConvexHulls)  // NOLINT
+{
+  // A built wrapper is kept across demotion, so re-promotion clears the sweep rather than rebuilding.
+  checker_.setActiveCollisionObjects({ "cyl_link" });
+  checker_.setActiveCollisionObjects({});
+
+  const auto& cast_map = checker_.getCastCollisionObjectMap();
+  auto it = cast_map.find("cyl_link");
+  ASSERT_NE(it, cast_map.end());
+  ASSERT_FALSE(it->second->getCollisionObjects().empty());
+  EXPECT_FALSE(castCowNeedsSweptBuild(*it->second));
 }
 
 int main(int argc, char** argv)

@@ -76,15 +76,187 @@ TEST_F(StaticMeshCastUnit, PromotingMeshLinkThrows)  // NOLINT
 
 TEST_F(StaticMeshCastUnit, AddingAMeshLinkThatIsAlreadyActiveThrows)  // NOLINT
 {
-  // The other throw site. addCollisionObject applies the active set to the link it has just added, so a
-  // mesh named active before it is added throws from the add rather than from setActiveCollisionObjects.
-  // Naming a link that does not exist yet is what puts the two in that order.
+  // The other public entry point that promotes a link. addCollisionObject applies the active set to the
+  // link it has just added, so a mesh named active before it is added throws from the add rather than
+  // from setActiveCollisionObjects. Naming a link that does not exist yet is what puts the two in that
+  // order.
   checker_.setActiveCollisionObjects({ "sphere_link", "second_mesh_link" });
 
   CollisionShapesConst shapes{ makeMeshSphere() };
   const tesseract::common::VectorIsometry3d poses{ Eigen::Isometry3d::Identity() };
 
   EXPECT_THROW(checker_.addCollisionObject("second_mesh_link", 0, shapes, poses), std::runtime_error);  // NOLINT
+}
+
+TEST_F(StaticMeshCastUnit, SweepIntoStaticMeshReportsContact)  // NOLINT
+{
+  checker_.setActiveCollisionObjects({ "sphere_link" });
+
+  // Sweep from clear of the mesh to its centre. The end pose alone is a collision, so this passes whether
+  // or not the swept volume is read; the sweep-only case is covered below.
+  Eigen::Isometry3d start = Eigen::Isometry3d::Identity();
+  start.translation() = Eigen::Vector3d(1.0, 0, 0);
+  Eigen::Isometry3d end = Eigen::Isometry3d::Identity();
+  end.translation() = Eigen::Vector3d(0.0, 0, 0);
+  checker_.setCollisionObjectsTransform("sphere_link", start, end);
+
+  ContactResultMap result;
+  checker_.contactTest(result, ContactRequest(ContactTestType::ALL));
+
+  ASSERT_FALSE(result.empty());
+  auto it = result.find(tesseract::common::LinkIdPair("mesh_link", "sphere_link"));
+  ASSERT_NE(it, result.end());
+  ASSERT_FALSE(it->second.empty());
+  EXPECT_LT(it->second.front().distance, 0.0);
+}
+
+TEST_F(StaticMeshCastUnit, SweepPastStaticMeshReportsContact)  // NOLINT
+{
+  checker_.setActiveCollisionObjects({ "sphere_link" });
+
+  // Both end poses are clear of the mesh; only the swept volume between them intersects it. This is what
+  // separates a continuous check from a discrete one at the end pose.
+  Eigen::Isometry3d start = Eigen::Isometry3d::Identity();
+  start.translation() = Eigen::Vector3d(1.0, 0, 0);
+  Eigen::Isometry3d end = Eigen::Isometry3d::Identity();
+  end.translation() = Eigen::Vector3d(-1.0, 0, 0);
+  checker_.setCollisionObjectsTransform("sphere_link", start, end);
+
+  ContactResultMap result;
+  checker_.contactTest(result, ContactRequest(ContactTestType::ALL));
+
+  ASSERT_FALSE(result.empty());
+  auto it = result.find(tesseract::common::LinkIdPair("mesh_link", "sphere_link"));
+  ASSERT_NE(it, result.end());
+  EXPECT_FALSE(it->second.empty());
+}
+
+TEST_F(StaticMeshCastUnit, SweepClearOfStaticMeshReportsNothing)  // NOLINT
+{
+  checker_.setActiveCollisionObjects({ "sphere_link" });
+
+  // Parallel to the x axis but well clear in y: the swept volume never reaches the mesh.
+  Eigen::Isometry3d start = Eigen::Isometry3d::Identity();
+  start.translation() = Eigen::Vector3d(1.0, 2.0, 0);
+  Eigen::Isometry3d end = Eigen::Isometry3d::Identity();
+  end.translation() = Eigen::Vector3d(-1.0, 2.0, 0);
+  checker_.setCollisionObjectsTransform("sphere_link", start, end);
+
+  ContactResultMap result;
+  checker_.contactTest(result, ContactRequest(ContactTestType::ALL));
+
+  EXPECT_TRUE(result.empty());
+}
+
+TEST_F(StaticMeshCastUnit, NonZeroMarginReportsSeparationAgainstStaticMesh)  // NOLINT
+{
+  // The distance arm of Coal's function matrix is registered separately from the collision arm, so a
+  // near-miss inside the margin exercises a path the penetrating cases above do not.
+  checker_.setDefaultCollisionMargin(0.05);
+  checker_.setActiveCollisionObjects({ "sphere_link" });
+
+  // The mesh surface lies between radius 0.2335 and 0.25 (see makeMeshSphere), and the sphere has radius
+  // 0.1, so an end pose at x = 0.37 leaves a gap somewhere in [0.020, 0.037] whichever way the tessellation
+  // falls. That is inside the 0.05 margin with roughly 0.013 to spare, and clear of zero by 0.020. Moving
+  // either constant needs that arithmetic redone - the margin has to stay above 0.037 and the gap above 0.
+  Eigen::Isometry3d start = Eigen::Isometry3d::Identity();
+  start.translation() = Eigen::Vector3d(1.0, 0, 0);
+  Eigen::Isometry3d end = Eigen::Isometry3d::Identity();
+  end.translation() = Eigen::Vector3d(0.37, 0, 0);
+  checker_.setCollisionObjectsTransform("sphere_link", start, end);
+
+  ContactResultMap result;
+  checker_.contactTest(result, ContactRequest(ContactTestType::ALL));
+
+  ASSERT_FALSE(result.empty());
+  auto it = result.find(tesseract::common::LinkIdPair("mesh_link", "sphere_link"));
+  ASSERT_NE(it, result.end());
+  ASSERT_FALSE(it->second.empty());
+  EXPECT_GT(it->second.front().distance, 0.0);
+  EXPECT_LT(it->second.front().distance, 0.05);
+}
+
+TEST_F(StaticMeshCastUnit, CloneKeepsStaticMeshCollidable)  // NOLINT
+{
+  // clone() re-adds every link through addCollisionObjects, which is the second deferral call site.
+  checker_.setActiveCollisionObjects({ "sphere_link" });
+
+  auto clone = checker_.clone();
+  auto* cast_clone = dynamic_cast<CoalCastBVHManager*>(clone.get());
+  ASSERT_NE(cast_clone, nullptr);
+
+  const auto& cast_map = cast_clone->getCastCollisionObjectMap();
+  auto cast_it = cast_map.find("mesh_link");
+  ASSERT_NE(cast_it, cast_map.end());
+  EXPECT_TRUE(castCowNeedsSweptBuild(*cast_it->second));
+
+  Eigen::Isometry3d start = Eigen::Isometry3d::Identity();
+  start.translation() = Eigen::Vector3d(1.0, 0, 0);
+  Eigen::Isometry3d end = Eigen::Isometry3d::Identity();
+  end.translation() = Eigen::Vector3d(0.0, 0, 0);
+  cast_clone->setCollisionObjectsTransform("sphere_link", start, end);
+
+  ContactResultMap result;
+  cast_clone->contactTest(result, ContactRequest(ContactTestType::ALL));
+  EXPECT_FALSE(result.empty());
+}
+
+TEST_F(StaticMeshCastUnit, DualPoseTransformOnStaticMeshIsHarmless)  // NOLINT
+{
+  // The mesh link is static, so its cast wrapper is deferred and holds the mesh's own BVHModel, not a
+  // CastHullShape. A dual-pose transform must not run the static_cast<CastHullShape*> in
+  // updateCastShapeTransforms against it (exercises the StaticFilter guard in collectCastTransformUpdate).
+  Eigen::Isometry3d pose1 = Eigen::Isometry3d::Identity();
+  Eigen::Isometry3d pose2 = Eigen::Isometry3d::Identity();
+  pose2.translation() = Eigen::Vector3d(1, 0, 0);
+
+  EXPECT_NO_THROW(checker_.setCollisionObjectsTransform("mesh_link", pose1, pose2));
+
+  // Promote the sphere and sweep it into the mesh; the mesh must still be a working collision target.
+  checker_.setActiveCollisionObjects({ "sphere_link" });
+
+  Eigen::Isometry3d start = Eigen::Isometry3d::Identity();
+  start.translation() = Eigen::Vector3d(1.0, 0, 0);
+  Eigen::Isometry3d end = Eigen::Isometry3d::Identity();
+  end.translation() = Eigen::Vector3d(0.0, 0, 0);
+  checker_.setCollisionObjectsTransform("sphere_link", start, end);
+
+  ContactResultMap result;
+  checker_.contactTest(result, ContactRequest(ContactTestType::ALL));
+
+  ASSERT_FALSE(result.empty());
+  auto it = result.find(tesseract::common::LinkIdPair("mesh_link", "sphere_link"));
+  ASSERT_NE(it, result.end());
+  EXPECT_FALSE(it->second.empty());
+}
+
+TEST_F(StaticMeshCastUnit, DualPoseTransformOnDisabledStaticMeshIsHarmless)  // NOLINT
+{
+  // Disabling the link takes collectCastTransformUpdate's !m_enabled branch, which runs before the
+  // StaticFilter gate and writes cow->setCollisionObjectsTransform(pose1) straight into the deferred
+  // wrapper. That call is safe only because CollisionObjectWrapper::setCollisionObjectsTransform performs
+  // no downcast on the collision objects it walks.
+  checker_.disableCollisionObject("mesh_link");
+
+  Eigen::Isometry3d pose1 = Eigen::Isometry3d::Identity();
+  Eigen::Isometry3d pose2 = Eigen::Isometry3d::Identity();
+  pose2.translation() = Eigen::Vector3d(1, 0, 0);
+
+  EXPECT_NO_THROW(checker_.setCollisionObjectsTransform("mesh_link", pose1, pose2));
+
+  // A disabled link is excluded from collision checks outright (needsCollisionCheck requires both objects
+  // enabled), so sweeping the sphere to where the mesh sits must report nothing, unlike the enabled case.
+  checker_.setActiveCollisionObjects({ "sphere_link" });
+
+  Eigen::Isometry3d start = Eigen::Isometry3d::Identity();
+  start.translation() = Eigen::Vector3d(1.0, 0, 0);
+  Eigen::Isometry3d end = Eigen::Isometry3d::Identity();
+  end.translation() = Eigen::Vector3d(0.0, 0, 0);
+  checker_.setCollisionObjectsTransform("sphere_link", start, end);
+
+  ContactResultMap result;
+  checker_.contactTest(result, ContactRequest(ContactTestType::ALL));
+  EXPECT_TRUE(result.empty());
 }
 
 int main(int argc, char** argv)
