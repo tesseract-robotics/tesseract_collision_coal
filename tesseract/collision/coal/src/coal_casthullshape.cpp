@@ -70,10 +70,7 @@ coal::AABB tightAABB(coal::ShapeBase& s)
   tight = s.aabb_local;
   const coal::Scalar ssr = s.getSweptSphereRadius();
   if (ssr > 0)
-  {
-    tight.min_ += coal::Vec3s::Constant(ssr);
-    tight.max_ -= coal::Vec3s::Constant(ssr);
-  }
+    tight.expand(-ssr);
 
   return tight;
 }

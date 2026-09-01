@@ -129,6 +129,26 @@ void expectPoisonIntact(const coal::CollisionGeometry& g)
   }
   EXPECT_DOUBLE_EQ(g.aabb_radius, 42.0);
 }
+
+/** @brief Assert a unit cube hull is bounded exactly, with its own cached bound left untouched.
+ *
+ * Both index widths build the same cube, so both expect the same bound. */
+void expectUnitCubeBoundedWithoutWriting(coal::ShapeBase& convex)
+{
+  constexpr double tolerance = 1e-9;
+
+  convex.computeLocalAABB();
+  poison(convex);
+
+  coal::AABB bv;
+  ASSERT_TRUE(tesseract::collision::tesseract_collision_coal::computeTightLocalAABB(convex, bv));
+  for (int i = 0; i < 3; ++i)
+  {
+    EXPECT_NEAR(bv.min_[i], -0.5, tolerance);
+    EXPECT_NEAR(bv.max_[i], 0.5, tolerance);
+  }
+  expectPoisonIntact(convex);
+}
 }  // namespace
 
 TEST(CoalCastHullShapeUnit, LocalAABBCountsWrappedSweptSphereRadiusOnce)
@@ -606,54 +626,24 @@ TEST(CoalCastHullShapeUnit, TightLocalAABBBoundsPrimitivesWithoutWritingToThem) 
 
 TEST(CoalCastHullShapeUnit, TightLocalAABBBoundsConvexHullsWithoutWritingToThem)  // NOLINT
 {
-  using tesseract::collision::tesseract_collision_coal::computeTightLocalAABB;
-
-  constexpr double tolerance = 1e-9;
-
   auto convex = makeCubeConvex();
   ASSERT_NE(convex, nullptr);
   // The convex arm takes the exact per-vertex fit, which is the branch a bound derived from the
   // shape's cached AABB would have skipped.
   ASSERT_TRUE(convex->getNodeType() == coal::GEOM_CONVEX32 || convex->getNodeType() == coal::GEOM_CONVEX16);
 
-  convex->computeLocalAABB();
-  poison(*convex);
-
-  coal::AABB bv;
-  ASSERT_TRUE(computeTightLocalAABB(*convex, bv));
-  EXPECT_NEAR(bv.min_[0], -0.5, tolerance);
-  EXPECT_NEAR(bv.max_[0], 0.5, tolerance);
-  EXPECT_NEAR(bv.min_[1], -0.5, tolerance);
-  EXPECT_NEAR(bv.max_[1], 0.5, tolerance);
-  EXPECT_NEAR(bv.min_[2], -0.5, tolerance);
-  EXPECT_NEAR(bv.max_[2], 0.5, tolerance);
-  expectPoisonIntact(*convex);
+  expectUnitCubeBoundedWithoutWriting(*convex);
 }
 
 TEST(CoalCastHullShapeUnit, TightLocalAABBBoundsNarrowIndexConvexHullsWithoutWritingToThem)  // NOLINT
 {
-  using tesseract::collision::tesseract_collision_coal::computeTightLocalAABB;
-
-  constexpr double tolerance = 1e-9;
-
   // A hull's index width picks the arm: the two widths are distinct types carrying distinct node
   // types. Both must reach the exact per-vertex fit rather than the writing fallback.
   auto convex = makeCubeConvex16();
   ASSERT_NE(convex, nullptr);
   ASSERT_EQ(convex->getNodeType(), coal::GEOM_CONVEX16);
 
-  convex->computeLocalAABB();
-  poison(*convex);
-
-  coal::AABB bv;
-  ASSERT_TRUE(computeTightLocalAABB(*convex, bv));
-  EXPECT_NEAR(bv.min_[0], -0.5, tolerance);
-  EXPECT_NEAR(bv.max_[0], 0.5, tolerance);
-  EXPECT_NEAR(bv.min_[1], -0.5, tolerance);
-  EXPECT_NEAR(bv.max_[1], 0.5, tolerance);
-  EXPECT_NEAR(bv.min_[2], -0.5, tolerance);
-  EXPECT_NEAR(bv.max_[2], 0.5, tolerance);
-  expectPoisonIntact(*convex);
+  expectUnitCubeBoundedWithoutWriting(*convex);
 }
 
 TEST(CoalCastHullShapeUnit, TightLocalAABBExcludesTheSweptSphereRadius)  // NOLINT

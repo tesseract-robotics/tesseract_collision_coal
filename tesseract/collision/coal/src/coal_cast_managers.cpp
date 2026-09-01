@@ -612,6 +612,10 @@ static DArcScalars computeDArcScalars(const coal::Transform3s& link_cast_tf)
 /// point on the shape's bounding sphere to the screw axis.
 static double computeDArc(const coal::Transform3s& cast_tf, const coal::ShapeBase& shape, const DArcScalars& s)
 {
+  // The sagitta reads the shape's cached bound, which wrapping it does not populate. An unbounded
+  // shape carries radius -1, reaching the broadphase as a NaN AABB: pairs drop unobserved.
+  assert(shape.aabb_radius >= 0.0);
+
   if (s.sagitta_factor == 0.0)
     return 0.0;
 
