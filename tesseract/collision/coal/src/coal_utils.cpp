@@ -412,6 +412,13 @@ CollisionGeometryPtr createShapePrimitive(const CollisionShapeConstPtr& geom)
     return shape;
 
   shape = createShapePrimitiveHelper(geom);
+
+  // Bound the geometry before it is shared. Every collision object built over it reads these
+  // fields, and coal's CollisionObject constructor would otherwise recompute them per object --
+  // a write through geometry other objects, and other threads, already hold.
+  if (shape != nullptr)
+    shape->computeLocalAABB();
+
   CoalCollisionGeometryCache::insert(geom, shape);
   return shape;
 }
@@ -960,6 +967,9 @@ CollisionObjectWrapper::CollisionObjectWrapper(tesseract::common::LinkId id,
   assert(shapes_.size() == shape_poses_.size());  // NOLINT
 
   collision_objects_.reserve(shapes_.size());
+  // createShapePrimitive has already bounded each geometry below, and those geometries are shared
+  // between collision objects and between environments, so recomputing here would write through
+  // one another object may be reading.
   for (std::size_t i = 0; i < shapes_.size(); ++i)  // NOLINT
   {
     if (shapes_[i]->getType() == tesseract::geometry::GeometryType::COMPOUND_MESH)
@@ -971,7 +981,7 @@ CollisionObjectWrapper::CollisionObjectWrapper(tesseract::common::LinkId id,
         const CollisionGeometryPtr subshape = createShapePrimitive(mesh);
         if (subshape != nullptr)
         {
-          auto co = std::make_shared<CoalCollisionObjectWrapper>(subshape);
+          auto co = std::make_shared<CoalCollisionObjectWrapper>(subshape, /*compute_local_aabb=*/false);
           co->setUserData(this);
           co->setShapeIndex(static_cast<int>(i));
           co->setSourceShapeIndex(static_cast<int>(i));
@@ -987,7 +997,7 @@ CollisionObjectWrapper::CollisionObjectWrapper(tesseract::common::LinkId id,
       const CollisionGeometryPtr subshape = createShapePrimitive(shapes_[i]);
       if (subshape != nullptr)
       {
-        auto co = std::make_shared<CoalCollisionObjectWrapper>(subshape);
+        auto co = std::make_shared<CoalCollisionObjectWrapper>(subshape, /*compute_local_aabb=*/false);
         co->setUserData(this);
         co->setShapeIndex(static_cast<int>(i));
         co->setSourceShapeIndex(static_cast<int>(i));

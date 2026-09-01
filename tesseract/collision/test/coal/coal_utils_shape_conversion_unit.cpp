@@ -72,6 +72,21 @@ TEST(CoalUtilsShapeConversionUnit, EmptyConvexMeshReturnsNullptr)  // NOLINT
   CollisionGeometryPtr shape = createShapePrimitive(empty_convex_mesh);
   EXPECT_EQ(shape, nullptr);
 }
+
+TEST(CoalUtilsShapeConversionUnit, CreateShapePrimitiveComputesTheLocalAABB)  // NOLINT
+{
+  // Geometry is cached and shared, so its local AABB is computed once here rather than by each
+  // collision object built over it. A collision object's own AABB is derived from these fields.
+  auto sphere = std::make_shared<tesseract::geometry::Sphere>(0.3123);
+  CollisionGeometryPtr geom = createShapePrimitive(sphere);
+  ASSERT_NE(geom, nullptr);
+
+  EXPECT_NEAR(geom->aabb_local.min_[0], -0.3123, 1e-9);
+  EXPECT_NEAR(geom->aabb_local.max_[0], 0.3123, 1e-9);
+  // coal's Sphere::computeLocalAABB reports its own exact radius here, tighter than the generic
+  // AABB-corner-to-centre distance other shapes fall back to.
+  EXPECT_NEAR(geom->aabb_radius, 0.3123, 1e-9);
+}
 }  // namespace tesseract::collision::tesseract_collision_coal
 
 int main(int argc, char** argv)
