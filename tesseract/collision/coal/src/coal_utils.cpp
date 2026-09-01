@@ -131,6 +131,29 @@ void computeShapeAABBFromLocal(const coal::AABB& local_aabb, const coal::Transfo
 
 }  // namespace
 
+bool computeTightLocalAABB(const coal::ShapeBase& s, coal::AABB& bv)
+{
+  const coal::Transform3s identity_tf;
+
+  if (computeParametricShapeAABB(s, identity_tf, bv))
+    return true;
+
+  // The convex arms live here rather than in computeParametricShapeAABB because the exact fit is
+  // O(num_points) and that function runs on the per-check path, where the conservative O(1)
+  // formula is used instead. This runs once per shape.
+  switch (s.getNodeType())
+  {
+    case coal::GEOM_CONVEX32:
+      coal::computeBV<coal::AABB, coal::ConvexBase32>(static_cast<const coal::ConvexBase32&>(s), identity_tf, bv);
+      return true;
+    case coal::GEOM_CONVEX16:
+      coal::computeBV<coal::AABB, coal::ConvexBase16>(static_cast<const coal::ConvexBase16&>(s), identity_tf, bv);
+      return true;
+    default:
+      return false;
+  }
+}
+
 void computeShapeAABB(const coal::ShapeBase& s,
                       const coal::Transform3s& tf,
                       const coal::AABB& local_aabb,

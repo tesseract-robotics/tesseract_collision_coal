@@ -111,6 +111,23 @@ void computeShapeAABB(const coal::ShapeBase& s,
                       const coal::AABB& local_aabb,
                       coal::AABB& bv);
 
+/** @brief Bound a shape in its own frame, exactly, without writing to it.
+ *
+ *  The bound excludes the shape's swept-sphere radius, matching computeShapeAABB's @p local_aabb
+ *  contract. Primitives take their analytic computeBV specialization; convex hulls take the exact
+ *  O(num_points) fit, which is affordable because callers bound a shape once when they wrap it
+ *  rather than once per check.
+ *
+ *  Unlike coal::CollisionGeometry::computeLocalAABB, this writes nothing to @p s. Collision
+ *  geometry is shared between per-thread manager clones and, through CoalCollisionGeometryCache,
+ *  between environments, so refreshing a shape to read its bound is a write another thread may be
+ *  reading.
+ *
+ *  @return false for a node type with no exact form here -- GEOM_CUSTOM and any third-party
+ *  ShapeBase -- leaving @p bv untouched. A bound for those would have to come from s.aabb_local,
+ *  which may be unset and would risk a bound smaller than the shape. */
+bool computeTightLocalAABB(const coal::ShapeBase& s, coal::AABB& bv);
+
 /** @brief Erase cache entries involving any of the given collision objects (for object removal) */
 void invalidateCacheFor(CollisionCacheMap& cache, const std::vector<CollisionObjectPtr>& objects);
 

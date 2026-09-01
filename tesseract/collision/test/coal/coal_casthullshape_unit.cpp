@@ -71,6 +71,32 @@ std::shared_ptr<coal::ShapeBase> makeCubeConvex()
   auto mesh = std::make_shared<tesseract::geometry::ConvexMesh>(vertices, faces, 6);
   return std::dynamic_pointer_cast<coal::ShapeBase>(createShapePrimitive(mesh));
 }
+
+/** @brief A bound no shape in this file could produce. Asymmetric on purpose: its centre is
+ * (1, 2, 3), so an assertion on a geometry's aabb_center is load-bearing. A bound symmetric about
+ * the origin would have centre (0, 0, 0), which is also the true centre of every shape here, and
+ * an assertion against that could not fail. */
+coal::AABB poisonAABB() { return coal::AABB(coal::Vec3s(-9.0, -8.0, -7.0), coal::Vec3s(11.0, 12.0, 13.0)); }
+
+/** @brief Give a geometry a cached bound that is unmistakably not its own. */
+void poison(coal::CollisionGeometry& g)
+{
+  g.aabb_local = poisonAABB();
+  g.aabb_center = poisonAABB().center();
+  g.aabb_radius = 42.0;
+}
+
+/** @brief Assert nothing has rewritten the geometry's cached bound. */
+void expectPoisonIntact(const coal::CollisionGeometry& g)
+{
+  for (int i = 0; i < 3; ++i)
+  {
+    EXPECT_DOUBLE_EQ(g.aabb_local.min_[i], poisonAABB().min_[i]);
+    EXPECT_DOUBLE_EQ(g.aabb_local.max_[i], poisonAABB().max_[i]);
+    EXPECT_DOUBLE_EQ(g.aabb_center[i], poisonAABB().center()[i]);
+  }
+  EXPECT_DOUBLE_EQ(g.aabb_radius, 42.0);
+}
 }  // namespace
 
 TEST(CoalCastHullShapeUnit, LocalAABBCountsWrappedSweptSphereRadiusOnce)
@@ -458,6 +484,156 @@ TEST(CoalCastHullShapeUnit, ComputeVolumeLeavesWarmStartStateUntouched)  // NOLI
   EXPECT_EQ(cast_hull.getHint1(), 7);
   EXPECT_TRUE(cast_hull.getSupportData0().last_dir.isApprox(coal::Vec3s(1.0, 0.0, 0.0)));
   EXPECT_TRUE(cast_hull.getSupportData1().last_dir.isApprox(coal::Vec3s(1.0, 0.0, 0.0)));
+}
+
+TEST(CoalCastHullShapeUnit, TightLocalAABBBoundsPrimitivesWithoutWritingToThem)  // NOLINT
+{
+  using tesseract::collision::tesseract_collision_coal::computeTightLocalAABB;
+
+  constexpr double tolerance = 1e-9;
+
+  {
+    auto box = std::make_shared<coal::Box>(1.0, 2.0, 3.0);
+    box->computeLocalAABB();  // the state a shape has once it is in use
+    poison(*box);
+
+    coal::AABB bv;
+    ASSERT_TRUE(computeTightLocalAABB(*box, bv));
+    EXPECT_NEAR(bv.min_[0], -0.5, tolerance);
+    EXPECT_NEAR(bv.max_[0], 0.5, tolerance);
+    EXPECT_NEAR(bv.min_[1], -1.0, tolerance);
+    EXPECT_NEAR(bv.max_[1], 1.0, tolerance);
+    EXPECT_NEAR(bv.min_[2], -1.5, tolerance);
+    EXPECT_NEAR(bv.max_[2], 1.5, tolerance);
+    expectPoisonIntact(*box);
+  }
+
+  {
+    auto sphere = std::make_shared<coal::Sphere>(0.75);
+    sphere->computeLocalAABB();
+    poison(*sphere);
+
+    coal::AABB bv;
+    ASSERT_TRUE(computeTightLocalAABB(*sphere, bv));
+    EXPECT_NEAR(bv.min_[0], -0.75, tolerance);
+    EXPECT_NEAR(bv.max_[2], 0.75, tolerance);
+    expectPoisonIntact(*sphere);
+  }
+
+  {
+    auto cylinder = std::make_shared<coal::Cylinder>(0.4, 2.0);
+    cylinder->computeLocalAABB();
+    poison(*cylinder);
+
+    coal::AABB bv;
+    ASSERT_TRUE(computeTightLocalAABB(*cylinder, bv));
+    EXPECT_NEAR(bv.min_[0], -0.4, tolerance);
+    EXPECT_NEAR(bv.max_[0], 0.4, tolerance);
+    EXPECT_NEAR(bv.min_[2], -1.0, tolerance);
+    EXPECT_NEAR(bv.max_[2], 1.0, tolerance);
+    expectPoisonIntact(*cylinder);
+  }
+
+  {
+    auto cone = std::make_shared<coal::Cone>(0.4, 2.0);
+    cone->computeLocalAABB();
+    poison(*cone);
+
+    coal::AABB bv;
+    ASSERT_TRUE(computeTightLocalAABB(*cone, bv));
+    EXPECT_NEAR(bv.min_[2], -1.0, tolerance);
+    EXPECT_NEAR(bv.max_[2], 1.0, tolerance);
+    expectPoisonIntact(*cone);
+  }
+
+  {
+    // Half-length 1.0 plus the cap radius 0.4 on the capsule's axis.
+    auto capsule = std::make_shared<coal::Capsule>(0.4, 2.0);
+    capsule->computeLocalAABB();
+    poison(*capsule);
+
+    coal::AABB bv;
+    ASSERT_TRUE(computeTightLocalAABB(*capsule, bv));
+    EXPECT_NEAR(bv.min_[0], -0.4, tolerance);
+    EXPECT_NEAR(bv.max_[2], 1.4, tolerance);
+    expectPoisonIntact(*capsule);
+  }
+
+  {
+    // A tesseract PLANE link reaches this arm. A halfspace is unbounded on two axes, so there is
+    // no finite extent to assert -- only that the arm dispatches and leaves the shape unwritten.
+    auto halfspace = std::make_shared<coal::Halfspace>(coal::Vec3s(0.0, 0.0, 1.0), 0.0);
+    halfspace->computeLocalAABB();
+    poison(*halfspace);
+
+    coal::AABB bv;
+    ASSERT_TRUE(computeTightLocalAABB(*halfspace, bv));
+    expectPoisonIntact(*halfspace);
+  }
+}
+
+TEST(CoalCastHullShapeUnit, TightLocalAABBBoundsConvexHullsWithoutWritingToThem)  // NOLINT
+{
+  using tesseract::collision::tesseract_collision_coal::computeTightLocalAABB;
+
+  constexpr double tolerance = 1e-9;
+
+  auto convex = makeCubeConvex();
+  ASSERT_NE(convex, nullptr);
+  // The convex arm takes the exact per-vertex fit, which is the branch a bound derived from the
+  // shape's cached AABB would have skipped.
+  ASSERT_TRUE(convex->getNodeType() == coal::GEOM_CONVEX32 || convex->getNodeType() == coal::GEOM_CONVEX16);
+
+  convex->computeLocalAABB();
+  poison(*convex);
+
+  coal::AABB bv;
+  ASSERT_TRUE(computeTightLocalAABB(*convex, bv));
+  EXPECT_NEAR(bv.min_[0], -0.5, tolerance);
+  EXPECT_NEAR(bv.max_[0], 0.5, tolerance);
+  EXPECT_NEAR(bv.min_[1], -0.5, tolerance);
+  EXPECT_NEAR(bv.max_[1], 0.5, tolerance);
+  EXPECT_NEAR(bv.min_[2], -0.5, tolerance);
+  EXPECT_NEAR(bv.max_[2], 0.5, tolerance);
+  expectPoisonIntact(*convex);
+}
+
+TEST(CoalCastHullShapeUnit, TightLocalAABBExcludesTheSweptSphereRadius)  // NOLINT
+{
+  using tesseract::collision::tesseract_collision_coal::computeTightLocalAABB;
+
+  constexpr double tolerance = 1e-9;
+
+  // The bound feeds computeShapeAABB's local_aabb parameter, whose contract is radius-free:
+  // a bound that already included the radius would count it twice.
+  auto box = std::make_shared<coal::Box>(1.0, 1.0, 1.0);
+  box->setSweptSphereRadius(0.1);
+
+  coal::AABB bv;
+  ASSERT_TRUE(computeTightLocalAABB(*box, bv));
+  EXPECT_NEAR(bv.min_[0], -0.5, tolerance);
+  EXPECT_NEAR(bv.max_[0], 0.5, tolerance);
+}
+
+TEST(CoalCastHullShapeUnit, TightLocalAABBReportsFailureForCustomNodeTypes)  // NOLINT
+{
+  using tesseract::collision::tesseract_collision_coal::CastHullShape;
+  using tesseract::collision::tesseract_collision_coal::computeTightLocalAABB;
+
+  // GEOM_CUSTOM has no exact form here. The caller must be told so rather than handed a bound
+  // derived from an unset field, which could come out smaller than the shape.
+  auto box = std::make_shared<coal::Box>(1.0, 1.0, 1.0);
+  CastHullShape custom(box, coal::Transform3s::Identity());
+  ASSERT_EQ(custom.getNodeType(), coal::GEOM_CUSTOM);
+
+  const coal::AABB sentinel(coal::Vec3s(-7.0, -7.0, -7.0), coal::Vec3s(7.0, 7.0, 7.0));
+  coal::AABB bv = sentinel;
+  EXPECT_FALSE(computeTightLocalAABB(custom, bv));
+  for (int i = 0; i < 3; ++i)
+  {
+    EXPECT_DOUBLE_EQ(bv.min_[i], sentinel.min_[i]);
+    EXPECT_DOUBLE_EQ(bv.max_[i], sentinel.max_[i]);
+  }
 }
 
 int main(int argc, char** argv)
