@@ -13,6 +13,7 @@ TESSERACT_COMMON_IGNORE_WARNINGS_POP
 #include <tesseract/collision/coal/coal_cast_managers.h>
 #include <tesseract/collision/coal/coal_casthullshape.h>
 #include <tesseract/collision/coal/coal_factories.h>
+#include <tesseract/collision/test_suite/collision_cast_scenario_unit.hpp>
 #include <tesseract/geometry/geometries.h>
 
 using namespace tesseract::collision;
@@ -571,6 +572,35 @@ TEST(CoalDArcCompensationUnit, HandoffIsContinuousAcrossTheBranch)  // NOLINT
       }
     }
   }
+}
+
+/// An octree link's voxel boxes are created by the cast expansion, never by the shape cache, so the
+/// expansion is the only thing that can bound them. d_arc reads that bound off the wrapped shape; an
+/// unbounded box carries coal's default sentinel centre and a negative radius, which makes d_arc NaN
+/// and poisons the cast AABB -- and a NaN AABB fails every broadphase overlap test, so the pairs are
+/// dropped with no contact and no error.
+TEST(CoalDArcCompensationUnit, OctreeVoxelBoxesAreBounded)  // NOLINT
+{
+  CoalCastBVHManager checker("test", true);
+  test_suite::detail::addOctree(checker, "octomap_link");
+  checker.setActiveCollisionObjects({ "octomap_link" });
+  checker.setDefaultCollisionMargin(0.0);
+
+  Eigen::Isometry3d pose1 = Eigen::Isometry3d::Identity();
+  Eigen::Isometry3d pose2 = Eigen::Isometry3d::Identity();
+  pose2.rotate(Eigen::AngleAxisd(M_PI / 4.0, Eigen::Vector3d::UnitZ()));
+  checker.setCollisionObjectsTransform("octomap_link", pose1, pose2);
+
+  auto* cast_shape = getCastHullShape(checker, "octomap_link");
+  ASSERT_NE(cast_shape, nullptr);
+
+  const auto& voxel_box = cast_shape->getUnderlyingShape();
+  ASSERT_NE(voxel_box, nullptr);
+  EXPECT_GT(voxel_box->aabb_radius, 0.0);
+
+  const double ssr = cast_shape->getSweptSphereRadius();
+  EXPECT_TRUE(std::isfinite(ssr)) << "d_arc came out " << ssr;
+  EXPECT_GT(ssr, 0.0);
 }
 
 int main(int argc, char** argv)

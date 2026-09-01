@@ -1330,6 +1330,13 @@ COW::Ptr makeCastCollisionObject(const COW::Ptr& cow, bool build_swept)
         {
           const double size = it.getSize();
           box_shape = std::make_shared<coal::Box>(size, size, size);
+          // The arc-sagitta compensation reads this box's cached aabb_center and aabb_radius, and
+          // nothing else ever populates them: these boxes are built here rather than taken from the
+          // geometry cache. Left at coal's defaults the compensation evaluates to NaN, which
+          // propagates into every cast AABB built from the box and drops the pair in broadphase.
+          // The box is function-local and unshared at this point, so this write is not visible to
+          // any other object.
+          box_shape->computeLocalAABB();
         }
         auto cast_shape = std::make_shared<CastHullShape>(box_shape, identity_tf);
 
