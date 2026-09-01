@@ -969,7 +969,7 @@ CollisionObjectWrapper::CollisionObjectWrapper(tesseract::common::LinkId id,
   collision_objects_.reserve(shapes_.size());
   // createShapePrimitive has already bounded each geometry below, and those geometries are shared
   // between collision objects and between environments, so recomputing here would write through
-  // one another object may be reading.
+  // geometry another object may be reading.
   for (std::size_t i = 0; i < shapes_.size(); ++i)  // NOLINT
   {
     if (shapes_[i]->getType() == tesseract::geometry::GeometryType::COMPOUND_MESH)

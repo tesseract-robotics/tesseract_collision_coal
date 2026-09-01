@@ -51,10 +51,10 @@ namespace
 {
 /** @brief The shape's local AABB with the swept-sphere radius removed.
  *
- * Derived from the shape's parameters, so wrapping a shape does not write to it -- collision
- * geometry is shared between per-thread manager clones, and a refresh is a write another thread
- * may be reading. The result is kept rather than re-derived per check because the convex fit is
- * O(num_points). */
+ * Derived from the shape's parameters where an exact form exists, so wrapping a shape does not
+ * write to it -- collision geometry is shared between per-thread manager clones, and a refresh is
+ * a write another thread may be reading. The result is kept rather than re-derived per check
+ * because the convex fit is O(num_points). */
 coal::AABB tightAABB(coal::ShapeBase& s)
 {
   coal::AABB tight;

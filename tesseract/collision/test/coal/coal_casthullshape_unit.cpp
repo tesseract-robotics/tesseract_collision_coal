@@ -2,7 +2,10 @@
 TESSERACT_COMMON_IGNORE_WARNINGS_PUSH
 #include <gtest/gtest.h>
 #include <cmath>
+#include <memory>
+#include <vector>
 #include <Eigen/Core>
+#include <coal/shape/convex.h>
 TESSERACT_COMMON_IGNORE_WARNINGS_POP
 
 #include <tesseract/collision/coal/coal_casthullshape.h>
@@ -72,11 +75,40 @@ std::shared_ptr<coal::ShapeBase> makeCubeConvex()
   return std::dynamic_pointer_cast<coal::ShapeBase>(createShapePrimitive(mesh));
 }
 
+/** @brief The same unit cube as makeCubeConvex, but with 16-bit vertex indices. The plugin's own
+ * conversion only ever emits 32-bit hulls, so this is the only way to reach the narrower node type
+ * a third-party caller could hand in. */
+std::shared_ptr<coal::ShapeBase> makeCubeConvex16()
+{
+  auto vertices = std::make_shared<std::vector<coal::Vec3s>>();
+  for (int i = 0; i < 8; ++i)
+    vertices->emplace_back(((i & 1) != 0) ? 0.5 : -0.5, ((i & 2) != 0) ? 0.5 : -0.5, ((i & 4) != 0) ? 0.5 : -0.5);
+
+  // The six quads of makeCubeConvex, each split into two triangles.
+  auto faces = std::make_shared<std::vector<coal::Triangle16>>(std::initializer_list<coal::Triangle16>{
+      { 0, 1, 3 },
+      { 0, 3, 2 },  // -z
+      { 4, 6, 7 },
+      { 4, 7, 5 },  // +z
+      { 0, 4, 5 },
+      { 0, 5, 1 },  // -y
+      { 2, 3, 7 },
+      { 2, 7, 6 },  // +y
+      { 0, 2, 6 },
+      { 0, 6, 4 },  // -x
+      { 1, 5, 7 },
+      { 1, 7, 3 }  // +x
+  });
+
+  return std::make_shared<coal::Convex<coal::Triangle16>>(
+      vertices, static_cast<unsigned>(vertices->size()), faces, static_cast<unsigned>(faces->size()));
+}
+
 /** @brief A bound no shape in this file could produce. Asymmetric on purpose: its centre is
  * (1, 2, 3), so an assertion on a geometry's aabb_center is load-bearing. A bound symmetric about
  * the origin would have centre (0, 0, 0), which is also the true centre of every shape here, and
  * an assertion against that could not fail. */
-coal::AABB poisonAABB() { return coal::AABB(coal::Vec3s(-9.0, -8.0, -7.0), coal::Vec3s(11.0, 12.0, 13.0)); }
+coal::AABB poisonAABB() { return { coal::Vec3s(-9.0, -8.0, -7.0), coal::Vec3s(11.0, 12.0, 13.0) }; }
 
 /** @brief Give a geometry a cached bound that is unmistakably not its own. */
 void poison(coal::CollisionGeometry& g)
@@ -598,6 +630,32 @@ TEST(CoalCastHullShapeUnit, TightLocalAABBBoundsConvexHullsWithoutWritingToThem)
   expectPoisonIntact(*convex);
 }
 
+TEST(CoalCastHullShapeUnit, TightLocalAABBBoundsNarrowIndexConvexHullsWithoutWritingToThem)  // NOLINT
+{
+  using tesseract::collision::tesseract_collision_coal::computeTightLocalAABB;
+
+  constexpr double tolerance = 1e-9;
+
+  // A hull's index width picks the arm: the two widths are distinct types carrying distinct node
+  // types. Both must reach the exact per-vertex fit rather than the writing fallback.
+  auto convex = makeCubeConvex16();
+  ASSERT_NE(convex, nullptr);
+  ASSERT_EQ(convex->getNodeType(), coal::GEOM_CONVEX16);
+
+  convex->computeLocalAABB();
+  poison(*convex);
+
+  coal::AABB bv;
+  ASSERT_TRUE(computeTightLocalAABB(*convex, bv));
+  EXPECT_NEAR(bv.min_[0], -0.5, tolerance);
+  EXPECT_NEAR(bv.max_[0], 0.5, tolerance);
+  EXPECT_NEAR(bv.min_[1], -0.5, tolerance);
+  EXPECT_NEAR(bv.max_[1], 0.5, tolerance);
+  EXPECT_NEAR(bv.min_[2], -0.5, tolerance);
+  EXPECT_NEAR(bv.max_[2], 0.5, tolerance);
+  expectPoisonIntact(*convex);
+}
+
 TEST(CoalCastHullShapeUnit, TightLocalAABBExcludesTheSweptSphereRadius)  // NOLINT
 {
   using tesseract::collision::tesseract_collision_coal::computeTightLocalAABB;
@@ -710,22 +768,31 @@ TEST(CoalCastHullShapeUnit, WrappingACustomNodeTypeFallsBackToARefresh)  // NOLI
   // GEOM_CUSTOM has no parametric or convex form, so the bound comes from refreshing the wrapped
   // shape. That is the one path that still writes, and the only one a third-party ShapeBase could
   // take. A CastHullShape is itself a ShapeBase, so wrapping one reaches it.
+  constexpr double inner_ssr = 0.05;
+
   auto box = std::make_shared<coal::Box>(1.0, 1.0, 1.0);
   auto inner = std::make_shared<CastHullShape>(box, coal::Transform3s::Identity());
   ASSERT_EQ(inner->getNodeType(), coal::GEOM_CUSTOM);
+  // A nonzero radius is what makes the fallback's radius removal observable: the refresh bakes the
+  // radius into aabb_local, and the fallback subtracts it back off to recover the tight bound.
+  inner->setSweptSphereRadius(inner_ssr);
 
   CastHullShape outer(inner, shifted);
   outer.computeLocalAABB();
 
-  // inner sweeps nowhere, so it spans the box; outer sweeps that 1 in x.
-  EXPECT_NEAR(outer.aabb_local.min_[0], -0.5, tolerance);
-  EXPECT_NEAR(outer.aabb_local.max_[0], 1.5, tolerance);
-  EXPECT_NEAR(outer.aabb_local.min_[1], -0.5, tolerance);
-  EXPECT_NEAR(outer.aabb_local.max_[1], 0.5, tolerance);
+  // inner sweeps nowhere, so it spans the box; outer sweeps that 1 in x. Both poses carry inner's
+  // radius exactly once, which they can only do if the tight bound handed to them was radius-free.
+  EXPECT_NEAR(outer.aabb_local.min_[0], -0.5 - inner_ssr, tolerance);
+  EXPECT_NEAR(outer.aabb_local.max_[0], 1.5 + inner_ssr, tolerance);
+  EXPECT_NEAR(outer.aabb_local.min_[1], -0.5 - inner_ssr, tolerance);
+  EXPECT_NEAR(outer.aabb_local.max_[1], 0.5 + inner_ssr, tolerance);
 
   // The fallback refreshed what it wrapped. This write is the documented exception, kept because a
-  // bound taken from an unset aabb_local could come out smaller than the shape.
+  // bound taken from an unset aabb_local could come out smaller than the shape. The refresh leaves
+  // the radius baked into the cache it wrote, which is what the removal above had to undo.
   EXPECT_GT(inner->aabb_radius, 0.0);
+  EXPECT_NEAR(inner->aabb_local.min_[0], -0.5 - inner_ssr, tolerance);
+  EXPECT_NEAR(inner->aabb_local.max_[0], 0.5 + inner_ssr, tolerance);
 }
 
 int main(int argc, char** argv)
