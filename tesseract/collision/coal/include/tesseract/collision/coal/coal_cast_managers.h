@@ -60,9 +60,10 @@ namespace tesseract::collision::tesseract_collision_coal
  * broadphase manager; inactive/static links register their regular COW in the
  * static broadphase manager.
  *
- * Static octrees use the raw OcTree directly in the static broadphase.
- * Coal provides native GEOM_CUSTOM (CastHullShape) vs GEOM_OCTREE collision
- * support, so voxel expansion is only needed for active (kinematic) octrees.
+ * A static link's cast wrapper is deferred: it holds the link's own geometry and is built into
+ * CastHullShapes only when the link goes kinematic. Because a static link is collided through its regular
+ * wrapper, it may hold any geometry Coal can collide - a mesh, a raw octree - whether or not that geometry
+ * has a swept form. Promoting a link whose geometry has no swept form throws.
  */
 class CoalCastBVHManager : public ContinuousContactManager
 {
@@ -183,7 +184,7 @@ public:
    */
   void addCollisionObjects(const std::vector<COW::Ptr>& cows, bool defer_update = false);
 
-  /** @brief Get the cast collision object map (for testing deferred octree expansion) */
+  /** @brief Get the cast collision object map (for testing deferred cast shape construction) */
   const Link2COW& getCastCollisionObjectMap() const { return link2castcow_; }
 
 private:
@@ -235,9 +236,9 @@ private:
 
   /** @brief Write the sweep from @p pose1 to @p pose2 into a cast wrapper's hulls.
    *
-   *  Only a kinematic link's cast wrapper may be passed. A static link's can still hold raw OcTree geometry,
-   *  because octree expansion is deferred until the link goes active, and the static_cast below is undefined
-   *  behaviour on it. Callers check the filter group; the assertion here records that they must.
+   *  Only a kinematic link's cast wrapper may be passed. A static link's is deferred and still holds the
+   *  link's own geometry, on which the static_cast below is undefined behaviour. Callers check the filter
+   *  group; the assertion here records that they must.
    *
    *  pose1 == pose2 is a zero-length sweep, which is the unswept state every hull resolves to regardless of
    *  its local offset, so that case defers to CastHullShape::clearSweep rather than computing it per shape.

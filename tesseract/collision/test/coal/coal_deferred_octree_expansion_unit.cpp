@@ -58,7 +58,7 @@ TEST_F(DeferredOctreeExpansionUnit, StaticOctreeNotExpandedOnAdd)  // NOLINT
   const auto& cast_map = checker_.getCastCollisionObjectMap();
   auto it = cast_map.find("octree_link");
   ASSERT_NE(it, cast_map.end());
-  EXPECT_TRUE(castCowNeedsOctreeExpansion(*it->second));
+  EXPECT_TRUE(castCowNeedsSweptBuild(*it->second));
 }
 
 TEST_F(DeferredOctreeExpansionUnit, PromotionExpandsOctree)  // NOLINT
@@ -68,7 +68,7 @@ TEST_F(DeferredOctreeExpansionUnit, PromotionExpandsOctree)  // NOLINT
   const auto& cast_map = checker_.getCastCollisionObjectMap();
   auto it = cast_map.find("octree_link");
   ASSERT_NE(it, cast_map.end());
-  EXPECT_FALSE(castCowNeedsOctreeExpansion(*it->second));
+  EXPECT_FALSE(castCowNeedsSweptBuild(*it->second));
 
   // All collision objects in the expanded cast COW should be CastHullShape (GEOM_CUSTOM).
   for (const auto& co : it->second->getCollisionObjects())
@@ -104,7 +104,7 @@ TEST_F(DeferredOctreeExpansionUnit, DemotionPreservesExpansion)  // NOLINT
   const auto& cast_map = checker_.getCastCollisionObjectMap();
   auto it = cast_map.find("octree_link");
   ASSERT_NE(it, cast_map.end());
-  EXPECT_FALSE(castCowNeedsOctreeExpansion(*it->second));
+  EXPECT_FALSE(castCowNeedsSweptBuild(*it->second));
 }
 
 TEST_F(DeferredOctreeExpansionUnit, RePromotionSkipsReExpansion)  // NOLINT
@@ -117,7 +117,7 @@ TEST_F(DeferredOctreeExpansionUnit, RePromotionSkipsReExpansion)  // NOLINT
   const auto& cast_map = checker_.getCastCollisionObjectMap();
   auto it = cast_map.find("octree_link");
   ASSERT_NE(it, cast_map.end());
-  EXPECT_FALSE(castCowNeedsOctreeExpansion(*it->second));
+  EXPECT_FALSE(castCowNeedsSweptBuild(*it->second));
 
   // Verify contacts still work after re-promotion
   Eigen::Isometry3d start = Eigen::Isometry3d::Identity();
@@ -174,7 +174,7 @@ TEST_F(DeferredOctreeExpansionUnit, CloneWithActiveOctreeExpands)  // NOLINT
   const auto& cast_map = cast_clone->getCastCollisionObjectMap();
   auto it = cast_map.find("octree_link");
   ASSERT_NE(it, cast_map.end());
-  EXPECT_FALSE(castCowNeedsOctreeExpansion(*it->second));
+  EXPECT_FALSE(castCowNeedsSweptBuild(*it->second));
 
   // Verify contacts work on the clone
   Eigen::Isometry3d start = Eigen::Isometry3d::Identity();

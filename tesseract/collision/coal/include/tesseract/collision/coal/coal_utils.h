@@ -246,18 +246,24 @@ void updateCollisionObjectFilters(const std::unordered_set<tesseract::common::Li
 
 /**
  * @brief Create a cast collision object from a regular collision object
+ *
  * @param cow The collision object to convert
- * @param expand_octrees When false, octree shapes are kept as raw OcTree geometry (deferred expansion)
- * @return A new collision object with shapes converted to CastHullShapes
+ * @param build_swept When true, every shape is converted to a sweep-capable form - a convex shape is wrapped
+ * in a CastHullShape, an octree is expanded into castable per-voxel boxes - and a shape with neither form
+ * throws. When false the wrapper is a plain clone carrying the link's own geometry: a static link is collided
+ * through its regular wrapper, so its cast wrapper is a placeholder that nothing reads until
+ * updateCollisionObjectFilters builds it on promotion to kinematic. Deferring is what lets a static link hold
+ * geometry Coal can collide but not sweep, such as a mesh.
+ * @return A cast collision object, built or deferred
  */
-COW::Ptr makeCastCollisionObject(const COW::Ptr& cow, bool expand_octrees = true);
+COW::Ptr makeCastCollisionObject(const COW::Ptr& cow, bool build_swept = true);
 
 /**
  * @brief Return every hull of a cast collision object to the unswept state
  *
- * A cast wrapper holds CastHullShapes and raw OcTrees and nothing else - makeCastCollisionObject accepts
- * convex shapes and octrees and throws on anything else - so the downcast inside is safe exactly when the
- * octrees are not still deferred. Check castCowNeedsOctreeExpansion first, or pass a rebuilt wrapper.
+ * A built cast wrapper holds CastHullShapes and nothing else - makeCastCollisionObject either converts a
+ * shape or throws - so the downcast inside is safe exactly when the wrapper is not still deferred. Check
+ * castCowNeedsSweptBuild first, or pass a rebuilt wrapper.
  *
  * @param cast_cow The cast collision object whose hulls to clear
  * @return True if any hull changed. Publishing new bounds takes a world transform re-apply either way:
@@ -267,13 +273,15 @@ COW::Ptr makeCastCollisionObject(const COW::Ptr& cow, bool expand_octrees = true
 bool clearCastSweep(CollisionObjectWrapper& cast_cow);
 
 /**
- * @brief Check if a cast COW contains unexpanded octrees that need expansion for sweep support.
- * Expanded shapes have GEOM_CUSTOM (CastHullShape); unexpanded octrees have GEOM_OCTREE.
+ * @brief Check whether a cast COW is still deferred, and so must be built before it can carry a sweep.
+ *
+ * A built wrapper holds CastHullShape (GEOM_CUSTOM) throughout; a deferred one holds the link's own
+ * geometry, whatever that is. Node type is therefore the whole test.
  */
-inline bool castCowNeedsOctreeExpansion(const CollisionObjectWrapper& cast_cow)
+inline bool castCowNeedsSweptBuild(const CollisionObjectWrapper& cast_cow)
 {
   for (const auto& co : cast_cow.getCollisionObjects())
-    if (co->collisionGeometryPtr()->getNodeType() == coal::GEOM_OCTREE)
+    if (co->collisionGeometryPtr()->getNodeType() != coal::GEOM_CUSTOM)
       return true;
   return false;
 }

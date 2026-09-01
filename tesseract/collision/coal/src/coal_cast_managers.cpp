@@ -416,10 +416,11 @@ void CoalCastBVHManager::addCollisionObject(const COW::Ptr& cow)
   link2cow_[lid] = cow;
   collision_objects_.push_back(cow->getLinkId());
 
-  // Create cast collision object. Skip deferred octree expansion for static objects;
-  // kinematic objects (e.g. during clone) expand immediately to avoid a wasted clone.
+  // Create cast collision object. A static link's cast shapes are deferred - it is collided through its
+  // regular wrapper - and built when it goes kinematic. Kinematic objects (e.g. during clone) build
+  // immediately to avoid a wasted clone.
   const bool is_kinematic = cow->m_collisionFilterGroup != CollisionFilterGroups::StaticFilter;
-  COW::Ptr& cast_ref = (link2castcow_[lid] = makeCastCollisionObject(cow, /*expand_octrees=*/is_kinematic));
+  COW::Ptr& cast_ref = (link2castcow_[lid] = makeCastCollisionObject(cow, /*build_swept=*/is_kinematic));
 
   if (!is_kinematic)
   {
@@ -454,7 +455,7 @@ void CoalCastBVHManager::addCollisionObjects(const std::vector<COW::Ptr>& cows, 
     collision_objects_.push_back(lid);
 
     const bool is_kinematic = cow->m_collisionFilterGroup != CollisionFilterGroups::StaticFilter;
-    COW::Ptr& cast_ref = (link2castcow_[lid] = makeCastCollisionObject(cow, /*expand_octrees=*/is_kinematic));
+    COW::Ptr& cast_ref = (link2castcow_[lid] = makeCastCollisionObject(cow, /*build_swept=*/is_kinematic));
 
     if (!is_kinematic)
     {
@@ -654,7 +655,7 @@ bool CoalCastBVHManager::updateCastShapeTransforms(COW& cast_cow,
                                                    const Eigen::Isometry3d& pose2) const
 {
   assert(cast_cow.m_collisionFilterGroup == CollisionFilterGroups::KinematicFilter);
-  assert(!castCowNeedsOctreeExpansion(cast_cow));
+  assert(!castCowNeedsSweptBuild(cast_cow));
 
   bool changed = false;
 
@@ -742,9 +743,9 @@ void CoalCastBVHManager::collectCastTransformUpdate(Link2COW::iterator cast_it,
     return;
   }
 
-  // Static cast COWs may contain raw OcTree geometry (deferred expansion).
-  // The static_cast<CastHullShape*> below would be UB on non-CastHullShape types,
-  // and setting a sweep on a static link is semantically meaningless.
+  // A static link's cast wrapper is deferred: it holds the link's own geometry, on which the
+  // static_cast<CastHullShape*> below would be undefined behaviour. Setting a sweep on a static link is
+  // meaningless in any case.
   if (cow->m_collisionFilterGroup == CollisionFilterGroups::StaticFilter)
     return;
 
