@@ -129,7 +129,7 @@ bool CoalDiscreteBVHManager::removeCollisionObject(const tesseract::common::Link
       collision_objects_.erase(it_obj);
     const std::vector<CollisionObjectPtr>& objects = it->second->getCollisionObjects();
     coal_co_count_ -= objects.size();
-    removeObjects(objects, it->second->m_collisionFilterGroup);
+    removeObjects(collision_cache, objects, isStatic(*it->second) ? *static_manager_ : *dynamic_manager_);
     link2cow_.erase(it);
 
     active_.erase(id);
@@ -138,15 +138,6 @@ bool CoalDiscreteBVHManager::removeCollisionObject(const tesseract::common::Link
   }
 
   return false;
-}
-
-void CoalDiscreteBVHManager::removeObjects(const std::vector<CollisionObjectPtr>& objects, short int filter_group)
-{
-  auto& manager = (filter_group == CollisionFilterGroups::StaticFilter) ? static_manager_ : dynamic_manager_;
-  for (const auto& co : objects)
-    manager->unregisterObject(co.get());
-
-  invalidateCacheFor(collision_cache, objects);
 }
 
 bool CoalDiscreteBVHManager::enableCollisionObject(const tesseract::common::LinkId& id)
@@ -332,7 +323,7 @@ void CoalDiscreteBVHManager::addCollisionObject(const COW::Ptr& cow)
   applyCollisionMarginThreshold(*cow, contact_test_data_.collision_margin_data);
 
   const std::vector<CollisionObjectPtr>& objects = cow->getCollisionObjects();
-  if (cow->m_collisionFilterGroup == CollisionFilterGroups::StaticFilter)
+  if (isStatic(*cow))
   {
     // If static add to static manager
     for (const auto& co : objects)
@@ -367,7 +358,7 @@ void CoalDiscreteBVHManager::addCollisionObjects(const std::vector<COW::Ptr>& co
 
     applyCollisionMarginThreshold(*cow, contact_test_data_.collision_margin_data);
 
-    auto& target = (cow->m_collisionFilterGroup == CollisionFilterGroups::StaticFilter) ? static_objs : dynamic_objs;
+    auto& target = isStatic(*cow) ? static_objs : dynamic_objs;
     for (const auto& co : objects)
       target.push_back(co.get());
   }
@@ -400,8 +391,7 @@ void CoalDiscreteBVHManager::collectTransformUpdate(Link2COW::iterator it, const
   {
     it->second->gjk_generation_++;
     it->second->setCollisionObjectsTransform(pose);
-    auto& update_vec =
-        (it->second->m_collisionFilterGroup == CollisionFilterGroups::StaticFilter) ? static_update_ : dynamic_update_;
+    auto& update_vec = isStatic(*it->second) ? static_update_ : dynamic_update_;
     it->second->appendCollisionObjectsRaw(update_vec);
   }
 }
@@ -447,8 +437,7 @@ void CoalDiscreteBVHManager::onCollisionMarginDataChanged()
   {
     if (applyCollisionMarginThreshold(*cow.second, contact_test_data_.collision_margin_data))
     {
-      auto& update_vec = (cow.second->m_collisionFilterGroup == CollisionFilterGroups::StaticFilter) ? static_update_ :
-                                                                                                       dynamic_update_;
+      auto& update_vec = isStatic(*cow.second) ? static_update_ : dynamic_update_;
       cow.second->appendCollisionObjectsRaw(update_vec);
     }
   }

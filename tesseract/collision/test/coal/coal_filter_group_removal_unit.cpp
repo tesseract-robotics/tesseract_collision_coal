@@ -1,9 +1,8 @@
 #include <tesseract/common/macros.h>
 TESSERACT_COMMON_IGNORE_WARNINGS_PUSH
 #include <gtest/gtest.h>
-TESSERACT_COMMON_IGNORE_WARNINGS_POP
-
 #include <algorithm>
+TESSERACT_COMMON_IGNORE_WARNINGS_POP
 
 #include <tesseract/collision/coal/coal_cast_managers.h>
 #include <tesseract/collision/common.h>

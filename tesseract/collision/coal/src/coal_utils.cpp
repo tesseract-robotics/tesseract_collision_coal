@@ -617,7 +617,7 @@ void populateContinuousCollisionFields(ContactResult& contact,
   for (std::size_t i = 0; i < 2; ++i)
   {
     const auto* cow = static_cast<const CollisionObjectWrapper*>(objects[i]->getUserData());
-    if (cow == nullptr || cow->m_collisionFilterGroup != CollisionFilterGroups::KinematicFilter)
+    if (cow == nullptr || isStatic(*cow))
       continue;
 
     const auto* cast_shape = dynamic_cast<const CastHullShape*>(objects[i]->collisionGeometryPtr());
@@ -1096,6 +1096,16 @@ void invalidateCacheFor(CollisionCacheMap& cache, const std::vector<CollisionObj
   }
 }
 
+void removeObjects(CollisionCacheMap& cache,
+                   const std::vector<CollisionObjectPtr>& objects,
+                   coal::BroadPhaseCollisionManager& manager)
+{
+  for (const auto& co : objects)
+    manager.unregisterObject(co.get());
+
+  invalidateCacheFor(cache, objects);
+}
+
 COW::Ptr createCoalCollisionObject(const tesseract::common::LinkId& id,
                                    const int& type_id,
                                    const CollisionShapesConst& shapes,
@@ -1125,9 +1135,13 @@ bool transformChanged(const Eigen::Isometry3d& a, const Eigen::Isometry3d& b)
          !a.rotation().isApprox(b.rotation(), kTransformEpsilon);
 }
 
+bool isStatic(const COW& cow) { return cow.m_collisionFilterGroup == CollisionFilterGroups::StaticFilter; }
+
+bool isKinematic(const COW& cow) { return !isStatic(cow); }
+
 void applyCollisionFilterMask(COW& cow)
 {
-  if (cow.m_collisionFilterGroup == CollisionFilterGroups::StaticFilter)
+  if (isStatic(cow))
     cow.m_collisionFilterMask = CollisionFilterGroups::KinematicFilter;
   else
     cow.m_collisionFilterMask = CollisionFilterGroups::StaticFilter | CollisionFilterGroups::KinematicFilter;
@@ -1152,7 +1166,7 @@ void updateCollisionObjectFilters(const std::unordered_set<tesseract::common::Li
   // kinematic
   if (!isLinkActive(active_ids, cow->getLinkId()))
   {
-    if (cow->m_collisionFilterGroup != CollisionFilterGroups::StaticFilter)
+    if (isKinematic(*cow))
     {
       const std::vector<CollisionObjectPtr>& objects = cow->getCollisionObjects();
       // This link was dynamic but is now static
@@ -1166,7 +1180,7 @@ void updateCollisionObjectFilters(const std::unordered_set<tesseract::common::Li
   }
   else
   {
-    if (cow->m_collisionFilterGroup != CollisionFilterGroups::KinematicFilter)
+    if (isStatic(*cow))
     {
       const std::vector<CollisionObjectPtr>& objects = cow->getCollisionObjects();
       // This link was static but is now dynamic
@@ -1192,7 +1206,7 @@ void updateCollisionObjectFilters(const std::unordered_set<tesseract::common::Li
 
   if (!isLinkActive(active_ids, cow->getLinkId()))
   {
-    if (cow->m_collisionFilterGroup != CollisionFilterGroups::StaticFilter)
+    if (isKinematic(*cow))
     {
       // This link was dynamic but is now static: unregister cast from dynamic, register raw in static.
       for (const auto& co : cast_cow->getCollisionObjects())
@@ -1206,7 +1220,7 @@ void updateCollisionObjectFilters(const std::unordered_set<tesseract::common::Li
   }
   else
   {
-    if (cow->m_collisionFilterGroup != CollisionFilterGroups::KinematicFilter)
+    if (isStatic(*cow))
     {
       // Static -> kinematic: build the deferred cast shapes, then swap broadphases.
       //

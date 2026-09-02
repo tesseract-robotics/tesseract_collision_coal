@@ -131,6 +131,18 @@ bool computeTightLocalAABB(const coal::ShapeBase& s, coal::AABB& bv);
 /** @brief Erase cache entries involving any of the given collision objects (for object removal) */
 void invalidateCacheFor(CollisionCacheMap& cache, const std::vector<CollisionObjectPtr>& objects);
 
+/** @brief Unregister collision objects from a broadphase manager and erase the cache entries naming them */
+void removeObjects(CollisionCacheMap& cache,
+                   const std::vector<CollisionObjectPtr>& objects,
+                   coal::BroadPhaseCollisionManager& manager);
+
+/**
+ * @brief Broadphase filter groups, mirroring the Bullet backend's set.
+ *
+ * A wrapper's m_collisionFilterGroup only ever holds StaticFilter or KinematicFilter. DefaultFilter is
+ * carried over from Bullet and unused here. Test the group through isStatic()/isKinematic() rather
+ * than comparing it directly.
+ */
 enum CollisionFilterGroups : std::int8_t
 {
   DefaultFilter = 1,
@@ -228,6 +240,24 @@ bool transformChanged(const Eigen::Isometry3d& a, const Eigen::Isometry3d& b);
  * KinematicFilter groups can collide with both StaticFilter and KinematicFilter groups.
  */
 void applyCollisionFilterMask(COW& cow);
+
+/**
+ * @brief Check whether a collision object is filtered as static, i.e. its link is not active.
+ *
+ * Static is the single value StaticFilter, and the exact complement of isKinematic. Ask through this
+ * rather than comparing m_collisionFilterGroup: == StaticFilter and != KinematicFilter agree only for
+ * as long as the group holds nothing else.
+ */
+bool isStatic(const COW& cow);
+
+/**
+ * @brief Check whether a collision object is filtered as kinematic, i.e. its link is active.
+ *
+ * Kinematic is every value but StaticFilter, and the exact complement of isStatic. Ask through this
+ * rather than comparing m_collisionFilterGroup: != StaticFilter and == KinematicFilter agree only for
+ * as long as the group holds nothing else.
+ */
+bool isKinematic(const COW& cow);
 
 /**
  * @brief Set a collision object's contact distance threshold from the current margin data.

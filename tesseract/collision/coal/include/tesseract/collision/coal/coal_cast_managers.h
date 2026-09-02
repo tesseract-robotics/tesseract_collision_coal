@@ -265,9 +265,6 @@ private:
   /** @brief Shared implementation for enableCollisionObject / disableCollisionObject */
   bool setCollisionObjectEnabled(const tesseract::common::LinkId& id, bool enabled);
 
-  /** @brief Unregister objects from a broadphase manager and invalidate cache */
-  void removeObjects(const std::vector<CollisionObjectPtr>& objects, coal::BroadPhaseCollisionManager& manager);
-
   /** @brief Flush accumulated batch updates to the broadphase managers */
   void flushBatchUpdate();
 

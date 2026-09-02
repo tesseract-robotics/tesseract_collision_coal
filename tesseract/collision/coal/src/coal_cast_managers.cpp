@@ -55,12 +55,6 @@ namespace tesseract::collision::tesseract_collision_coal
 static const CollisionShapesConst EMPTY_COLLISION_SHAPES_CONST;
 static const tesseract::common::VectorIsometry3d EMPTY_COLLISION_SHAPES_TRANSFORMS;
 
-namespace
-{
-/** @brief A kinematic link is routed through its cast wrapper; a static link stays on the regular one. */
-bool isKinematic(const COW& cow) { return cow.m_collisionFilterGroup != CollisionFilterGroups::StaticFilter; }
-}  // namespace
-
 CoalCastBVHManager::CoalCastBVHManager(std::string name, bool d_arc_compensation)
   : name_(std::move(name)), d_arc_compensation_(d_arc_compensation)
 {
@@ -144,7 +138,7 @@ bool CoalCastBVHManager::removeCollisionObject(const tesseract::common::LinkId& 
     const std::vector<CollisionObjectPtr>& objects = it->second->getCollisionObjects();
     coal_co_count_ -= objects.size();
     if (!is_kinematic)
-      removeObjects(objects, *static_manager_);
+      removeObjects(collision_cache, objects, *static_manager_);
     link2cow_.erase(it);
 
     active_.erase(id);
@@ -154,7 +148,7 @@ bool CoalCastBVHManager::removeCollisionObject(const tesseract::common::LinkId& 
     if (it_cast != link2castcow_.end())
     {
       if (is_kinematic)
-        removeObjects(it_cast->second->getCollisionObjects(), *dynamic_manager_);
+        removeObjects(collision_cache, it_cast->second->getCollisionObjects(), *dynamic_manager_);
       link2castcow_.erase(it_cast);
     }
 
@@ -162,14 +156,6 @@ bool CoalCastBVHManager::removeCollisionObject(const tesseract::common::LinkId& 
   }
 
   return false;
-}
-
-void CoalCastBVHManager::removeObjects(const std::vector<CollisionObjectPtr>& objects,
-                                       coal::BroadPhaseCollisionManager& manager)
-{
-  for (const auto& co : objects)
-    manager.unregisterObject(co.get());
-  invalidateCacheFor(collision_cache, objects);
 }
 
 bool CoalCastBVHManager::enableCollisionObject(const tesseract::common::LinkId& id)
@@ -514,13 +500,13 @@ void CoalCastBVHManager::addCollisionObjects(const std::vector<COW::Ptr>& cows, 
 
 void CoalCastBVHManager::appendRegularBroadphaseUpdate(COW& reg_cow)
 {
-  if (reg_cow.m_collisionFilterGroup == CollisionFilterGroups::StaticFilter)
+  if (!isKinematic(reg_cow))
     reg_cow.appendCollisionObjectsRaw(static_update_);
 }
 
 void CoalCastBVHManager::appendCastBroadphaseUpdate(COW& cast_cow)
 {
-  if (cast_cow.m_collisionFilterGroup == CollisionFilterGroups::KinematicFilter)
+  if (isKinematic(cast_cow))
     cast_cow.appendCollisionObjectsRaw(dynamic_update_);
 }
 
@@ -549,7 +535,7 @@ void CoalCastBVHManager::collectTransformUpdate(Link2COW::iterator it, const Eig
   // A static link's cast wrapper carries no pose or sweep that anything reads: it is in no broadphase, and
   // updateCollisionObjectFilters brings both current at the moment the link is promoted. Writing them here
   // would recompute an AABB per shape, per state update, for state that promotion discards anyway.
-  if (cast_cow.m_collisionFilterGroup != CollisionFilterGroups::KinematicFilter)
+  if (!isKinematic(cast_cow))
     return;
 
   // A pose set without a sweep must leave no sweep behind: the hulls hold whatever the last dual-pose call
@@ -677,7 +663,7 @@ bool CoalCastBVHManager::updateCastShapeTransforms(COW& cast_cow,
                                                    const Eigen::Isometry3d& pose1,
                                                    const Eigen::Isometry3d& pose2) const
 {
-  assert(cast_cow.m_collisionFilterGroup == CollisionFilterGroups::KinematicFilter);
+  assert(isKinematic(cast_cow));
   assert(!castCowNeedsSweptBuild(cast_cow));
 
   bool changed = false;
@@ -769,7 +755,7 @@ void CoalCastBVHManager::collectCastTransformUpdate(Link2COW::iterator cast_it,
   // A static link's cast wrapper is deferred: it holds the link's own geometry, on which the
   // static_cast<CastHullShape*> below would be undefined behaviour. Setting a sweep on a static link is
   // meaningless in any case.
-  if (cow->m_collisionFilterGroup == CollisionFilterGroups::StaticFilter)
+  if (!isKinematic(*cow))
     return;
 
   // The sweep write is unconditional, so it leads the disjunction rather than being short-circuited away.
