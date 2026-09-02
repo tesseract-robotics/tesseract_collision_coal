@@ -250,15 +250,18 @@ void CoalCastBVHManager::setCollisionObjectsTransform(const tesseract::common::L
 void CoalCastBVHManager::setCollisionObjectsTransform(const tesseract::common::LinkIdTransformMap& pose1,
                                                       const tesseract::common::LinkIdTransformMap& pose2)
 {
-  assert(pose1.size() == pose2.size());
+  if (pose1.size() != pose2.size())
+    throw std::runtime_error("CoalCastBVHManager, setCollisionObjectsTransform received " +
+                             std::to_string(pose1.size()) + " start poses and " + std::to_string(pose2.size()) +
+                             " end poses!");
   static_update_.clear();
   dynamic_update_.clear();
   for (const auto& [id, tf1] : pose1)
   {
     auto it2 = pose2.find(id);
-    assert(it2 != pose2.end());
     if (it2 == pose2.end())
-      continue;
+      throw std::runtime_error("CoalCastBVHManager, setCollisionObjectsTransform received a start pose for link '" +
+                               id.name() + "' with no matching end pose!");
 
     auto cast_it = link2castcow_.find(id);
     if (cast_it == link2castcow_.end())
