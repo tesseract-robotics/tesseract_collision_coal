@@ -6,7 +6,7 @@ TESSERACT_COMMON_IGNORE_WARNINGS_POP
 #include <tesseract/collision/coal/coal_cast_managers.h>
 #include <tesseract/collision/coal/coal_discrete_managers.h>
 #include <tesseract/collision/common.h>
-#include <tesseract/geometry/geometries.h>
+#include <tesseract/collision/test_suite/collision_link_fixtures.hpp>
 
 using namespace tesseract::collision;
 using namespace tesseract_collision_coal;
@@ -22,14 +22,12 @@ using namespace tesseract_collision_coal;
 namespace
 {
 /** @brief Add a unit-diameter sphere at @p x on the x axis. */
-void addSphere(DiscreteContactManager& checker, const std::string& link, double x)
+template <typename ContactManager>
+void addSphere(ContactManager& checker, const std::string& link, double x)
 {
-  CollisionShapePtr sphere = std::make_shared<tesseract::geometry::Sphere>(0.5);
-  CollisionShapesConst shapes{ sphere };
   Eigen::Isometry3d pose = Eigen::Isometry3d::Identity();
   pose.translation() = Eigen::Vector3d(x, 0, 0);
-  tesseract::common::VectorIsometry3d poses{ pose };
-  checker.addCollisionObject(link, 0, shapes, poses);
+  test_suite::detail::addSphereLink(checker, link, 0.5, pose);
 }
 }  // namespace
 
@@ -70,20 +68,6 @@ TEST(CoalMarginOnAddUnit, DiscreteZeroMarginStillCullsTheSameGap)  // NOLINT
 
   EXPECT_TRUE(result.empty());
 }
-
-namespace
-{
-/** @brief Add a unit-diameter sphere at @p x on the x axis. */
-void addSphere(ContinuousContactManager& checker, const std::string& link, double x)
-{
-  CollisionShapePtr sphere = std::make_shared<tesseract::geometry::Sphere>(0.5);
-  CollisionShapesConst shapes{ sphere };
-  Eigen::Isometry3d pose = Eigen::Isometry3d::Identity();
-  pose.translation() = Eigen::Vector3d(x, 0, 0);
-  tesseract::common::VectorIsometry3d poses{ pose };
-  checker.addCollisionObject(link, 0, shapes, poses);
-}
-}  // namespace
 
 TEST(CoalMarginOnAddUnit, CastMarginAppliesToObjectAddedAfterwards)  // NOLINT
 {

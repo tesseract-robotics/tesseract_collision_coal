@@ -7,7 +7,7 @@ TESSERACT_COMMON_IGNORE_WARNINGS_POP
 
 #include <tesseract/collision/coal/coal_cast_managers.h>
 #include <tesseract/collision/common.h>
-#include <tesseract/geometry/geometries.h>
+#include <tesseract/collision/test_suite/collision_link_fixtures.hpp>
 
 using namespace tesseract::collision;
 using namespace tesseract_collision_coal;
@@ -25,12 +25,7 @@ protected:
   void SetUp() override
   {
     for (const auto& link : { std::string("probe"), std::string("obstacle"), std::string("witness") })
-    {
-      CollisionShapePtr sphere = std::make_shared<tesseract::geometry::Sphere>(0.5);
-      CollisionShapesConst shapes{ sphere };
-      tesseract::common::VectorIsometry3d poses{ Eigen::Isometry3d::Identity() };
-      checker_.addCollisionObject(link, 0, shapes, poses);
-    }
+      test_suite::detail::addSphereLink(checker_, link, 0.5);
     checker_.setDefaultCollisionMargin(0.0);
   }
 

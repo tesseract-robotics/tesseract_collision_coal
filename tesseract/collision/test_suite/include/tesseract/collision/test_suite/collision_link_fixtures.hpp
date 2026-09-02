@@ -22,6 +22,24 @@ inline void addBoxLink(ContinuousContactManager& checker,
   poses.push_back(local_pose);
   checker.addCollisionObject(link_name, 0, shapes, poses);
 }
+
+/**
+ * @brief Add a single sphere shape on a link.
+ *
+ * Templated on the manager because DiscreteContactManager and ContinuousContactManager share no
+ * common base with an addCollisionObject overload to bind against.
+ */
+template <typename ContactManager>
+void addSphereLink(ContactManager& checker,
+                   const std::string& link_name,
+                   double radius,
+                   const Eigen::Isometry3d& local_pose = Eigen::Isometry3d::Identity())
+{
+  CollisionShapePtr sphere = std::make_shared<tesseract::geometry::Sphere>(radius);
+  CollisionShapesConst shapes{ sphere };
+  tesseract::common::VectorIsometry3d poses{ local_pose };
+  checker.addCollisionObject(link_name, 0, shapes, poses);
+}
 }  // namespace tesseract::collision::test_suite::detail
 
 #endif  // TESSERACT_COLLISION_COLLISION_LINK_FIXTURES_HPP

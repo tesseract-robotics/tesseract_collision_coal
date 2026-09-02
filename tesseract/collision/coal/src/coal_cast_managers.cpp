@@ -55,6 +55,12 @@ namespace tesseract::collision::tesseract_collision_coal
 static const CollisionShapesConst EMPTY_COLLISION_SHAPES_CONST;
 static const tesseract::common::VectorIsometry3d EMPTY_COLLISION_SHAPES_TRANSFORMS;
 
+namespace
+{
+/** @brief A kinematic link is routed through its cast wrapper; a static link stays on the regular one. */
+bool isKinematic(const COW& cow) { return cow.m_collisionFilterGroup != CollisionFilterGroups::StaticFilter; }
+}  // namespace
+
 CoalCastBVHManager::CoalCastBVHManager(std::string name, bool d_arc_compensation)
   : name_(std::move(name)), d_arc_compensation_(d_arc_compensation)
 {
@@ -134,7 +140,7 @@ bool CoalCastBVHManager::removeCollisionObject(const tesseract::common::LinkId& 
     // Add registers a static link through its regular wrapper and any other link through its cast
     // wrapper. Removal decides on the same question, or the broadphase keeps pointers into a wrapper
     // the maps no longer own.
-    const bool is_kinematic = it->second->m_collisionFilterGroup != CollisionFilterGroups::StaticFilter;
+    const bool is_kinematic = isKinematic(*it->second);
     const std::vector<CollisionObjectPtr>& objects = it->second->getCollisionObjects();
     coal_co_count_ -= objects.size();
     if (!is_kinematic)
@@ -423,17 +429,13 @@ void CoalCastBVHManager::addCollisionObject(const COW::Ptr& cow)
   link2cow_[lid] = cow;
   collision_objects_.push_back(cow->getLinkId());
 
-  // Thresholding before registration is what puts the margin-expanded AABB into the broadphase, and it
-  // must precede the cast wrapper's construction because that wrapper takes its threshold from this one.
-  // A wrapper that already carries this threshold is left alone; the setter rebuilds every AABB.
-  const double margin = contact_test_data_.collision_margin_data.getMaxCollisionMargin(lid);
-  if (margin != cow->getContactDistanceThreshold())
-    cow->setContactDistanceThreshold(margin);
+  // Must precede the cast wrapper's construction below: that wrapper takes its threshold from this one.
+  applyCollisionMarginThreshold(*cow, contact_test_data_.collision_margin_data);
 
   // Create cast collision object. A static link's cast shapes are deferred - it is collided through its
   // regular wrapper - and built when it goes kinematic. Kinematic objects (e.g. during clone) build
   // immediately to avoid a wasted clone.
-  const bool is_kinematic = cow->m_collisionFilterGroup != CollisionFilterGroups::StaticFilter;
+  const bool is_kinematic = isKinematic(*cow);
   COW::Ptr& cast_ref = (link2castcow_[lid] = makeCastCollisionObject(cow, /*build_swept=*/is_kinematic));
 
   if (!is_kinematic)
@@ -468,11 +470,10 @@ void CoalCastBVHManager::addCollisionObjects(const std::vector<COW::Ptr>& cows, 
     link2cow_[lid] = cow;
     collision_objects_.push_back(lid);
 
-    const double margin = contact_test_data_.collision_margin_data.getMaxCollisionMargin(lid);
-    if (margin != cow->getContactDistanceThreshold())
-      cow->setContactDistanceThreshold(margin);
+    // Must precede the cast wrapper's construction below: that wrapper takes its threshold from this one.
+    applyCollisionMarginThreshold(*cow, contact_test_data_.collision_margin_data);
 
-    const bool is_kinematic = cow->m_collisionFilterGroup != CollisionFilterGroups::StaticFilter;
+    const bool is_kinematic = isKinematic(*cow);
     COW::Ptr& cast_ref = (link2castcow_[lid] = makeCastCollisionObject(cow, /*build_swept=*/is_kinematic));
 
     if (!is_kinematic)
@@ -824,25 +825,15 @@ void CoalCastBVHManager::onCollisionMarginDataChanged()
   // kinematic links use the cast version in the dynamic manager instead)
   for (auto& cow : link2cow_)
   {
-    const double new_threshold =
-        contact_test_data_.collision_margin_data.getMaxCollisionMargin(cow.second->getLinkId());
-    if (new_threshold != cow.second->getContactDistanceThreshold())
-    {
-      cow.second->setContactDistanceThreshold(new_threshold);
+    if (applyCollisionMarginThreshold(*cow.second, contact_test_data_.collision_margin_data))
       appendRegularBroadphaseUpdate(*cow.second);
-    }
   }
 
   // Also update cast collision objects
   for (auto& cast_cow : link2castcow_)
   {
-    const double new_threshold =
-        contact_test_data_.collision_margin_data.getMaxCollisionMargin(cast_cow.second->getLinkId());
-    if (new_threshold != cast_cow.second->getContactDistanceThreshold())
-    {
-      cast_cow.second->setContactDistanceThreshold(new_threshold);
+    if (applyCollisionMarginThreshold(*cast_cow.second, contact_test_data_.collision_margin_data))
       appendCastBroadphaseUpdate(*cast_cow.second);
-    }
   }
 
   flushBatchUpdate();

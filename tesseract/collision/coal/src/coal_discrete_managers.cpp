@@ -329,12 +329,7 @@ void CoalDiscreteBVHManager::addCollisionObject(const COW::Ptr& cow)
   link2cow_[cow->getLinkId()] = cow;
   collision_objects_.push_back(cow->getLinkId());
 
-  // Thresholding before registration is what puts the margin-expanded AABB into the broadphase: the
-  // setter grows each object's AABB, and the tree reads it at registration. A wrapper that already
-  // carries this threshold is left alone, because the setter rebuilds every AABB unconditionally.
-  const double margin = contact_test_data_.collision_margin_data.getMaxCollisionMargin(cow->getLinkId());
-  if (margin != cow->getContactDistanceThreshold())
-    cow->setContactDistanceThreshold(margin);
+  applyCollisionMarginThreshold(*cow, contact_test_data_.collision_margin_data);
 
   const std::vector<CollisionObjectPtr>& objects = cow->getCollisionObjects();
   if (cow->m_collisionFilterGroup == CollisionFilterGroups::StaticFilter)
@@ -370,9 +365,7 @@ void CoalDiscreteBVHManager::addCollisionObjects(const std::vector<COW::Ptr>& co
     link2cow_[cow->getLinkId()] = cow;
     collision_objects_.push_back(cow->getLinkId());
 
-    const double margin = contact_test_data_.collision_margin_data.getMaxCollisionMargin(cow->getLinkId());
-    if (margin != cow->getContactDistanceThreshold())
-      cow->setContactDistanceThreshold(margin);
+    applyCollisionMarginThreshold(*cow, contact_test_data_.collision_margin_data);
 
     auto& target = (cow->m_collisionFilterGroup == CollisionFilterGroups::StaticFilter) ? static_objs : dynamic_objs;
     for (const auto& co : objects)
@@ -452,11 +445,8 @@ void CoalDiscreteBVHManager::onCollisionMarginDataChanged()
 
   for (auto& cow : link2cow_)
   {
-    const double new_threshold =
-        contact_test_data_.collision_margin_data.getMaxCollisionMargin(cow.second->getLinkId());
-    if (new_threshold != cow.second->getContactDistanceThreshold())
+    if (applyCollisionMarginThreshold(*cow.second, contact_test_data_.collision_margin_data))
     {
-      cow.second->setContactDistanceThreshold(new_threshold);
       auto& update_vec = (cow.second->m_collisionFilterGroup == CollisionFilterGroups::StaticFilter) ? static_update_ :
                                                                                                        dynamic_update_;
       cow.second->appendCollisionObjectsRaw(update_vec);

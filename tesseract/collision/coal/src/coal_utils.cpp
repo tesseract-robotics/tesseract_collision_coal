@@ -1133,6 +1133,16 @@ void applyCollisionFilterMask(COW& cow)
     cow.m_collisionFilterMask = CollisionFilterGroups::StaticFilter | CollisionFilterGroups::KinematicFilter;
 }
 
+bool applyCollisionMarginThreshold(COW& cow, const tesseract::common::CollisionMarginData& margin_data)
+{
+  const double margin = margin_data.getMaxCollisionMargin(cow.getLinkId());
+  if (margin == cow.getContactDistanceThreshold())
+    return false;
+
+  cow.setContactDistanceThreshold(margin);
+  return true;
+}
+
 void updateCollisionObjectFilters(const std::unordered_set<tesseract::common::LinkId>& active_ids,
                                   const COW::Ptr& cow,
                                   const std::unique_ptr<coal::BroadPhaseCollisionManager>& static_manager,

@@ -230,6 +230,18 @@ bool transformChanged(const Eigen::Isometry3d& a, const Eigen::Isometry3d& b);
 void applyCollisionFilterMask(COW& cow);
 
 /**
+ * @brief Set a collision object's contact distance threshold from the current margin data.
+ *
+ * Thresholding before broadphase registration is what puts the margin-expanded AABB into the tree:
+ * the setter grows every collision object's AABB unconditionally, so a wrapper already carrying the
+ * current threshold is left untouched.
+ * @param cow The collision object wrapper to update
+ * @param margin_data The current collision margin data
+ * @return True if the threshold changed
+ */
+bool applyCollisionMarginThreshold(COW& cow, const tesseract::common::CollisionMarginData& margin_data);
+
+/**
  * @brief Update collision objects filters
  * @param active_ids Set of active collision object LinkIds
  * @param cow The collision object to update
