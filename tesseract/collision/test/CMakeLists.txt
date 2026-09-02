@@ -100,6 +100,7 @@ add_gtest(${PROJECT_NAME}_coal_d_arc_compensation_unit coal/coal_d_arc_compensat
 target_link_libraries(${PROJECT_NAME}_coal_d_arc_compensation_unit PRIVATE ${PROJECT_NAME}_coal_factories)
 add_gtest(${PROJECT_NAME}_coal_margin_on_add_unit coal/coal_margin_on_add_unit.cpp)
 add_gtest(${PROJECT_NAME}_coal_transform_overload_contract_unit coal/coal_transform_overload_contract_unit.cpp)
+add_gtest(${PROJECT_NAME}_coal_filter_group_removal_unit coal/coal_filter_group_removal_unit.cpp)
 add_gtest(${PROJECT_NAME}_cast_disable_during_sweep_unit collision_cast_disable_during_sweep_unit.cpp)
 add_gtest(${PROJECT_NAME}_cast_scenario_unit collision_cast_scenario_unit.cpp)
 add_gtest(${PROJECT_NAME}_cast_static_broadphase_unit collision_cast_static_broadphase_unit.cpp)

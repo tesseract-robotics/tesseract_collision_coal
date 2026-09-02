@@ -130,9 +130,14 @@ bool CoalCastBVHManager::removeCollisionObject(const tesseract::common::LinkId& 
     auto it_obj = std::find(collision_objects_.begin(), collision_objects_.end(), id);
     if (it_obj != collision_objects_.end())
       collision_objects_.erase(it_obj);
+
+    // Add registers a static link through its regular wrapper and any other link through its cast
+    // wrapper. Removal decides on the same question, or the broadphase keeps pointers into a wrapper
+    // the maps no longer own.
+    const bool is_kinematic = it->second->m_collisionFilterGroup != CollisionFilterGroups::StaticFilter;
     const std::vector<CollisionObjectPtr>& objects = it->second->getCollisionObjects();
     coal_co_count_ -= objects.size();
-    if (it->second->m_collisionFilterGroup == CollisionFilterGroups::StaticFilter)
+    if (!is_kinematic)
       removeObjects(objects, *static_manager_);
     link2cow_.erase(it);
 
@@ -142,9 +147,8 @@ bool CoalCastBVHManager::removeCollisionObject(const tesseract::common::LinkId& 
     auto it_cast = link2castcow_.find(id);
     if (it_cast != link2castcow_.end())
     {
-      const std::vector<CollisionObjectPtr>& objects_cast = it_cast->second->getCollisionObjects();
-      if (it_cast->second->m_collisionFilterGroup == CollisionFilterGroups::KinematicFilter)
-        removeObjects(objects_cast, *dynamic_manager_);
+      if (is_kinematic)
+        removeObjects(it_cast->second->getCollisionObjects(), *dynamic_manager_);
       link2castcow_.erase(it_cast);
     }
 
