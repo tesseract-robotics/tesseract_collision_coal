@@ -73,9 +73,9 @@ DiscreteContactManager::UPtr CoalDiscreteBVHManager::clone() const
   for (const auto& id : collision_objects_)
     cloned_cows.push_back(link2cow_.at(id)->clone());
 
+  manager->setCollisionMarginData(contact_test_data_.collision_margin_data);
   manager->addCollisionObjects(cloned_cows, /*defer_update=*/true);
   manager->setActiveCollisionObjects(active_);
-  manager->setCollisionMarginData(contact_test_data_.collision_margin_data);
   manager->setContactAllowedValidator(contact_test_data_.validator);
 
   return manager;
@@ -329,6 +329,13 @@ void CoalDiscreteBVHManager::addCollisionObject(const COW::Ptr& cow)
   link2cow_[cow->getLinkId()] = cow;
   collision_objects_.push_back(cow->getLinkId());
 
+  // Thresholding before registration is what puts the margin-expanded AABB into the broadphase: the
+  // setter grows each object's AABB, and the tree reads it at registration. A wrapper that already
+  // carries this threshold is left alone, because the setter rebuilds every AABB unconditionally.
+  const double margin = contact_test_data_.collision_margin_data.getMaxCollisionMargin(cow->getLinkId());
+  if (margin != cow->getContactDistanceThreshold())
+    cow->setContactDistanceThreshold(margin);
+
   const std::vector<CollisionObjectPtr>& objects = cow->getCollisionObjects();
   if (cow->m_collisionFilterGroup == CollisionFilterGroups::StaticFilter)
   {
@@ -362,6 +369,10 @@ void CoalDiscreteBVHManager::addCollisionObjects(const std::vector<COW::Ptr>& co
     coal_co_count_ += objects.size();
     link2cow_[cow->getLinkId()] = cow;
     collision_objects_.push_back(cow->getLinkId());
+
+    const double margin = contact_test_data_.collision_margin_data.getMaxCollisionMargin(cow->getLinkId());
+    if (margin != cow->getContactDistanceThreshold())
+      cow->setContactDistanceThreshold(margin);
 
     auto& target = (cow->m_collisionFilterGroup == CollisionFilterGroups::StaticFilter) ? static_objs : dynamic_objs;
     for (const auto& co : objects)

@@ -77,9 +77,9 @@ ContinuousContactManager::UPtr CoalCastBVHManager::clone() const
   for (const auto& id : collision_objects_)
     cloned_cows.push_back(link2cow_.at(id)->clone());
 
+  manager->setCollisionMarginData(contact_test_data_.collision_margin_data);
   manager->addCollisionObjects(cloned_cows, /*defer_update=*/true);
   manager->setActiveCollisionObjects(active_);
-  manager->setCollisionMarginData(contact_test_data_.collision_margin_data);
   manager->setContactAllowedValidator(contact_test_data_.validator);
 
   return manager;
@@ -416,6 +416,13 @@ void CoalCastBVHManager::addCollisionObject(const COW::Ptr& cow)
   link2cow_[lid] = cow;
   collision_objects_.push_back(cow->getLinkId());
 
+  // Thresholding before registration is what puts the margin-expanded AABB into the broadphase, and it
+  // must precede the cast wrapper's construction because that wrapper takes its threshold from this one.
+  // A wrapper that already carries this threshold is left alone; the setter rebuilds every AABB.
+  const double margin = contact_test_data_.collision_margin_data.getMaxCollisionMargin(lid);
+  if (margin != cow->getContactDistanceThreshold())
+    cow->setContactDistanceThreshold(margin);
+
   // Create cast collision object. A static link's cast shapes are deferred - it is collided through its
   // regular wrapper - and built when it goes kinematic. Kinematic objects (e.g. during clone) build
   // immediately to avoid a wasted clone.
@@ -453,6 +460,10 @@ void CoalCastBVHManager::addCollisionObjects(const std::vector<COW::Ptr>& cows, 
     coal_co_count_ += cow->getCollisionObjects().size();
     link2cow_[lid] = cow;
     collision_objects_.push_back(lid);
+
+    const double margin = contact_test_data_.collision_margin_data.getMaxCollisionMargin(lid);
+    if (margin != cow->getContactDistanceThreshold())
+      cow->setContactDistanceThreshold(margin);
 
     const bool is_kinematic = cow->m_collisionFilterGroup != CollisionFilterGroups::StaticFilter;
     COW::Ptr& cast_ref = (link2castcow_[lid] = makeCastCollisionObject(cow, /*build_swept=*/is_kinematic));
