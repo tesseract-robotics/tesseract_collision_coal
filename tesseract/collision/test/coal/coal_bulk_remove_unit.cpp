@@ -3,6 +3,8 @@ TESSERACT_COMMON_IGNORE_WARNINGS_PUSH
 #include <gtest/gtest.h>
 #include <Eigen/Geometry>
 #include <memory>
+#include <set>
+#include <string>
 #include <vector>
 TESSERACT_COMMON_IGNORE_WARNINGS_POP
 
@@ -128,6 +130,49 @@ void runBulkRemoveRepeatedIdTest()
   EXPECT_TRUE(checker.getCollisionObjects().empty());
 }
 
+// A batch that mixes a static-routed id with a kinematic-routed one must unregister each from the tree
+// that holds it. Unregistering from the wrong tree removes a null node rather than reporting an error,
+// so only the broadphase state afterwards shows it: neither removed link may appear in a contact, and
+// the surviving pair, one link from each routing branch, must still report one.
+template <typename ManagerType>
+void runBulkRemoveMixedRoutingTest()
+{
+  ManagerType checker;
+  addBox(checker, LinkId("kinematic_gone"), at(-0.3));
+  addBox(checker, LinkId("kinematic_kept"), at(-0.1));
+  addBox(checker, LinkId("static_gone"), at(0.1));
+  addBox(checker, LinkId("static_kept"), at(0.3));
+
+  // An active link is registered in the dynamic tree, every other link in the static tree.
+  checker.setActiveCollisionObjects({ LinkId("kinematic_gone"), LinkId("kinematic_kept") });
+  checker.setDefaultCollisionMargin(0.0);
+
+  ContactResultMap before;
+  checker.contactTest(before, ContactRequest(ContactTestType::ALL));
+  EXPECT_FALSE(before.empty());
+
+  EXPECT_TRUE(checker.removeCollisionObjects({ LinkId("kinematic_gone"), LinkId("static_gone") }));
+
+  ContactResultMap after;
+  checker.contactTest(after, ContactRequest(ContactTestType::ALL));
+
+  ContactResultVector flat;
+  after.flattenCopyResults(flat);
+
+  // Compare the whole pair set, not the presence of the survivors: a link left in a tree after its wrapper is
+  // destroyed reports a contact whose link ids are read from freed memory, so an extra entry is what identifies
+  // it, not the name that entry carries.
+  std::set<std::string> pairs;
+  for (const auto& contact : flat)
+  {
+    const std::string first = contact.link_ids[0].name();
+    const std::string second = contact.link_ids[1].name();
+    pairs.insert((first < second) ? (first + "|" + second) : (second + "|" + first));
+  }
+
+  EXPECT_EQ(pairs, std::set<std::string>{ "kinematic_kept|static_kept" });
+}
+
 TEST(CoalBulkRemoveUnit, DiscreteEquivalence)  // NOLINT
 {
   runBulkRemoveEquivalenceTest<CoalDiscreteBVHManager>();
@@ -176,6 +221,16 @@ TEST(CoalBulkRemoveUnit, DiscreteRepeatedId)  // NOLINT
 TEST(CoalBulkRemoveUnit, CastRepeatedId)  // NOLINT
 {
   runBulkRemoveRepeatedIdTest<CoalCastBVHManager>();
+}
+
+TEST(CoalBulkRemoveUnit, DiscreteMixedRouting)  // NOLINT
+{
+  runBulkRemoveMixedRoutingTest<CoalDiscreteBVHManager>();
+}
+
+TEST(CoalBulkRemoveUnit, CastMixedRouting)  // NOLINT
+{
+  runBulkRemoveMixedRoutingTest<CoalCastBVHManager>();
 }
 
 // A static link and a kinematic link are registered through different wrappers, so removal has to unregister the
