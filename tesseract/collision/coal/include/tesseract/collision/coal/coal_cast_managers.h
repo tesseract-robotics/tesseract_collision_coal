@@ -187,6 +187,10 @@ public:
   /** @brief Get the cast collision object map (for testing deferred cast shape construction) */
   const Link2COW& getCastCollisionObjectMap() const { return link2castcow_; }
 
+  /** @brief Get the number of entries in the narrowphase collision cache, otherwise unobservable
+   *  from outside the manager; useful as a test/diagnostic hook */
+  std::size_t getCollisionCacheSize() const;
+
 private:
   std::string name_;
 

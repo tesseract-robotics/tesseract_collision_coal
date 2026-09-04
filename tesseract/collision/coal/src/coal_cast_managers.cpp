@@ -55,6 +55,21 @@ namespace tesseract::collision::tesseract_collision_coal
 static const CollisionShapesConst EMPTY_COLLISION_SHAPES_CONST;
 static const tesseract::common::VectorIsometry3d EMPTY_COLLISION_SHAPES_TRANSFORMS;
 
+/**
+ * @brief Retire a wrapper being removed: its cache entries are always invalidated, and it is
+ *        unregistered from @p manager only if @p registered says it was actually registered there.
+ */
+static void retireWrapper(const COW::Ptr& wrapper,
+                          bool registered,
+                          coal::BroadPhaseCollisionManager& manager,
+                          CollisionCacheMap& cache)
+{
+  if (registered)
+    removeObjects(cache, wrapper->getCollisionObjects(), manager);
+  else
+    invalidateCacheFor(cache, wrapper->getCollisionObjects());
+}
+
 CoalCastBVHManager::CoalCastBVHManager(std::string name, bool d_arc_compensation)
   : name_(std::move(name)), d_arc_compensation_(d_arc_compensation)
 {
@@ -122,6 +137,8 @@ bool CoalCastBVHManager::hasCollisionObject(const tesseract::common::LinkId& id)
   return (link2cow_.find(id) != link2cow_.end());
 }
 
+std::size_t CoalCastBVHManager::getCollisionCacheSize() const { return collision_cache.size(); }
+
 bool CoalCastBVHManager::removeCollisionObject(const tesseract::common::LinkId& id)
 {
   auto it = link2cow_.find(id);
@@ -133,12 +150,12 @@ bool CoalCastBVHManager::removeCollisionObject(const tesseract::common::LinkId& 
 
     // Add registers a static link through its regular wrapper and any other link through its cast
     // wrapper. Removal decides on the same question, or the broadphase keeps pointers into a wrapper
-    // the maps no longer own.
+    // the maps no longer own. Cache entries do not follow that question: they are keyed on raw
+    // collision object addresses, and both wrappers are destroyed below, so the wrapper that is not
+    // unregistered still has its entries erased.
     const bool is_kinematic = isKinematic(*it->second);
-    const std::vector<CollisionObjectPtr>& objects = it->second->getCollisionObjects();
-    coal_co_count_ -= objects.size();
-    if (!is_kinematic)
-      removeObjects(collision_cache, objects, *static_manager_);
+    coal_co_count_ -= it->second->getCollisionObjects().size();
+    retireWrapper(it->second, !is_kinematic, *static_manager_, collision_cache);
     link2cow_.erase(it);
 
     active_.erase(id);
@@ -147,8 +164,7 @@ bool CoalCastBVHManager::removeCollisionObject(const tesseract::common::LinkId& 
     auto it_cast = link2castcow_.find(id);
     if (it_cast != link2castcow_.end())
     {
-      if (is_kinematic)
-        removeObjects(collision_cache, it_cast->second->getCollisionObjects(), *dynamic_manager_);
+      retireWrapper(it_cast->second, is_kinematic, *dynamic_manager_, collision_cache);
       link2castcow_.erase(it_cast);
     }
 

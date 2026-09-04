@@ -12,11 +12,13 @@ using namespace tesseract::collision;
 using namespace tesseract_collision_coal;
 
 /**
- * @brief Removal unregisters whatever the add path registered, for a static and for a kinematic link.
+ * @brief Removal releases a link from both of its wrappers, whichever one its filter group routes through.
  *
- * A link is registered through its regular wrapper when static and through its cast wrapper otherwise,
- * so removal must decide on the same question. A link that survives in a broadphase after removal is
- * reached through a wrapper the maps no longer own.
+ * A link is registered through its regular wrapper when static and through its cast wrapper otherwise, so
+ * removal must decide on the same question: a link that survives in a broadphase after removal is reached
+ * through a wrapper the maps no longer own. Cache entries are not routed that way. They are keyed on raw
+ * collision object addresses, and a link that changed group carries entries against the wrapper it is no
+ * longer registered through, so both wrappers' entries must go whichever arm removal takes.
  */
 class FilterGroupRemovalUnit : public ::testing::Test
 {
@@ -88,6 +90,55 @@ TEST_F(FilterGroupRemovalUnit, RemovingALinkLeavesItsNeighboursRegistered)  // N
   ASSERT_TRUE(checker_.removeCollisionObject("witness"));
 
   EXPECT_TRUE(mentions(contacts(), tesseract::common::LinkId("obstacle")));
+}
+
+TEST_F(FilterGroupRemovalUnit, RemovingAPromotedLinkInvalidatesItsRegularWrapper)  // NOLINT
+{
+  // Query while the two links are static, so the cache holds entries against their regular wrappers,
+  // then promote them: the regular wrappers leave the broadphase, the entries keyed on them do not.
+  checker_.setActiveCollisionObjects({ "probe" });
+  contacts();
+  ASSERT_GT(checker_.getCollisionCacheSize(), 0U);
+
+  checker_.setActiveCollisionObjects({ "probe", "obstacle", "witness" });
+  contacts();
+
+  ASSERT_TRUE(checker_.removeCollisionObject("obstacle"));
+  ASSERT_TRUE(checker_.removeCollisionObject("witness"));
+
+  // Only "probe" is left, so every pair that either query cached names a removed link.
+  EXPECT_EQ(checker_.getCollisionCacheSize(), 0U);
+}
+
+TEST_F(FilterGroupRemovalUnit, RemovingADemotedLinkInvalidatesItsCastWrapper)  // NOLINT
+{
+  // The mirror: query while the two links are kinematic, so the cache holds entries against their cast
+  // wrappers, then demote them.
+  checker_.setActiveCollisionObjects({ "probe", "obstacle", "witness" });
+  contacts();
+  ASSERT_GT(checker_.getCollisionCacheSize(), 0U);
+
+  checker_.setActiveCollisionObjects({ "probe" });
+  contacts();
+
+  ASSERT_TRUE(checker_.removeCollisionObject("obstacle"));
+  ASSERT_TRUE(checker_.removeCollisionObject("witness"));
+
+  EXPECT_EQ(checker_.getCollisionCacheSize(), 0U);
+}
+
+TEST_F(FilterGroupRemovalUnit, RemovingLinksThatKeptTheirGroupInvalidatesTheCache)  // NOLINT
+{
+  // The control: a link that never changed group is covered by the arm removal already takes, so this
+  // holds whether or not the other arm invalidates.
+  checker_.setActiveCollisionObjects({ "probe" });
+  contacts();
+  ASSERT_GT(checker_.getCollisionCacheSize(), 0U);
+
+  ASSERT_TRUE(checker_.removeCollisionObject("obstacle"));
+  ASSERT_TRUE(checker_.removeCollisionObject("witness"));
+
+  EXPECT_EQ(checker_.getCollisionCacheSize(), 0U);
 }
 
 int main(int argc, char** argv)
