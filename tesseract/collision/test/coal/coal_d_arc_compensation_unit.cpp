@@ -24,11 +24,10 @@ namespace
 /// Helper: access the CastHullShape for a given link from the cast manager.
 CastHullShape* getCastHullShape(CoalCastBVHManager& mgr, const std::string& link_name)
 {
-  const auto& cast_map = mgr.getCastCollisionObjectMap();
-  auto it = cast_map.find(link_name);
-  if (it == cast_map.end())
+  const auto* cast_cow = mgr.getCastCollisionObject(link_name);
+  if (cast_cow == nullptr)
     return nullptr;
-  auto& cos = it->second->getCollisionObjects();
+  const auto& cos = cast_cow->getCollisionObjects();
   if (cos.empty())
     return nullptr;
   return static_cast<CastHullShape*>(cos[0]->collisionGeometryPtr());

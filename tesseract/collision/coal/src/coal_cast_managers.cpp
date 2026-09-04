@@ -137,6 +137,12 @@ bool CoalCastBVHManager::hasCollisionObject(const tesseract::common::LinkId& id)
   return (link2cow_.find(id) != link2cow_.end());
 }
 
+const CollisionObjectWrapper* CoalCastBVHManager::getCastCollisionObject(const tesseract::common::LinkId& id) const
+{
+  auto it = link2castcow_.find(id);
+  return (it == link2castcow_.end()) ? nullptr : it->second.get();
+}
+
 std::size_t CoalCastBVHManager::getCollisionCacheSize() const { return collision_cache.size(); }
 
 bool CoalCastBVHManager::removeCollisionObject(const tesseract::common::LinkId& id)

@@ -65,8 +65,7 @@ TEST_F(FilterGroupRemovalUnit, RemovingAKinematicLinkUnregistersIt)  // NOLINT
 
   ASSERT_TRUE(checker_.removeCollisionObject("obstacle"));
 
-  const auto& cast_map = checker_.getCastCollisionObjectMap();
-  EXPECT_TRUE(cast_map.find("obstacle") == cast_map.end());
+  EXPECT_EQ(checker_.getCastCollisionObject("obstacle"), nullptr);
   EXPECT_FALSE(mentions(contacts(), tesseract::common::LinkId("obstacle")));
 }
 

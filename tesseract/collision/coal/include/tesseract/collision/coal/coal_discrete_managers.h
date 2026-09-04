@@ -142,9 +142,17 @@ public:
 
   void contactTest(ContactResultMap& collisions, const ContactRequest& request) override final;
 
+private:
   /**
    * @brief Add a Coal collision object to the manager
    * @param cow The tesseract Coal collision object
+   * @pre The link named by @p cow is not already present in the manager. Use the named
+   *      addCollisionObject(id, mask_id, shapes, poses, enabled) overload instead when the link
+   *      might already exist — it removes any existing entry for that link first.
+   * @warning Adding an already-present link overwrites its map entry, destroying the previous
+   *          wrapper while its collision objects may still be registered in a broadphase manager,
+   *          and appends a duplicate to the collision-objects list that removeCollisionObject
+   *          will not fully remove.
    */
   void addCollisionObject(const COW::Ptr& cow);
 
@@ -156,10 +164,13 @@ public:
    *             that manager's order.
    * @param defer_update When true, skips update()/filter/cache operations — caller is responsible
    *                     for calling setActiveCollisionObjects or similar before querying.
+   * @pre None of the links in @p cows are already present in the manager. Overwriting an existing
+   *      link destroys its previous wrapper while that wrapper's collision objects may still be
+   *      registered in a broadphase manager, and leaves a stale duplicate in the collision-objects
+   *      list.
    */
   void addCollisionObjects(const std::vector<COW::Ptr>& cows, bool defer_update = false);
 
-private:
   std::string name_;
 
   /** @brief Broad-phase Collision Manager for static collision objects */

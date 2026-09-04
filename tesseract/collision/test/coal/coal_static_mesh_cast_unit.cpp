@@ -59,13 +59,12 @@ protected:
 
 TEST_F(StaticMeshCastUnit, StaticMeshCastWrapperIsDeferred)  // NOLINT
 {
-  const auto& cast_map = checker_.getCastCollisionObjectMap();
-  auto it = cast_map.find("mesh_link");
-  ASSERT_NE(it, cast_map.end());
+  const auto* cast_cow = checker_.getCastCollisionObject("mesh_link");
+  ASSERT_NE(cast_cow, nullptr);
 
-  EXPECT_TRUE(castCowNeedsSweptBuild(*it->second));
-  ASSERT_FALSE(it->second->getCollisionObjects().empty());
-  EXPECT_EQ(it->second->getCollisionObjects()[0]->collisionGeometryPtr()->getNodeType(), coal::BV_OBBRSS);
+  EXPECT_TRUE(castCowNeedsSweptBuild(*cast_cow));
+  ASSERT_FALSE(cast_cow->getCollisionObjects().empty());
+  EXPECT_EQ(cast_cow->getCollisionObjects()[0]->collisionGeometryPtr()->getNodeType(), coal::BV_OBBRSS);
 }
 
 TEST_F(StaticMeshCastUnit, PromotingMeshLinkThrows)  // NOLINT
@@ -185,10 +184,9 @@ TEST_F(StaticMeshCastUnit, CloneKeepsStaticMeshCollidable)  // NOLINT
   auto* cast_clone = dynamic_cast<CoalCastBVHManager*>(clone.get());
   ASSERT_NE(cast_clone, nullptr);
 
-  const auto& cast_map = cast_clone->getCastCollisionObjectMap();
-  auto cast_it = cast_map.find("mesh_link");
-  ASSERT_NE(cast_it, cast_map.end());
-  EXPECT_TRUE(castCowNeedsSweptBuild(*cast_it->second));
+  const auto* cast_cow = cast_clone->getCastCollisionObject("mesh_link");
+  ASSERT_NE(cast_cow, nullptr);
+  EXPECT_TRUE(castCowNeedsSweptBuild(*cast_cow));
 
   Eigen::Isometry3d start = Eigen::Isometry3d::Identity();
   start.translation() = Eigen::Vector3d(1.0, 0, 0);

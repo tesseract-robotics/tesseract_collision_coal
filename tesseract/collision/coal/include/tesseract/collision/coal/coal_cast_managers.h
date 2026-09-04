@@ -167,9 +167,30 @@ public:
 
   void contactTest(ContactResultMap& collisions, const ContactRequest& request) override final;
 
+  /** @brief Get a link's cast wrapper, or nullptr when the link has none
+   *
+   *  @warning The returned pointer is invalidated by a subsequent addCollisionObject,
+   *  addCollisionObjects or removeCollisionObject on the same link, and by setActiveCollisionObjects
+   *  when it promotes a link whose cast shapes were still deferred, since building them replaces the
+   *  wrapper. Constness stops at the wrapper: its collisionGeometryPtr() still yields a mutable,
+   *  shared coal::CollisionGeometry*. */
+  const CollisionObjectWrapper* getCastCollisionObject(const tesseract::common::LinkId& id) const;
+
+  /** @brief Get the number of entries in the narrowphase collision cache, otherwise unobservable
+   *  from outside the manager; useful as a test/diagnostic hook */
+  std::size_t getCollisionCacheSize() const;
+
+private:
   /**
    * @brief Add a Coal collision object to the manager
    * @param cow The tesseract Coal collision object
+   * @pre The link named by @p cow is not already present in the manager. Use the named
+   *      addCollisionObject(id, mask_id, shapes, poses, enabled) overload instead when the link
+   *      might already exist — it removes any existing entry for that link first.
+   * @warning Adding an already-present link overwrites its map entry, destroying the previous
+   *          wrapper while its collision objects may still be registered in a broadphase manager,
+   *          and appends a duplicate to the collision-objects list that removeCollisionObject
+   *          will not fully remove.
    */
   void addCollisionObject(const COW::Ptr& cow);
 
@@ -181,17 +202,13 @@ public:
    *             that manager's order.
    * @param defer_update When true, skips update()/filter/cache operations — caller is responsible
    *                     for calling setActiveCollisionObjects or similar before querying.
+   * @pre None of the links in @p cows are already present in the manager. Overwriting an existing
+   *      link destroys its previous wrapper while that wrapper's collision objects may still be
+   *      registered in a broadphase manager, and leaves a stale duplicate in the collision-objects
+   *      list.
    */
   void addCollisionObjects(const std::vector<COW::Ptr>& cows, bool defer_update = false);
 
-  /** @brief Get the cast collision object map (for testing deferred cast shape construction) */
-  const Link2COW& getCastCollisionObjectMap() const { return link2castcow_; }
-
-  /** @brief Get the number of entries in the narrowphase collision cache, otherwise unobservable
-   *  from outside the manager; useful as a test/diagnostic hook */
-  std::size_t getCollisionCacheSize() const;
-
-private:
   std::string name_;
 
   /** @brief Broad-phase Collision Manager for static collision objects */

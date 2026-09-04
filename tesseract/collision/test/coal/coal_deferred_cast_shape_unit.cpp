@@ -56,24 +56,22 @@ protected:
 TEST_F(DeferredCastShapeUnit, StaticOctreeNotExpandedOnAdd)  // NOLINT
 {
   // Both objects start static — octree cast COW should contain raw OcTree (deferred).
-  const auto& cast_map = checker_.getCastCollisionObjectMap();
-  auto it = cast_map.find("octree_link");
-  ASSERT_NE(it, cast_map.end());
-  EXPECT_TRUE(castCowNeedsSweptBuild(*it->second));
+  const auto* cast_cow = checker_.getCastCollisionObject("octree_link");
+  ASSERT_NE(cast_cow, nullptr);
+  EXPECT_TRUE(castCowNeedsSweptBuild(*cast_cow));
 }
 
 TEST_F(DeferredCastShapeUnit, PromotionExpandsOctree)  // NOLINT
 {
   checker_.setActiveCollisionObjects({ "octree_link", "cyl_link" });
 
-  const auto& cast_map = checker_.getCastCollisionObjectMap();
-  auto it = cast_map.find("octree_link");
-  ASSERT_NE(it, cast_map.end());
-  EXPECT_FALSE(castCowNeedsSweptBuild(*it->second));
+  const auto* cast_cow = checker_.getCastCollisionObject("octree_link");
+  ASSERT_NE(cast_cow, nullptr);
+  EXPECT_FALSE(castCowNeedsSweptBuild(*cast_cow));
 
   // All collision objects in the expanded cast COW should be CastHullShape (GEOM_CUSTOM).
-  ASSERT_FALSE(it->second->getCollisionObjects().empty());
-  for (const auto& co : it->second->getCollisionObjects())
+  ASSERT_FALSE(cast_cow->getCollisionObjects().empty());
+  for (const auto& co : cast_cow->getCollisionObjects())
     EXPECT_EQ(co->collisionGeometryPtr()->getNodeType(), coal::GEOM_CUSTOM);
 }
 
@@ -103,10 +101,9 @@ TEST_F(DeferredCastShapeUnit, DemotionPreservesExpansion)  // NOLINT
   checker_.setActiveCollisionObjects({});
 
   // Expanded cast COW should be cached — not reverted to raw OcTree.
-  const auto& cast_map = checker_.getCastCollisionObjectMap();
-  auto it = cast_map.find("octree_link");
-  ASSERT_NE(it, cast_map.end());
-  EXPECT_FALSE(castCowNeedsSweptBuild(*it->second));
+  const auto* cast_cow = checker_.getCastCollisionObject("octree_link");
+  ASSERT_NE(cast_cow, nullptr);
+  EXPECT_FALSE(castCowNeedsSweptBuild(*cast_cow));
 }
 
 TEST_F(DeferredCastShapeUnit, RePromotionSkipsReExpansion)  // NOLINT
@@ -116,10 +113,9 @@ TEST_F(DeferredCastShapeUnit, RePromotionSkipsReExpansion)  // NOLINT
   checker_.setActiveCollisionObjects({});
   checker_.setActiveCollisionObjects({ "octree_link", "cyl_link" });
 
-  const auto& cast_map = checker_.getCastCollisionObjectMap();
-  auto it = cast_map.find("octree_link");
-  ASSERT_NE(it, cast_map.end());
-  EXPECT_FALSE(castCowNeedsSweptBuild(*it->second));
+  const auto* cast_cow = checker_.getCastCollisionObject("octree_link");
+  ASSERT_NE(cast_cow, nullptr);
+  EXPECT_FALSE(castCowNeedsSweptBuild(*cast_cow));
 
   // Verify contacts still work after re-promotion
   Eigen::Isometry3d start = Eigen::Isometry3d::Identity();
@@ -173,10 +169,9 @@ TEST_F(DeferredCastShapeUnit, CloneWithActiveOctreeExpands)  // NOLINT
   auto* cast_clone = dynamic_cast<CoalCastBVHManager*>(clone.get());
   ASSERT_NE(cast_clone, nullptr);
 
-  const auto& cast_map = cast_clone->getCastCollisionObjectMap();
-  auto it = cast_map.find("octree_link");
-  ASSERT_NE(it, cast_map.end());
-  EXPECT_FALSE(castCowNeedsSweptBuild(*it->second));
+  const auto* cast_cow = cast_clone->getCastCollisionObject("octree_link");
+  ASSERT_NE(cast_cow, nullptr);
+  EXPECT_FALSE(castCowNeedsSweptBuild(*cast_cow));
 
   // Verify contacts work on the clone
   Eigen::Isometry3d start = Eigen::Isometry3d::Identity();
@@ -197,26 +192,24 @@ TEST_F(DeferredCastShapeUnit, StaticConvexLinkIsDeferred)  // NOLINT
 {
   // Deferral is not octree-specific. A static convex link keeps its own geometry too, since nothing reads
   // a static link's cast wrapper before promotion.
-  const auto& cast_map = checker_.getCastCollisionObjectMap();
-  auto it = cast_map.find("cyl_link");
-  ASSERT_NE(it, cast_map.end());
+  const auto* cast_cow = checker_.getCastCollisionObject("cyl_link");
+  ASSERT_NE(cast_cow, nullptr);
 
-  EXPECT_TRUE(castCowNeedsSweptBuild(*it->second));
-  ASSERT_FALSE(it->second->getCollisionObjects().empty());
-  EXPECT_EQ(it->second->getCollisionObjects()[0]->collisionGeometryPtr()->getNodeType(), coal::GEOM_CYLINDER);
+  EXPECT_TRUE(castCowNeedsSweptBuild(*cast_cow));
+  ASSERT_FALSE(cast_cow->getCollisionObjects().empty());
+  EXPECT_EQ(cast_cow->getCollisionObjects()[0]->collisionGeometryPtr()->getNodeType(), coal::GEOM_CYLINDER);
 }
 
 TEST_F(DeferredCastShapeUnit, PromotionBuildsConvexHulls)  // NOLINT
 {
   checker_.setActiveCollisionObjects({ "cyl_link" });
 
-  const auto& cast_map = checker_.getCastCollisionObjectMap();
-  auto it = cast_map.find("cyl_link");
-  ASSERT_NE(it, cast_map.end());
+  const auto* cast_cow = checker_.getCastCollisionObject("cyl_link");
+  ASSERT_NE(cast_cow, nullptr);
 
-  EXPECT_FALSE(castCowNeedsSweptBuild(*it->second));
-  ASSERT_FALSE(it->second->getCollisionObjects().empty());
-  for (const auto& co : it->second->getCollisionObjects())
+  EXPECT_FALSE(castCowNeedsSweptBuild(*cast_cow));
+  ASSERT_FALSE(cast_cow->getCollisionObjects().empty());
+  for (const auto& co : cast_cow->getCollisionObjects())
     EXPECT_EQ(co->collisionGeometryPtr()->getNodeType(), coal::GEOM_CUSTOM);
 }
 
@@ -226,11 +219,10 @@ TEST_F(DeferredCastShapeUnit, DemotionPreservesConvexHulls)  // NOLINT
   checker_.setActiveCollisionObjects({ "cyl_link" });
   checker_.setActiveCollisionObjects({});
 
-  const auto& cast_map = checker_.getCastCollisionObjectMap();
-  auto it = cast_map.find("cyl_link");
-  ASSERT_NE(it, cast_map.end());
-  ASSERT_FALSE(it->second->getCollisionObjects().empty());
-  EXPECT_FALSE(castCowNeedsSweptBuild(*it->second));
+  const auto* cast_cow = checker_.getCastCollisionObject("cyl_link");
+  ASSERT_NE(cast_cow, nullptr);
+  ASSERT_FALSE(cast_cow->getCollisionObjects().empty());
+  EXPECT_FALSE(castCowNeedsSweptBuild(*cast_cow));
 }
 
 TEST_F(DeferredCastShapeUnit, PromotionSkipsUnoccupiedVoxels)  // NOLINT
@@ -254,11 +246,10 @@ TEST_F(DeferredCastShapeUnit, PromotionSkipsUnoccupiedVoxels)  // NOLINT
 
   checker_.setActiveCollisionObjects({ "mixed_octree_link" });
 
-  const auto& cast_map = checker_.getCastCollisionObjectMap();
-  auto it = cast_map.find("mixed_octree_link");
-  ASSERT_NE(it, cast_map.end());
-  ASSERT_EQ(it->second->getCollisionObjects().size(), 1U);
-  EXPECT_EQ(it->second->getCollisionObjects()[0]->collisionGeometryPtr()->getNodeType(), coal::GEOM_CUSTOM);
+  const auto* cast_cow = checker_.getCastCollisionObject("mixed_octree_link");
+  ASSERT_NE(cast_cow, nullptr);
+  ASSERT_EQ(cast_cow->getCollisionObjects().size(), 1U);
+  EXPECT_EQ(cast_cow->getCollisionObjects()[0]->collisionGeometryPtr()->getNodeType(), coal::GEOM_CUSTOM);
 }
 
 int main(int argc, char** argv)
