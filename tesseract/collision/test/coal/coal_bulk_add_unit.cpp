@@ -4,6 +4,8 @@ TESSERACT_COMMON_IGNORE_WARNINGS_PUSH
 #include <Eigen/Geometry>
 #include <algorithm>
 #include <memory>
+#include <string>
+#include <utility>
 #include <vector>
 TESSERACT_COMMON_IGNORE_WARNINGS_POP
 
@@ -39,6 +41,49 @@ std::size_t countEntries(const std::vector<LinkId>& ids, const LinkId& id)
 {
   return static_cast<std::size_t>(std::count(ids.begin(), ids.end(), id));
 }
+
+/**
+ * @brief The contacts a result holds, as (pair signature, distance)
+ *
+ * Sorted, so map iteration order does not leak into a comparison, while the link ordering within each
+ * contact — which the registration order decides — still does.
+ */
+std::vector<std::pair<std::string, double>> contactDigest(const ContactResultMap& result)
+{
+  ContactResultVector flat;
+  result.flattenCopyResults(flat);
+
+  std::vector<std::pair<std::string, double>> digest;
+  digest.reserve(flat.size());
+  for (const auto& contact : flat)
+    digest.emplace_back(contact.link_ids[0].name() + "|" + contact.link_ids[1].name(), contact.distance);
+
+  std::sort(digest.begin(), digest.end());
+  return digest;
+}
+
+/**
+ * @brief The distinct link pairs a result reports, each pair's names ordered so the comparison does not depend
+ *        on which side of the pair a backend puts first
+ */
+std::vector<std::string> contactPairs(const ContactResultMap& result)
+{
+  ContactResultVector flat;
+  result.flattenCopyResults(flat);
+
+  std::vector<std::string> pairs;
+  pairs.reserve(flat.size());
+  for (const auto& contact : flat)
+  {
+    const std::string first = contact.link_ids[0].name();
+    const std::string second = contact.link_ids[1].name();
+    pairs.push_back(first < second ? first + "|" + second : second + "|" + first);
+  }
+
+  std::sort(pairs.begin(), pairs.end());
+  pairs.erase(std::unique(pairs.begin(), pairs.end()), pairs.end());
+  return pairs;
+}
 }  // namespace
 
 template <typename ManagerType>
@@ -61,8 +106,9 @@ void runBulkAddEquivalenceTest()
   {
     checker->setActiveCollisionObjects({ LinkId("box_a"), LinkId("box_b"), LinkId("box_c") });
     checker->setDefaultCollisionMargin(0.0);
+    // box_a overlaps box_b and box_b overlaps box_c, but box_a does not reach box_c
     checker->setCollisionObjectsTransform(std::vector<LinkId>{ "box_a", "box_b", "box_c" },
-                                          tesseract::common::VectorIsometry3d{ at(-0.25), at(0.25), at(10) });
+                                          tesseract::common::VectorIsometry3d{ at(-0.4), at(0.0), at(0.7) });
   }
 
   ContactResultMap bulk_result;
@@ -71,6 +117,16 @@ void runBulkAddEquivalenceTest()
   looped.contactTest(looped_result, ContactRequest(ContactTestType::ALL));
   EXPECT_EQ(bulk_result.count(), looped_result.count());
   EXPECT_FALSE(bulk_result.empty());
+
+  // Same contacts, same link ordering within each, same distances - not merely the same number of them
+  const std::vector<std::pair<std::string, double>> bulk_digest = contactDigest(bulk_result);
+  const std::vector<std::pair<std::string, double>> looped_digest = contactDigest(looped_result);
+  ASSERT_EQ(bulk_digest.size(), looped_digest.size());
+  for (std::size_t i = 0; i < bulk_digest.size(); ++i)
+  {
+    EXPECT_EQ(bulk_digest[i].first, looped_digest[i].first);
+    EXPECT_NEAR(bulk_digest[i].second, looped_digest[i].second, 1e-9);
+  }
 }
 
 TEST(CoalBulkAddUnit, DiscreteEquivalence)  // NOLINT
@@ -116,14 +172,27 @@ TEST(CoalBulkAddUnit, CastDuplicateIdReplaces)  // NOLINT
   runBulkAddDuplicateIdTest<CoalCastBVHManager>();
 }
 
-// A batch naming the same id twice is not collapsed by a vector the way the old Link2COW map collapsed it, so the
-// override owes an in-batch dedup pass. Last spec wins, matching the replaced per-object loop.
+// A repeated id inside one batch resolves the way the repeated single calls do: the earlier entry is displaced,
+// so the last one decides the object and takes its position at the end of the list.
 template <typename ManagerType>
 void runBulkAddRepeatedIdWithinBatchTest()
 {
   ManagerType checker;
-  EXPECT_TRUE(checker.addCollisionObjects({ boxSpec(LinkId("box_a"), 1.0), boxSpec(LinkId("box_a"), 0.1) }));
+  EXPECT_TRUE(checker.addCollisionObjects(
+      { boxSpec(LinkId("box_a"), 1.0), boxSpec(LinkId("box_b"), 1.0), boxSpec(LinkId("box_a"), 0.1) }));
+
   EXPECT_EQ(countEntries(checker.getCollisionObjects(), LinkId("box_a")), 1U);
+  EXPECT_EQ(checker.getCollisionObjects(), std::vector<LinkId>({ LinkId("box_b"), LinkId("box_a") }));
+
+  // The surviving box_a is the 0.1 one, so it no longer reaches box_b.
+  checker.setActiveCollisionObjects({ LinkId("box_a"), LinkId("box_b") });
+  checker.setDefaultCollisionMargin(0.0);
+  checker.setCollisionObjectsTransform(std::vector<LinkId>{ "box_a", "box_b" },
+                                       tesseract::common::VectorIsometry3d{ at(-0.4), at(0.4) });
+
+  ContactResultMap result;
+  checker.contactTest(result, ContactRequest(ContactTestType::ALL));
+  EXPECT_TRUE(result.empty());
 }
 
 TEST(CoalBulkAddUnit, DiscreteRepeatedIdWithinBatch)  // NOLINT
@@ -134,6 +203,38 @@ TEST(CoalBulkAddUnit, DiscreteRepeatedIdWithinBatch)  // NOLINT
 TEST(CoalBulkAddUnit, CastRepeatedIdWithinBatch)  // NOLINT
 {
   runBulkAddRepeatedIdWithinBatchTest<CoalCastBVHManager>();
+}
+
+// The single-object form removes any existing object for the id before it tries to build the new one, so a spec
+// that fails to build leaves the id unregistered rather than leaving the old object in place.
+template <typename ManagerType>
+void runBulkAddFailedSpecForRegisteredIdTest()
+{
+  CollisionObjectSpec bad;
+  bad.id = LinkId("box_a");  // empty shapes and shape_poses
+
+  ManagerType already_registered;
+  EXPECT_TRUE(already_registered.addCollisionObjects({ boxSpec(LinkId("box_a")), boxSpec(LinkId("box_b")) }));
+  ASSERT_TRUE(already_registered.hasCollisionObject(LinkId("box_a")));
+
+  EXPECT_FALSE(already_registered.addCollisionObjects({ bad }));
+  EXPECT_FALSE(already_registered.hasCollisionObject(LinkId("box_a")));
+  EXPECT_EQ(already_registered.getCollisionObjects(), std::vector<LinkId>({ LinkId("box_b") }));
+
+  // Same within a single batch: the failing spec displaces the entry the earlier one made.
+  ManagerType within_batch;
+  EXPECT_FALSE(within_batch.addCollisionObjects({ boxSpec(LinkId("box_a")), bad }));
+  EXPECT_FALSE(within_batch.hasCollisionObject(LinkId("box_a")));
+}
+
+TEST(CoalBulkAddUnit, DiscreteFailedSpecForRegisteredId)  // NOLINT
+{
+  runBulkAddFailedSpecForRegisteredIdTest<CoalDiscreteBVHManager>();
+}
+
+TEST(CoalBulkAddUnit, CastFailedSpecForRegisteredId)  // NOLINT
+{
+  runBulkAddFailedSpecForRegisteredIdTest<CoalCastBVHManager>();
 }
 
 template <typename ManagerType>
@@ -187,6 +288,51 @@ TEST(CoalBulkAddUnit, DiscreteBroadphaseLiveAfterBulkAdd)  // NOLINT
 TEST(CoalBulkAddUnit, CastBroadphaseLiveAfterBulkAdd)  // NOLINT
 {
   runBulkAddBroadphaseLiveTest<CoalCastBVHManager>();
+}
+
+// Adding a batch to a manager that already holds objects and already has a non-empty active set, which is the
+// shape a scene-graph insertion takes.
+template <typename ManagerType>
+void runBulkAddIntoPopulatedManagerTest()
+{
+  ManagerType checker;
+  EXPECT_TRUE(checker.addCollisionObjects({ boxSpec(LinkId("existing_a")), boxSpec(LinkId("existing_b")) }));
+
+  // "added" is named active before it exists, so the batch below lands while active_ is already populated
+  checker.setActiveCollisionObjects({ LinkId("existing_a"), LinkId("added") });
+  checker.setDefaultCollisionMargin(0.0);
+  checker.setCollisionObjectsTransform(std::vector<LinkId>{ "existing_a", "existing_b" },
+                                       tesseract::common::VectorIsometry3d{ at(-0.25), at(20) });
+
+  EXPECT_TRUE(checker.addCollisionObjects({ boxSpec(LinkId("added")) }));
+
+  // The batch appends without disturbing what was there
+  EXPECT_EQ(checker.getCollisionObjects(),
+            std::vector<LinkId>({ LinkId("existing_a"), LinkId("existing_b"), LinkId("added") }));
+
+  // The new object went into the active tree and collides with the active object already registered, while the
+  // out-of-reach static one is not reported
+  checker.setCollisionObjectsTransform(std::vector<LinkId>{ "added" }, tesseract::common::VectorIsometry3d{ at(0.25) });
+  ContactResultMap result;
+  checker.contactTest(result, ContactRequest(ContactTestType::ALL));
+  EXPECT_EQ(contactPairs(result), std::vector<std::string>({ "added|existing_a" }));
+
+  // The pre-existing static object still answers once it is moved into reach, and only against the active ones
+  checker.setCollisionObjectsTransform(std::vector<LinkId>{ "existing_b" },
+                                       tesseract::common::VectorIsometry3d{ at(0.9) });
+  ContactResultMap with_static;
+  checker.contactTest(with_static, ContactRequest(ContactTestType::ALL));
+  EXPECT_EQ(contactPairs(with_static), std::vector<std::string>({ "added|existing_a", "added|existing_b" }));
+}
+
+TEST(CoalBulkAddUnit, DiscreteBulkAddIntoPopulatedManager)  // NOLINT
+{
+  runBulkAddIntoPopulatedManagerTest<CoalDiscreteBVHManager>();
+}
+
+TEST(CoalBulkAddUnit, CastBulkAddIntoPopulatedManager)  // NOLINT
+{
+  runBulkAddIntoPopulatedManagerTest<CoalCastBVHManager>();
 }
 
 template <typename ManagerType>
