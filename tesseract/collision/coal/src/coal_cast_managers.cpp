@@ -40,8 +40,10 @@
 #include <tesseract/common/macros.h>
 TESSERACT_COMMON_IGNORE_WARNINGS_PUSH
 #include <coal/broadphase/broadphase_dynamic_AABB_tree.h>
+#include <algorithm>
 #include <stdexcept>
 #include <string>
+#include <unordered_set>
 #include <vector>
 TESSERACT_COMMON_IGNORE_WARNINGS_POP
 
@@ -192,6 +194,76 @@ bool CoalCastBVHManager::removeCollisionObject(const tesseract::common::LinkId& 
   }
 
   return false;
+}
+
+bool CoalCastBVHManager::removeCollisionObjects(const std::vector<tesseract::common::LinkId>& ids)
+{
+  std::vector<CollisionObjectPtr> static_objs;
+  std::vector<CollisionObjectPtr> dynamic_objs;
+  std::vector<CollisionObjectPtr> all_regular_objs;
+  std::vector<CollisionObjectPtr> all_cast_objs;
+  std::unordered_set<tesseract::common::LinkId> removed;
+  removed.reserve(ids.size());
+
+  bool success{ true };
+  for (const auto& id : ids)
+  {
+    auto it = link2cow_.find(id);
+    if (it == link2cow_.end())
+    {
+      success = false;
+      continue;
+    }
+
+    const std::vector<CollisionObjectPtr>& objects = it->second->getCollisionObjects();
+    coal_co_count_ -= objects.size();
+
+    // Every link in link2cow_ has a mate in link2castcow_; both add paths write the two maps together
+    // and this is the only place either is erased.
+    auto it_cast = link2castcow_.find(id);
+    assert(it_cast != link2castcow_.end());
+    const std::vector<CollisionObjectPtr>& cast_objects = it_cast->second->getCollisionObjects();
+
+    // Add registers a static link through its regular wrapper and any other link through its cast
+    // wrapper. Removal decides on the same question, or the broadphase keeps pointers into a wrapper
+    // the maps no longer own.
+    if (!isKinematic(*it->second))
+      static_objs.insert(static_objs.end(), objects.begin(), objects.end());
+    else
+      dynamic_objs.insert(dynamic_objs.end(), cast_objects.begin(), cast_objects.end());
+
+    // Cache entries do not follow that question. They are keyed on raw collision object addresses and
+    // survive the promotion or demotion that swaps which wrapper is registered, so the wrapper that is
+    // not unregistered can still be named by entries and both wrappers must reach the sweep. Holding a
+    // shared pointer to each object keeps those addresses valid past the erases below.
+    all_regular_objs.insert(all_regular_objs.end(), objects.begin(), objects.end());
+    all_cast_objs.insert(all_cast_objs.end(), cast_objects.begin(), cast_objects.end());
+
+    removed.insert(id);
+    link2cow_.erase(it);
+    active_.erase(id);
+    link2castcow_.erase(it_cast);
+  }
+
+  if (removed.empty())
+    return success;
+
+  // One pass over collision_objects_, preserving the order of the survivors.
+  collision_objects_.erase(
+      std::remove_if(collision_objects_.begin(),
+                     collision_objects_.end(),
+                     [&removed](const tesseract::common::LinkId& id) { return removed.find(id) != removed.end(); }),
+      collision_objects_.end());
+
+  if (!static_objs.empty())
+    unregisterObjects(static_objs, *static_manager_);
+  if (!dynamic_objs.empty())
+    unregisterObjects(dynamic_objs, *dynamic_manager_);
+
+  // A cache pass is linear in the whole cache, so the batch takes one instead of one per link.
+  invalidateCacheFor(collision_cache, all_regular_objs, all_cast_objs);
+
+  return success;
 }
 
 bool CoalCastBVHManager::enableCollisionObject(const tesseract::common::LinkId& id)
