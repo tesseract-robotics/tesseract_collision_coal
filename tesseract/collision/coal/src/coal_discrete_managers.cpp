@@ -42,6 +42,8 @@ TESSERACT_COMMON_IGNORE_WARNINGS_PUSH
 #include <coal/broadphase/broadphase_dynamic_AABB_tree.h>
 #include <stdexcept>
 #include <string>
+#include <unordered_map>
+#include <vector>
 TESSERACT_COMMON_IGNORE_WARNINGS_POP
 
 #include <tesseract/collision/coal/coal_collision_geometry_cache.h>
@@ -98,6 +100,50 @@ bool CoalDiscreteBVHManager::addCollisionObject(const tesseract::common::LinkId&
   }
 
   return false;
+}
+
+bool CoalDiscreteBVHManager::addCollisionObjects(const std::vector<CollisionObjectSpec>& objects)
+{
+  std::vector<COW::Ptr> cows;
+  cows.reserve(objects.size());
+
+  // Collapse a repeated id within the batch, last spec winning, which is what a per-object loop produces.
+  // The primitive's @pre makes this the caller's job.
+  std::unordered_map<tesseract::common::LinkId, std::size_t> batch_index;
+  batch_index.reserve(objects.size());
+
+  bool success{ true };
+  for (const auto& obj : objects)
+  {
+    const COW::Ptr new_cow = createCoalCollisionObject(obj.id, obj.mask_id, obj.shapes, obj.shape_poses, obj.enabled);
+    if (new_cow == nullptr)
+    {
+      success = false;
+      continue;
+    }
+
+    const auto it = batch_index.find(obj.id);
+    if (it != batch_index.end())
+      cows[it->second] = new_cow;
+    else
+    {
+      batch_index[obj.id] = cows.size();
+      cows.push_back(new_cow);
+    }
+  }
+
+  // The primitive does not displace an already-registered object, so do here what the single-object entry point
+  // does. Skipping this orphans the old object's broadphase proxy.
+  for (const auto& cow : cows)
+  {
+    if (link2cow_.find(cow->getLinkId()) != link2cow_.end())
+      removeCollisionObject(cow->getLinkId());
+  }
+
+  if (!cows.empty())
+    addCollisionObjects(cows, /*defer_update=*/false);
+
+  return success;
 }
 
 const CollisionShapesConst&
