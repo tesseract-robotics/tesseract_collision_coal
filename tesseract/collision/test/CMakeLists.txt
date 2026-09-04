@@ -104,6 +104,7 @@ add_gtest(${PROJECT_NAME}_coal_margin_on_add_unit coal/coal_margin_on_add_unit.c
 add_gtest(${PROJECT_NAME}_coal_transform_overload_contract_unit coal/coal_transform_overload_contract_unit.cpp)
 add_gtest(${PROJECT_NAME}_coal_bulk_add_unit coal/coal_bulk_add_unit.cpp)
 add_gtest(${PROJECT_NAME}_coal_bulk_remove_unit coal/coal_bulk_remove_unit.cpp)
+add_gtest(${PROJECT_NAME}_coal_bulk_enabled_unit coal/coal_bulk_enabled_unit.cpp)
 add_gtest(${PROJECT_NAME}_coal_filter_group_removal_unit coal/coal_filter_group_removal_unit.cpp)
 add_gtest(${PROJECT_NAME}_cast_disable_during_sweep_unit collision_cast_disable_during_sweep_unit.cpp)
 add_gtest(${PROJECT_NAME}_cast_scenario_unit collision_cast_scenario_unit.cpp)
