@@ -131,6 +131,21 @@ bool computeTightLocalAABB(const coal::ShapeBase& s, coal::AABB& bv);
 /** @brief Erase cache entries involving any of the given collision objects (for object removal) */
 void invalidateCacheFor(CollisionCacheMap& cache, const std::vector<CollisionObjectPtr>& objects);
 
+/** @brief Erase cache entries involving any object of either list, in a single pass over the cache
+ *
+ *  Cheaper than two calls of the single-list overload: a pass is linear in the cache, which holds an
+ *  entry per pair ever checked, while the pointer set it tests against is linear in the objects. */
+void invalidateCacheFor(CollisionCacheMap& cache,
+                        const std::vector<CollisionObjectPtr>& objects,
+                        const std::vector<CollisionObjectPtr>& other_objects);
+
+/** @brief Unregister collision objects from a broadphase manager, leaving the cache untouched
+ *
+ *  @pre Every object is registered in @p manager. Coal's dynamic AABB tree looks an object up
+ *  unconditionally and removes the node it gets back, so unregistering one the manager does not hold
+ *  removes a null node. */
+void unregisterObjects(const std::vector<CollisionObjectPtr>& objects, coal::BroadPhaseCollisionManager& manager);
+
 /** @brief Unregister collision objects from a broadphase manager and erase the cache entries naming them */
 void removeObjects(CollisionCacheMap& cache,
                    const std::vector<CollisionObjectPtr>& objects,

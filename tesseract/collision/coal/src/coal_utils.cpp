@@ -1074,19 +1074,18 @@ std::shared_ptr<CollisionObjectWrapper> CollisionObjectWrapper::clone() const
   return clone_cow;
 }
 
-/// Build an unordered_set of raw pointers for O(1) membership tests.
-static std::unordered_set<const coal::CollisionObject*> buildPointerSet(const std::vector<CollisionObjectPtr>& objects)
+/// Add the raw pointers of @p objects to @p ptrs for O(1) membership tests.
+static void addPointers(std::unordered_set<const coal::CollisionObject*>& ptrs,
+                        const std::vector<CollisionObjectPtr>& objects)
 {
-  std::unordered_set<const coal::CollisionObject*> ptrs;
-  ptrs.reserve(objects.size());
+  ptrs.reserve(ptrs.size() + objects.size());
   for (const auto& co : objects)
     ptrs.insert(co.get());
-  return ptrs;
 }
 
-void invalidateCacheFor(CollisionCacheMap& cache, const std::vector<CollisionObjectPtr>& objects)
+/// Erase every cache entry keyed on a pointer in @p ptrs.
+static void eraseCacheEntries(CollisionCacheMap& cache, const std::unordered_set<const coal::CollisionObject*>& ptrs)
 {
-  const auto ptrs = buildPointerSet(objects);
   for (auto it = cache.begin(); it != cache.end();)
   {
     if (ptrs.count(it->first.first) != 0 || ptrs.count(it->first.second) != 0)
@@ -1096,13 +1095,34 @@ void invalidateCacheFor(CollisionCacheMap& cache, const std::vector<CollisionObj
   }
 }
 
+void invalidateCacheFor(CollisionCacheMap& cache, const std::vector<CollisionObjectPtr>& objects)
+{
+  std::unordered_set<const coal::CollisionObject*> ptrs;
+  addPointers(ptrs, objects);
+  eraseCacheEntries(cache, ptrs);
+}
+
+void invalidateCacheFor(CollisionCacheMap& cache,
+                        const std::vector<CollisionObjectPtr>& objects,
+                        const std::vector<CollisionObjectPtr>& other_objects)
+{
+  std::unordered_set<const coal::CollisionObject*> ptrs;
+  addPointers(ptrs, objects);
+  addPointers(ptrs, other_objects);
+  eraseCacheEntries(cache, ptrs);
+}
+
+void unregisterObjects(const std::vector<CollisionObjectPtr>& objects, coal::BroadPhaseCollisionManager& manager)
+{
+  for (const auto& co : objects)
+    manager.unregisterObject(co.get());
+}
+
 void removeObjects(CollisionCacheMap& cache,
                    const std::vector<CollisionObjectPtr>& objects,
                    coal::BroadPhaseCollisionManager& manager)
 {
-  for (const auto& co : objects)
-    manager.unregisterObject(co.get());
-
+  unregisterObjects(objects, manager);
   invalidateCacheFor(cache, objects);
 }
 
