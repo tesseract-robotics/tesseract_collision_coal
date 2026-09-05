@@ -102,6 +102,7 @@ add_gtest(${PROJECT_NAME}_coal_factory_schema_unit coal/coal_factory_schema_unit
 target_link_libraries(${PROJECT_NAME}_coal_factory_schema_unit PRIVATE ${PROJECT_NAME}_coal_factories)
 add_gtest(${PROJECT_NAME}_coal_margin_on_add_unit coal/coal_margin_on_add_unit.cpp)
 add_gtest(${PROJECT_NAME}_coal_transform_overload_contract_unit coal/coal_transform_overload_contract_unit.cpp)
+add_gtest(${PROJECT_NAME}_coal_range_transform_unit coal/coal_range_transform_unit.cpp)
 add_gtest(${PROJECT_NAME}_coal_bulk_add_unit coal/coal_bulk_add_unit.cpp)
 add_gtest(${PROJECT_NAME}_coal_bulk_remove_unit coal/coal_bulk_remove_unit.cpp)
 add_gtest(${PROJECT_NAME}_coal_bulk_enabled_unit coal/coal_bulk_enabled_unit.cpp)

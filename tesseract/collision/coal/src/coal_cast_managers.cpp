@@ -81,6 +81,9 @@ ContinuousContactManager::UPtr CoalCastBVHManager::clone() const
     cloned_cows.push_back(link2cow_.at(id)->clone());
 
   manager->setCollisionMarginData(contact_test_data_.collision_margin_data);
+  // The refit is deferred to the setActiveCollisionObjects below, which rebuilds both trees before any query.
+  // FCL's clone deliberately does not defer, because on that backend the two build orders produce measurably
+  // different normals; see the note in FCLDiscreteBVHManager::clone.
   manager->addCollisionObjects(cloned_cows, /*defer_update=*/true);
   manager->setActiveCollisionObjects(active_);
   manager->setContactAllowedValidator(contact_test_data_.validator);
@@ -115,12 +118,14 @@ bool CoalCastBVHManager::addCollisionObjects(const std::vector<CollisionObjectSp
   // The primitive does not displace an already-registered object, so do here what the single-object entry point
   // does. Skipping this orphans the old object's broadphase proxy. Every id the batch names is removed, including
   // one whose spec failed to build: the single-object form removes before it creates, so a failed spec leaves that
-  // id unregistered.
+  // id unregistered. Bulk removal skips the ids it does not hold, so the batch is passed whole and its return,
+  // which reports only those absences, is not the return of this call.
+  std::vector<tesseract::common::LinkId> displaced;
+  displaced.reserve(objects.size());
   for (const auto& obj : objects)
-  {
-    if (link2cow_.find(obj.id) != link2cow_.end())
-      removeCollisionObject(obj.id);
-  }
+    displaced.push_back(obj.id);
+
+  removeCollisionObjects(displaced);
 
   if (!cows.empty())
     addCollisionObjects(cows, /*defer_update=*/false);
