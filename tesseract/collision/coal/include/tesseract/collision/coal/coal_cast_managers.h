@@ -103,6 +103,8 @@ public:
                           const tesseract::common::VectorIsometry3d& shape_poses,
                           bool enabled = true) override final;
 
+  bool addCollisionObjects(const std::vector<CollisionObjectSpec>& objects) override final;
+
   const CollisionShapesConst& getCollisionObjectGeometries(const tesseract::common::LinkId& id) const override final;
 
   const tesseract::common::VectorIsometry3d&
@@ -111,6 +113,8 @@ public:
   bool hasCollisionObject(const tesseract::common::LinkId& id) const override final;
 
   bool removeCollisionObject(const tesseract::common::LinkId& id) override final;
+
+  bool removeCollisionObjects(const std::vector<tesseract::common::LinkId>& ids) override final;
 
   bool enableCollisionObject(const tesseract::common::LinkId& id) override final;
 
@@ -196,6 +200,11 @@ private:
 
   /**
    * @brief Bulk-add collision objects using balanced tree construction.
+   *
+   * This is the backend-side primitive; it assumes fresh, deduplicated ids. The public
+   * addCollisionObjects(const std::vector<CollisionObjectSpec>&) overload is the one that honours the
+   * single-object contract.
+   *
    * @param cows Collision objects to add. The manager adopts this order: it is the order the
    *             objects are registered with the broadphase and the order getCollisionObjects()
    *             reports, so a caller reproducing another manager's contents must supply them in

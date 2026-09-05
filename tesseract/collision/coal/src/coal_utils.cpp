@@ -1146,6 +1146,42 @@ COW::Ptr createCoalCollisionObject(const tesseract::common::LinkId& id,
   return new_cow;
 }
 
+bool buildCoalCollisionObjects(const std::vector<CollisionObjectSpec>& objects, std::vector<COW::Ptr>& cows)
+{
+  cows.clear();
+  cows.reserve(objects.size());
+
+  std::unordered_map<tesseract::common::LinkId, std::size_t> batch_index;
+  batch_index.reserve(objects.size());
+
+  bool success{ true };
+  for (const auto& obj : objects)
+  {
+    // Drop any earlier wrapper for this id, so the last spec naming it decides both the wrapper and the
+    // position. The hole is compacted away below rather than erased here, which would be O(n) per repeat.
+    const auto it = batch_index.find(obj.id);
+    if (it != batch_index.end())
+    {
+      cows[it->second] = nullptr;
+      batch_index.erase(it);
+    }
+
+    const COW::Ptr new_cow = createCoalCollisionObject(obj.id, obj.mask_id, obj.shapes, obj.shape_poses, obj.enabled);
+    if (new_cow == nullptr)
+    {
+      success = false;
+      continue;
+    }
+
+    batch_index[obj.id] = cows.size();
+    cows.push_back(new_cow);
+  }
+
+  cows.erase(std::remove(cows.begin(), cows.end(), nullptr), cows.end());
+
+  return success;
+}
+
 /** @brief Tolerance for transform comparison to avoid unnecessary BVH re-balancing */
 static constexpr double kTransformEpsilon = 1e-8;
 

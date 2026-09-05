@@ -40,8 +40,11 @@
 #include <tesseract/common/macros.h>
 TESSERACT_COMMON_IGNORE_WARNINGS_PUSH
 #include <coal/broadphase/broadphase_dynamic_AABB_tree.h>
+#include <algorithm>
 #include <stdexcept>
 #include <string>
+#include <unordered_set>
+#include <vector>
 TESSERACT_COMMON_IGNORE_WARNINGS_POP
 
 #include <tesseract/collision/coal/coal_collision_geometry_cache.h>
@@ -74,6 +77,9 @@ DiscreteContactManager::UPtr CoalDiscreteBVHManager::clone() const
     cloned_cows.push_back(link2cow_.at(id)->clone());
 
   manager->setCollisionMarginData(contact_test_data_.collision_margin_data);
+  // The refit is deferred to the setActiveCollisionObjects below, which rebuilds both trees before any query.
+  // FCL's clone deliberately does not defer, because on that backend the two build orders produce measurably
+  // different normals; see the note in FCLDiscreteBVHManager::clone.
   manager->addCollisionObjects(cloned_cows, /*defer_update=*/true);
   manager->setActiveCollisionObjects(active_);
   manager->setContactAllowedValidator(contact_test_data_.validator);
@@ -98,6 +104,29 @@ bool CoalDiscreteBVHManager::addCollisionObject(const tesseract::common::LinkId&
   }
 
   return false;
+}
+
+bool CoalDiscreteBVHManager::addCollisionObjects(const std::vector<CollisionObjectSpec>& objects)
+{
+  std::vector<COW::Ptr> cows;
+  const bool success = buildCoalCollisionObjects(objects, cows);
+
+  // The primitive does not displace an already-registered object, so do here what the single-object entry point
+  // does. Skipping this orphans the old object's broadphase proxy. Every id the batch names is removed, including
+  // one whose spec failed to build: the single-object form removes before it creates, so a failed spec leaves that
+  // id unregistered. Bulk removal skips the ids it does not hold, so the batch is passed whole and its return,
+  // which reports only those absences, is not the return of this call.
+  std::vector<tesseract::common::LinkId> displaced;
+  displaced.reserve(objects.size());
+  for (const auto& obj : objects)
+    displaced.push_back(obj.id);
+
+  removeCollisionObjects(displaced);
+
+  if (!cows.empty())
+    addCollisionObjects(cows, /*defer_update=*/false);
+
+  return success;
 }
 
 const CollisionShapesConst&
@@ -138,6 +167,59 @@ bool CoalDiscreteBVHManager::removeCollisionObject(const tesseract::common::Link
   }
 
   return false;
+}
+
+bool CoalDiscreteBVHManager::removeCollisionObjects(const std::vector<tesseract::common::LinkId>& ids)
+{
+  std::vector<CollisionObjectPtr> static_objs;
+  std::vector<CollisionObjectPtr> dynamic_objs;
+  std::vector<CollisionObjectPtr> all_objs;
+  std::unordered_set<tesseract::common::LinkId> removed;
+  removed.reserve(ids.size());
+
+  bool success{ true };
+  for (const auto& id : ids)
+  {
+    auto it = link2cow_.find(id);
+    if (it == link2cow_.end())
+    {
+      success = false;
+      continue;
+    }
+
+    const std::vector<CollisionObjectPtr>& objects = it->second->getCollisionObjects();
+    coal_co_count_ -= objects.size();
+
+    // Add registers a static link in the static tree and any other link in the dynamic tree. Removal must ask the
+    // same question, or unregisterObjects removes a null node from the tree that does not hold the object.
+    auto& target = isStatic(*it->second) ? static_objs : dynamic_objs;
+    target.insert(target.end(), objects.begin(), objects.end());
+    all_objs.insert(all_objs.end(), objects.begin(), objects.end());
+
+    removed.insert(id);
+    link2cow_.erase(it);
+    active_.erase(id);
+  }
+
+  if (removed.empty())
+    return success;
+
+  // One pass over collision_objects_, preserving the order of the survivors.
+  collision_objects_.erase(
+      std::remove_if(collision_objects_.begin(),
+                     collision_objects_.end(),
+                     [&removed](const tesseract::common::LinkId& id) { return removed.find(id) != removed.end(); }),
+      collision_objects_.end());
+
+  if (!static_objs.empty())
+    unregisterObjects(static_objs, *static_manager_);
+  if (!dynamic_objs.empty())
+    unregisterObjects(dynamic_objs, *dynamic_manager_);
+
+  // A cache pass is linear in the whole cache, so the batch takes one instead of one per link.
+  invalidateCacheFor(collision_cache, all_objs);
+
+  return success;
 }
 
 bool CoalDiscreteBVHManager::enableCollisionObject(const tesseract::common::LinkId& id)

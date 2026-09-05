@@ -245,6 +245,21 @@ COW::Ptr createCoalCollisionObject(const tesseract::common::LinkId& id,
                                    const tesseract::common::VectorIsometry3d& shape_poses,
                                    bool enabled);
 
+/**
+ * @brief Build the collision object wrappers for a batch of specs
+ *
+ * Reproduces the per-id semantics of adding the specs one at a time: a repeated id displaces its earlier
+ * entry, so the last spec naming an id decides both the wrapper and its position in @p cows, and an id whose
+ * last spec fails to build gets no entry at all even when an earlier spec for it succeeded. The caller still
+ * owes the manager side of that contract: every id named by @p objects must be removed from the manager
+ * before @p cows is registered, including the ids that produced no wrapper.
+ *
+ * @param objects The specs to build, in the caller's order
+ * @param cows Cleared, then filled with the wrappers in the order the manager must register them
+ * @return False if any spec failed to produce a wrapper
+ */
+bool buildCoalCollisionObjects(const std::vector<CollisionObjectSpec>& objects, std::vector<COW::Ptr>& cows);
+
 /** @brief Check if two transforms differ beyond the tolerance threshold */
 bool transformChanged(const Eigen::Isometry3d& a, const Eigen::Isometry3d& b);
 
