@@ -174,10 +174,10 @@ public:
   /** @brief Get a link's cast wrapper, or nullptr when the link has none
    *
    *  @warning The returned pointer is invalidated by a subsequent addCollisionObject,
-   *  addCollisionObjects or removeCollisionObject on the same link, and by setActiveCollisionObjects
-   *  when it promotes a link whose cast shapes were still deferred, since building them replaces the
-   *  wrapper. Constness stops at the wrapper: its collisionGeometryPtr() still yields a mutable,
-   *  shared coal::CollisionGeometry*. */
+   *  addCollisionObjects, removeCollisionObject or removeCollisionObjects on the same link, and by
+   *  setActiveCollisionObjects when it promotes a link whose cast shapes were still deferred, since
+   *  building them replaces the wrapper. Constness stops at the wrapper: its collisionGeometryPtr()
+   *  still yields a mutable, shared coal::CollisionGeometry*. */
   const CollisionObjectWrapper* getCastCollisionObject(const tesseract::common::LinkId& id) const;
 
   /** @brief Get the number of entries in the narrowphase collision cache, otherwise unobservable
