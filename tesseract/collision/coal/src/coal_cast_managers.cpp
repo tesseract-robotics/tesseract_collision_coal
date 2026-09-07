@@ -52,6 +52,7 @@ TESSERACT_COMMON_IGNORE_WARNINGS_POP
 #include <tesseract/collision/coal/coal_collision_geometry_cache.h>
 #include <tesseract/collision/coal/coal_casthullshape.h>
 #include <tesseract/collision/coal/coal_utils.h>
+#include <tesseract/common/utils.h>
 
 namespace tesseract::collision::tesseract_collision_coal
 {
@@ -626,7 +627,7 @@ void CoalCastBVHManager::appendCastBroadphaseUpdate(COW& cast_cow)
 bool CoalCastBVHManager::collectRegularTransformUpdate(COW& reg_cow, const Eigen::Isometry3d& pose)
 {
   const Eigen::Isometry3d& cur_tf = reg_cow.getCollisionObjectsTransform();
-  if (!transformChanged(cur_tf, pose))
+  if (tesseract::common::almostEqualRelativeAndAbs(cur_tf, pose))
     return false;
 
   reg_cow.gjk_generation_++;
@@ -859,7 +860,7 @@ void CoalCastBVHManager::collectCastTransformUpdate(Link2COW::iterator cast_it,
   {
     // Ahead of the write: cur_tf aliases the wrapper's stored pose, so comparing after it would compare
     // pose1 against itself.
-    if (transformChanged(cur_tf, pose1))
+    if (!tesseract::common::almostEqualRelativeAndAbs(cur_tf, pose1))
       cow->gjk_generation_++;
     cow->setCollisionObjectsTransform(pose1);
     return;
@@ -872,7 +873,7 @@ void CoalCastBVHManager::collectCastTransformUpdate(Link2COW::iterator cast_it,
     return;
 
   // The sweep write is unconditional, so it leads the disjunction rather than being short-circuited away.
-  if (updateCastShapeTransforms(*cow, pose1, pose2) || transformChanged(cur_tf, pose1))
+  if (updateCastShapeTransforms(*cow, pose1, pose2) || !tesseract::common::almostEqualRelativeAndAbs(cur_tf, pose1))
     cow->gjk_generation_++;
 
   // Re-apply world transform so CoalCollisionObjectWrapper::updateAABB uses the

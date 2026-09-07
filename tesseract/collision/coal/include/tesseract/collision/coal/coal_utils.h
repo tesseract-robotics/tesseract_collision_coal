@@ -260,9 +260,6 @@ COW::Ptr createCoalCollisionObject(const tesseract::common::LinkId& id,
  */
 bool buildCoalCollisionObjects(const std::vector<CollisionObjectSpec>& objects, std::vector<COW::Ptr>& cows);
 
-/** @brief Check if two transforms differ beyond the tolerance threshold */
-bool transformChanged(const Eigen::Isometry3d& a, const Eigen::Isometry3d& b);
-
 /**
  * @brief Apply the collision filter mask based on the current filter group.
  *

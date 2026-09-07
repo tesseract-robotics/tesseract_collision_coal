@@ -1182,15 +1182,6 @@ bool buildCoalCollisionObjects(const std::vector<CollisionObjectSpec>& objects, 
   return success;
 }
 
-/** @brief Tolerance for transform comparison to avoid unnecessary BVH re-balancing */
-static constexpr double kTransformEpsilon = 1e-8;
-
-bool transformChanged(const Eigen::Isometry3d& a, const Eigen::Isometry3d& b)
-{
-  return !a.translation().isApprox(b.translation(), kTransformEpsilon) ||
-         !a.rotation().isApprox(b.rotation(), kTransformEpsilon);
-}
-
 bool isStatic(const COW& cow) { return cow.m_collisionFilterGroup == CollisionFilterGroups::StaticFilter; }
 
 bool isKinematic(const COW& cow) { return !isStatic(cow); }

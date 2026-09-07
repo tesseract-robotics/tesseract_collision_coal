@@ -49,6 +49,7 @@ TESSERACT_COMMON_IGNORE_WARNINGS_POP
 
 #include <tesseract/collision/coal/coal_collision_geometry_cache.h>
 #include <tesseract/collision/coal/coal_discrete_managers.h>
+#include <tesseract/common/utils.h>
 
 namespace tesseract::collision::tesseract_collision_coal
 {
@@ -469,7 +470,7 @@ void CoalDiscreteBVHManager::addCollisionObjects(const std::vector<COW::Ptr>& co
 void CoalDiscreteBVHManager::collectTransformUpdate(Link2COW::iterator it, const Eigen::Isometry3d& pose)
 {
   const Eigen::Isometry3d& cur_tf = it->second->getCollisionObjectsTransform();
-  if (transformChanged(cur_tf, pose))
+  if (!tesseract::common::almostEqualRelativeAndAbs(cur_tf, pose))
   {
     it->second->gjk_generation_++;
     it->second->setCollisionObjectsTransform(pose);

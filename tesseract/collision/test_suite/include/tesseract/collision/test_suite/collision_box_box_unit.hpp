@@ -208,12 +208,17 @@ inline void runTestTyped(DiscreteContactManager& checker, ContactTestType test_t
   EXPECT_NEAR(result_vector[0].normal[1], idx[2] * 0.0, 0.001);
   EXPECT_NEAR(result_vector[0].normal[2], idx[2] * 0.0, 0.001);
 
+  // At exactly 1.60 the box separation ties the contact distance and Coal reports the pair, so both
+  // out-of-range cases below stand off by a hair. The offset must also exceed the setters'
+  // unchanged-transform tolerance, or the second case silently inherits the first case's pose instead
+  // of applying its own.
+  const Eigen::Vector3d outside_contact_distance(1.60 + 1e-6, 0, 0);
+
   ////////////////////////////////////////////////
   // Test object is outside the contact distance
   ////////////////////////////////////////////////
   {
-    // location["box_link"].translation() = Eigen::Vector3d(1.60, 0, 0);
-    location["box_link"].translation() = Eigen::Vector3d(1.60 + 1e-10, 0, 0);
+    location["box_link"].translation() = outside_contact_distance;
     result.clear();
     result_vector.clear();
 
@@ -236,7 +241,7 @@ inline void runTestTyped(DiscreteContactManager& checker, ContactTestType test_t
 
     EXPECT_EQ(checker.getCollisionMarginData().getMaxCollisionMargin(), 1.7);
     EXPECT_NEAR(checker.getCollisionMarginData().getCollisionMargin("box_link", "second_box_link"), 0.1, 1e-5);
-    location["box_link"].translation() = Eigen::Vector3d(1.60, 0, 0);
+    location["box_link"].translation() = outside_contact_distance;
     result.clear();
     result_vector.clear();
 
