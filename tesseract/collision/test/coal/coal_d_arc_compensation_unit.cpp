@@ -13,6 +13,9 @@ TESSERACT_COMMON_IGNORE_WARNINGS_POP
 #include <tesseract/collision/coal/coal_cast_managers.h>
 #include <tesseract/collision/coal/coal_casthullshape.h>
 #include <tesseract/collision/coal/coal_factories.h>
+#include <tesseract/collision/contact_managers_plugin_factory.h>
+#include <tesseract/collision/continuous_contact_manager.h>
+#include <tesseract/common/resource_locator.h>
 #include <tesseract/collision/test_suite/collision_cast_scenario_unit.hpp>
 #include <tesseract/geometry/geometries.h>
 
@@ -600,6 +603,60 @@ TEST(CoalDArcCompensationUnit, OctreeVoxelBoxesAreBounded)  // NOLINT
   const double ssr = cast_shape->getSweptSphereRadius();
   EXPECT_TRUE(std::isfinite(ssr)) << "d_arc came out " << ssr;
   EXPECT_GT(ssr, 0.0);
+}
+
+/// Verify the plugin factory accepts a Coal cast plugin carrying d_arc_compensation.
+TEST(CoalDArcCompensationUnit, PluginFactoryAcceptsCastConfig)  // NOLINT
+{
+  std::string config = R"(contact_manager_plugins:
+                            search_paths:
+                              - /usr/local/lib
+                            search_libraries:
+                              - tesseract_collision_coal_coal_factories
+                            continuous_plugins:
+                              default: CoalCastBVHManager
+                              plugins:
+                                CoalCastBVHManager:
+                                  class: CoalCastBVHManagerFactory
+                                  config:
+                                    d_arc_compensation: true)";
+
+  tesseract::common::GeneralResourceLocator locator;
+  ContactManagersPluginFactory factory(config, locator);
+
+  ContinuousContactManager::UPtr cm = factory.createContinuousContactManager("CoalCastBVHManager");
+  ASSERT_NE(cm, nullptr);
+  EXPECT_EQ(cm->getName(), "CoalCastBVHManager");
+}
+
+/// Verify the registered schema type-checks d_arc_compensation rather than passing it through.
+TEST(CoalDArcCompensationUnit, PluginFactoryRejectsNonBooleanCastConfig)  // NOLINT
+{
+  std::string config = R"(contact_manager_plugins:
+                            search_paths:
+                              - /usr/local/lib
+                            search_libraries:
+                              - tesseract_collision_coal_coal_factories
+                            continuous_plugins:
+                              default: CoalCastBVHManager
+                              plugins:
+                                CoalCastBVHManager:
+                                  class: CoalCastBVHManagerFactory
+                                  config:
+                                    d_arc_compensation: not_a_bool)";
+
+  tesseract::common::GeneralResourceLocator locator;
+  try
+  {
+    const ContactManagersPluginFactory factory(config, locator);
+    FAIL() << "Expected configuration validation to reject a non-boolean d_arc_compensation";
+  }
+  catch (const std::runtime_error& error)
+  {
+    const std::string message = error.what();
+    EXPECT_NE(message.find("Configuration validation failed"), std::string::npos) << message;
+    EXPECT_NE(message.find("continuous_plugins.plugins[CoalCastBVHManager].config"), std::string::npos) << message;
+  }
 }
 
 int main(int argc, char** argv)

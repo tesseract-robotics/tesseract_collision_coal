@@ -98,6 +98,8 @@ add_gtest(${PROJECT_NAME}_coal_deferred_cast_shape_unit coal/coal_deferred_cast_
 add_gtest(${PROJECT_NAME}_coal_static_mesh_cast_unit coal/coal_static_mesh_cast_unit.cpp)
 add_gtest(${PROJECT_NAME}_coal_d_arc_compensation_unit coal/coal_d_arc_compensation_unit.cpp)
 target_link_libraries(${PROJECT_NAME}_coal_d_arc_compensation_unit PRIVATE ${PROJECT_NAME}_coal_factories)
+add_gtest(${PROJECT_NAME}_coal_factory_schema_unit coal/coal_factory_schema_unit.cpp)
+target_link_libraries(${PROJECT_NAME}_coal_factory_schema_unit PRIVATE ${PROJECT_NAME}_coal_factories)
 add_gtest(${PROJECT_NAME}_coal_margin_on_add_unit coal/coal_margin_on_add_unit.cpp)
 add_gtest(${PROJECT_NAME}_coal_transform_overload_contract_unit coal/coal_transform_overload_contract_unit.cpp)
 add_gtest(${PROJECT_NAME}_coal_filter_group_removal_unit coal/coal_filter_group_removal_unit.cpp)
@@ -108,4 +110,4 @@ add_gtest(${PROJECT_NAME}_cast_static_broadphase_unit collision_cast_static_broa
 add_gtest(${PROJECT_NAME}_cast_cctype_unit collision_cast_cctype_unit.cpp)
 
 add_gtest(${PROJECT_NAME}_factory_static_unit contact_managers_factory_static_unit.cpp)
-target_link_libraries(${PROJECT_NAME}_factory_static_unit PRIVATE tesseract::collision_bullet)
+target_link_libraries(${PROJECT_NAME}_factory_static_unit PRIVATE ${PROJECT_NAME}_coal_factories)

@@ -27,6 +27,31 @@
 #include <tesseract/collision/coal/coal_cast_managers.h>
 #include <tesseract/collision/coal/coal_utils.h>
 #include <tesseract/collision/discrete_contact_manager.h>
+#include <tesseract/common/schema_registration.h>
+#include <tesseract/common/property_tree.h>
+
+namespace
+{
+/** @brief The only key CoalCastBVHManagerFactory accepts; the schema and create must agree on it */
+constexpr const char* kDArcCompensationKey = "d_arc_compensation";
+
+tesseract::common::PropertyTree coalDiscreteBVHManagerFactorySchema()
+{
+  return tesseract::common::PropertyTreeBuilder().build();
+}
+
+tesseract::common::PropertyTree coalCastBVHManagerFactorySchema()
+{
+  // clang-format off
+  return tesseract::common::PropertyTreeBuilder()
+      .attribute(tesseract::common::property_attribute::TYPE, tesseract::common::property_type::CONTAINER)
+      .boolean(kDArcCompensationKey)
+          .defaultVal(tesseract::collision::tesseract_collision_coal::kDefaultDArcCompensation)
+          .done()
+      .build();
+  // clang-format on
+}
+}  // namespace
 
 namespace tesseract::collision::tesseract_collision_coal
 {
@@ -39,6 +64,13 @@ T getConfigValue(const YAML::Node& config, const char* key, T default_value)
   return default_value;
 }
 
+tesseract::common::PropertyTree CoalDiscreteBVHManagerFactory::schema() const
+{
+  return coalDiscreteBVHManagerFactorySchema();
+}
+
+tesseract::common::PropertyTree CoalCastBVHManagerFactory::schema() const { return coalCastBVHManagerFactorySchema(); }
+
 std::unique_ptr<tesseract::collision::DiscreteContactManager>
 CoalDiscreteBVHManagerFactory::create(const std::string& name, const YAML::Node& /*config*/) const
 {
@@ -49,7 +81,7 @@ std::unique_ptr<tesseract::collision::ContinuousContactManager>
 CoalCastBVHManagerFactory::create(const std::string& name, const YAML::Node& config) const
 {
   return std::make_unique<CoalCastBVHManager>(name,
-                                              getConfigValue(config, "d_arc_compensation", kDefaultDArcCompensation));
+                                              getConfigValue(config, kDArcCompensationKey, kDefaultDArcCompensation));
 }
 
 PLUGIN_ANCHOR_IMPL(CoalFactoriesAnchor)  // LCOV_EXCL_LINE
@@ -62,3 +94,11 @@ TESSERACT_ADD_DISCRETE_MANAGER_PLUGIN(tesseract::collision::tesseract_collision_
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 TESSERACT_ADD_CONTINUOUS_MANAGER_PLUGIN(tesseract::collision::tesseract_collision_coal::CoalCastBVHManagerFactory,
                                         CoalCastBVHManagerFactory);
+
+TESSERACT_SCHEMA_REGISTER(CoalDiscreteBVHManagerFactory, coalDiscreteBVHManagerFactorySchema);
+TESSERACT_SCHEMA_REGISTER_DERIVED_TYPE(tesseract::collision::DiscreteContactManagerFactory,
+                                       CoalDiscreteBVHManagerFactory);
+
+TESSERACT_SCHEMA_REGISTER(CoalCastBVHManagerFactory, coalCastBVHManagerFactorySchema);
+TESSERACT_SCHEMA_REGISTER_DERIVED_TYPE(tesseract::collision::ContinuousContactManagerFactory,
+                                       CoalCastBVHManagerFactory);
