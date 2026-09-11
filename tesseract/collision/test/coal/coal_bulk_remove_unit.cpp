@@ -167,7 +167,10 @@ void runBulkRemoveMixedRoutingTest()
   {
     const std::string first = contact.link_ids[0].name();
     const std::string second = contact.link_ids[1].name();
-    pairs.insert((first < second) ? (first + "|" + second) : (second + "|" + first));
+    std::string key = (first < second) ? first : second;
+    key += '|';
+    key += (first < second) ? second : first;
+    pairs.insert(std::move(key));
   }
 
   EXPECT_EQ(pairs, std::set<std::string>{ "kinematic_kept|static_kept" });

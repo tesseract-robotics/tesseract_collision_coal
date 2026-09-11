@@ -77,7 +77,10 @@ std::vector<std::string> contactPairs(const ContactResultMap& result)
   {
     const std::string first = contact.link_ids[0].name();
     const std::string second = contact.link_ids[1].name();
-    pairs.push_back(first < second ? first + "|" + second : second + "|" + first);
+    std::string key = (first < second) ? first : second;
+    key += '|';
+    key += (first < second) ? second : first;
+    pairs.push_back(std::move(key));
   }
 
   std::sort(pairs.begin(), pairs.end());
