@@ -162,6 +162,8 @@ TEST(CoalFactorySchemaUnit, CastFactorySchemaDeclaresDArcCompensation)  // NOLIN
   ASSERT_EQ(schema.size(), 1U);
   const auto default_value = schema.at("d_arc_compensation").getAttribute(property_attribute::DEFAULT);
   ASSERT_TRUE(default_value.has_value());
+  // ASSERT_TRUE returns on failure, but bugprone-unchecked-optional-access cannot see that through the macro
+  // NOLINTNEXTLINE(bugprone-unchecked-optional-access)
   EXPECT_EQ(default_value->as<bool>(), tesseract::collision::tesseract_collision_coal::kDefaultDArcCompensation);
 }
 
