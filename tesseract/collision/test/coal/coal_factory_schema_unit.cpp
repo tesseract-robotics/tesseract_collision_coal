@@ -34,6 +34,7 @@ TESSERACT_COMMON_IGNORE_WARNINGS_POP
 #include <tesseract/common/yaml_extensions.h>
 #include <tesseract/collision/coal/coal_factories.h>
 #include <tesseract/collision/coal/coal_utils.h>
+#include <tesseract/collision/continuous_contact_manager.h>
 
 using namespace tesseract::common;
 
@@ -64,8 +65,7 @@ TEST(CoalFactorySchemaUnit, DiscreteAcceptsNoConfig)  // NOLINT
           class: CoalDiscreteBVHManagerFactory
   )");
 
-  schema.mergeConfig(config);
-  auto errors = schema.validate();
+  auto errors = schema.applyConfig(config);
   EXPECT_TRUE(errors.empty()) << joinErrors(errors);
 }
 
@@ -83,8 +83,7 @@ TEST(CoalFactorySchemaUnit, CastAcceptsDArcCompensation)  // NOLINT
             d_arc_compensation: true
   )");
 
-  schema.mergeConfig(config);
-  auto errors = schema.validate();
+  auto errors = schema.applyConfig(config);
   EXPECT_TRUE(errors.empty()) << joinErrors(errors);
 }
 
@@ -100,8 +99,7 @@ TEST(CoalFactorySchemaUnit, CastAcceptsOmittedConfig)  // NOLINT
           class: CoalCastBVHManagerFactory
   )");
 
-  schema.mergeConfig(config);
-  auto errors = schema.validate();
+  auto errors = schema.applyConfig(config);
   EXPECT_TRUE(errors.empty()) << joinErrors(errors);
 }
 
@@ -120,8 +118,7 @@ TEST(CoalFactorySchemaUnit, CastRejectsNonBooleanDArcCompensation)  // NOLINT
             d_arc_compensation: not_a_bool
   )");
 
-  schema.mergeConfig(config);
-  auto errors = schema.validate();
+  auto errors = schema.applyConfig(config);
   ASSERT_FALSE(errors.empty());
   // Naming the key proves the rejection came from the type check, not from the factory being unregistered
   const std::string message = joinErrors(errors);
@@ -143,13 +140,46 @@ TEST(CoalFactorySchemaUnit, CastRejectsUnknownConfigKey)  // NOLINT
             not_a_real_key: true
   )");
 
-  schema.mergeConfig(config);
-  auto errors = schema.validate();
+  auto errors = schema.applyConfig(config);
   ASSERT_FALSE(errors.empty());
   // Naming the key proves the rejection came from the extra-property check, not from the factory
   // being unregistered
   const std::string message = joinErrors(errors);
   EXPECT_NE(message.find("config: not_a_real_key"), std::string::npos) << message;
+}
+
+TEST(CoalFactorySchemaUnit, CastFactoryCreateRejectsUnknownConfigKey)  // NOLINT
+{
+  const tesseract::collision::tesseract_collision_coal::CoalCastBVHManagerFactory factory;
+  const YAML::Node config = YAML::Load("not_a_real_key: true");
+
+  try
+  {
+    static_cast<void>(factory.create("invalid", config));
+    FAIL() << "Expected schema validation to reject an undeclared key";
+  }
+  catch (const PropertyTreeValidationError& exception)
+  {
+    const std::string message = exception.what();
+    EXPECT_NE(message.find("not_a_real_key"), std::string::npos) << message;
+  }
+}
+
+TEST(CoalFactorySchemaUnit, CastFactoryCreateRejectsNonBooleanDArcCompensation)  // NOLINT
+{
+  const tesseract::collision::tesseract_collision_coal::CoalCastBVHManagerFactory factory;
+  const YAML::Node config = YAML::Load("d_arc_compensation: not_a_bool");
+
+  try
+  {
+    static_cast<void>(factory.create("invalid", config));
+    FAIL() << "Expected schema validation to reject a non-boolean d_arc_compensation";
+  }
+  catch (const PropertyTreeValidationError& exception)
+  {
+    const std::string message = exception.what();
+    EXPECT_NE(message.find("d_arc_compensation"), std::string::npos) << message;
+  }
 }
 
 TEST(CoalFactorySchemaUnit, CastFactorySchemaDeclaresDArcCompensation)  // NOLINT

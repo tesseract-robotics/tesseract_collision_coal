@@ -32,7 +32,7 @@
 
 namespace
 {
-/** @brief The only key CoalCastBVHManagerFactory accepts; the schema and create must agree on it */
+/** @brief The only key CoalCastBVHManagerFactory accepts; the schema and createImpl must agree on it */
 constexpr const char* kDArcCompensationKey = "d_arc_compensation";
 
 tesseract::common::PropertyTree coalDiscreteBVHManagerFactorySchema()
@@ -55,15 +55,6 @@ tesseract::common::PropertyTree coalCastBVHManagerFactorySchema()
 
 namespace tesseract::collision::tesseract_collision_coal
 {
-template <typename T>
-T getConfigValue(const YAML::Node& config, const char* key, T default_value)
-{
-  if (!config.IsNull())
-    if (YAML::Node n = config[key])
-      return n.as<T>();
-  return default_value;
-}
-
 tesseract::common::PropertyTree CoalDiscreteBVHManagerFactory::schema() const
 {
   return coalDiscreteBVHManagerFactorySchema();
@@ -72,16 +63,21 @@ tesseract::common::PropertyTree CoalDiscreteBVHManagerFactory::schema() const
 tesseract::common::PropertyTree CoalCastBVHManagerFactory::schema() const { return coalCastBVHManagerFactorySchema(); }
 
 std::unique_ptr<tesseract::collision::DiscreteContactManager>
-CoalDiscreteBVHManagerFactory::create(const std::string& name, const YAML::Node& /*config*/) const
+CoalDiscreteBVHManagerFactory::createImpl(const std::string& name,
+                                          const tesseract::common::PropertyTree& /*config*/) const
 {
   return std::make_unique<CoalDiscreteBVHManager>(name);
 }
 
 std::unique_ptr<tesseract::collision::ContinuousContactManager>
-CoalCastBVHManagerFactory::create(const std::string& name, const YAML::Node& config) const
+CoalCastBVHManagerFactory::createImpl(const std::string& name, const tesseract::common::PropertyTree& config) const
 {
-  return std::make_unique<CoalCastBVHManager>(name,
-                                              getConfigValue(config, kDArcCompensationKey, kDefaultDArcCompensation));
+  // A null config leaves the schema default unapplied, so fall back to it here
+  bool d_arc_compensation{ kDefaultDArcCompensation };
+  if (const auto* value = config.find(kDArcCompensationKey); value != nullptr && !value->isNull())
+    d_arc_compensation = value->as<bool>();
+
+  return std::make_unique<CoalCastBVHManager>(name, d_arc_compensation);
 }
 
 PLUGIN_ANCHOR_IMPL(CoalFactoriesAnchor)  // LCOV_EXCL_LINE

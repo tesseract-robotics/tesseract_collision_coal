@@ -300,7 +300,7 @@ TEST(CoalDArcCompensationUnit, FactoryParsesConfig)  // NOLINT
   EXPECT_GT(cast_shape->getSweptSphereRadius(), 0.0);
 }
 
-/// Verify factory defaults to disabled when config is null or key is missing.
+/// Verify factory defaults to disabled when config is null or an empty map.
 TEST(CoalDArcCompensationUnit, FactoryDefaultsToDisabled)  // NOLINT
 {
   // Null config
@@ -327,10 +327,9 @@ TEST(CoalDArcCompensationUnit, FactoryDefaultsToDisabled)  // NOLINT
     EXPECT_DOUBLE_EQ(cast_shape->getSweptSphereRadius(), 0.0);
   }
 
-  // Missing key
+  // Empty map: the schema supplies the default
   {
-    YAML::Node config;
-    config["some_other_key"] = 42;
+    YAML::Node config(YAML::NodeType::Map);
     CoalCastBVHManagerFactory factory;
     auto mgr_base = factory.create("test", config);
     auto* mgr = dynamic_cast<CoalCastBVHManager*>(mgr_base.get());

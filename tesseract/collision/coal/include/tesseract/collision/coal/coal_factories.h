@@ -43,9 +43,11 @@ namespace tesseract::collision::tesseract_collision_coal
 class CoalDiscreteBVHManagerFactory : public DiscreteContactManagerFactory
 {
 public:
-  std::unique_ptr<DiscreteContactManager> create(const std::string& name,
-                                                 const YAML::Node& config) const override final;
   tesseract::common::PropertyTree schema() const override;
+
+protected:
+  std::unique_ptr<DiscreteContactManager>
+  createImpl(const std::string& name, const tesseract::common::PropertyTree& config) const override final;
 };
 
 /**
@@ -65,9 +67,11 @@ public:
 class CoalCastBVHManagerFactory : public ContinuousContactManagerFactory
 {
 public:
-  std::unique_ptr<ContinuousContactManager> create(const std::string& name,
-                                                   const YAML::Node& config) const override final;
   tesseract::common::PropertyTree schema() const override;
+
+protected:
+  std::unique_ptr<ContinuousContactManager>
+  createImpl(const std::string& name, const tesseract::common::PropertyTree& config) const override final;
 };
 
 PLUGIN_ANCHOR_DECL(CoalFactoriesAnchor)
