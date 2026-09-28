@@ -22,7 +22,6 @@ macro(add_benchmark benchmark_name benchmark_file)
     tesseract::collision_fcl
     tesseract::geometry
     tesseract::scene_graph
-    console_bridge::console_bridge
     ${Boost_LIBRARIES}
     octomap
     octomath

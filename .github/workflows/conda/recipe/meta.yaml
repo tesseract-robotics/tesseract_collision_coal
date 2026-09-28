@@ -26,7 +26,7 @@ requirements:
       - cereal
       - eigen 
       - tinyxml2
-      - console_bridge
+      - spdlog
       - assimp
       - urdfdom
       - fcl
@@ -49,7 +49,7 @@ requirements:
       - cereal
       - eigen 
       - tinyxml2
-      - console_bridge
+      - spdlog
       - assimp
       - urdfdom
       - fcl

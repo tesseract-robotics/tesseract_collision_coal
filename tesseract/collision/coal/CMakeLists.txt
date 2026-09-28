@@ -18,7 +18,6 @@ target_link_libraries(
   PUBLIC Eigen3::Eigen
          boost_plugin_loader::boost_plugin_loader
          coal::coal
-         console_bridge::console_bridge
          octomap
          octomath
          tesseract::collision

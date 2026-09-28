@@ -33,7 +33,7 @@ configure_component(
   COMPONENT test_suite
   NAMESPACE tesseract
   TARGETS ${PROJECT_NAME}_test_suite ${PROJECT_NAME}_test_suite_benchmarks
-  DEPENDENCIES "tesseract COMPONENTS collision")
+  DEPENDENCIES "tesseract COMPONENTS collision common")
 
 if(TESSERACT_PACKAGE)
   cpack_component(
