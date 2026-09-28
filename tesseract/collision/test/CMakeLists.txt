@@ -92,7 +92,7 @@ add_gtest(${PROJECT_NAME}_coal_collision_geometry_cache_unit coal/coal_collision
 add_gtest(${PROJECT_NAME}_coal_utils_shape_conversion_unit coal/coal_utils_shape_conversion_unit.cpp)
 add_gtest(${PROJECT_NAME}_coal_collision_object_wrapper_unit coal/coal_collision_object_wrapper_unit.cpp)
 add_gtest(${PROJECT_NAME}_coal_vs_bullet_convex_cast_unit coal/coal_vs_bullet_convex_cast_unit.cpp)
-add_gtest(${PROJECT_NAME}_coal_cast_octree_normal_symmetry_unit coal/coal_cast_octree_normal_symmetry_unit.cpp)
+add_gtest(${PROJECT_NAME}_coal_cast_octree_leaf_seed_unit coal/coal_cast_octree_leaf_seed_unit.cpp)
 add_gtest(${PROJECT_NAME}_coal_batched_transform_unit coal/coal_batched_transform_unit.cpp)
 add_gtest(${PROJECT_NAME}_coal_deferred_cast_shape_unit coal/coal_deferred_cast_shape_unit.cpp)
 add_gtest(${PROJECT_NAME}_coal_static_mesh_cast_unit coal/coal_static_mesh_cast_unit.cpp)
