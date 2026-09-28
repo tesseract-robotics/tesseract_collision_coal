@@ -534,6 +534,8 @@ void getAverageSupportFromConvex(const ConvexT* convex,
  * traversal visits exactly that face. Matches Bullet's GetAverageSupport in
  * the practically-equivalent sense: identical for unique maxima and exact
  * ties; divergence bounded by COAL_EPSILON × face_extent in near-epsilon cases.
+ * Box, capsule, cone and cylinder resolve their axis-aligned ties by zeroing
+ * the components of the unit @p localNormal within COAL_EPSILON.
  *
  * @param hint In/out warm-start vertex index. On input, the starting vertex
  *             for hill-climb (typically the result of a previous call with a
@@ -550,6 +552,7 @@ void GetAverageSupport(const coal::ShapeBase* shape,
                        coal::details::ShapeSupportData& support_data,
                        bool use_flat)
 {
+  coal::Vec3s support_dir = localNormal;
   switch (shape->getNodeType())
   {
     case coal::GEOM_CONVEX32:
@@ -572,14 +575,23 @@ void GetAverageSupport(const coal::ShapeBase* shape,
       }
       break;
     }
+    case coal::GEOM_BOX:
+    case coal::GEOM_CAPSULE:
+    case coal::GEOM_CONE:
+    case coal::GEOM_CYLINDER:
+      // Coal returns the centre of these shapes' axis-aligned tied sets (a box face or edge, a
+      // capsule or cylinder side, a cylinder or cone cap) only for an exactly zero direction
+      // component, so solver noise in the normal would move the point to one end of the set. Zero
+      // every component of the unit normal within COAL_EPSILON.
+      support_dir = (support_dir.array().abs() <= COAL_EPSILON).select(0.0, support_dir);
+      break;
     default:
       break;
   }
 
-  // Primitive shapes (sphere, capsule, etc.) and empty convex fall here.
-  // WithSweptSphere ensures Sphere returns radius*normalize(dir) instead of
-  // zero (NoSweptSphere treats Sphere as a point + inflation).
-  outpt = coal::details::getSupport<coal::details::SupportOptions::WithSweptSphere>(shape, localNormal, hint);
+  // Primitives and empty convex fall here. WithSweptSphere ensures Sphere returns
+  // radius*normalize(dir) instead of zero (NoSweptSphere treats Sphere as a point + inflation).
+  outpt = coal::details::getSupport<coal::details::SupportOptions::WithSweptSphere>(shape, support_dir, hint);
   outsupport = localNormal.dot(outpt);
 }
 
