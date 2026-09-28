@@ -2,6 +2,7 @@
 TESSERACT_COMMON_IGNORE_WARNINGS_PUSH
 #include <gtest/gtest.h>
 #include <Eigen/Core>
+#include <octomap/OcTree.h>
 TESSERACT_COMMON_IGNORE_WARNINGS_POP
 
 #include <tesseract/collision/coal/coal_utils.h>
@@ -71,6 +72,16 @@ TEST(CoalUtilsShapeConversionUnit, EmptyConvexMeshReturnsNullptr)  // NOLINT
 
   CollisionGeometryPtr shape = createShapePrimitive(empty_convex_mesh);
   EXPECT_EQ(shape, nullptr);
+}
+
+TEST(CoalUtilsShapeConversionUnit, SphereOctreeSubTypeReturnsNullptr)  // NOLINT
+{
+  // Coal collides octree cells only as boxes.
+  using tesseract::geometry::Octree;
+  using tesseract::geometry::OctreeSubType;
+  auto octomap = std::make_shared<octomap::OcTree>(0.1);
+  EXPECT_EQ(createShapePrimitive(std::make_shared<Octree>(octomap, OctreeSubType::SPHERE_INSIDE)), nullptr);
+  EXPECT_EQ(createShapePrimitive(std::make_shared<Octree>(octomap, OctreeSubType::SPHERE_OUTSIDE)), nullptr);
 }
 
 TEST(CoalUtilsShapeConversionUnit, CreateShapePrimitiveComputesTheLocalAABB)  // NOLINT
