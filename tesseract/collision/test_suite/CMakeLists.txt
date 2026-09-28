@@ -1,6 +1,6 @@
 # Create test suite interface
 add_library(${PROJECT_NAME}_test_suite INTERFACE)
-target_link_libraries(${PROJECT_NAME}_test_suite INTERFACE Eigen3::Eigen tesseract::geometry)
+target_link_libraries(${PROJECT_NAME}_test_suite INTERFACE Eigen3::Eigen tesseract::common tesseract::geometry)
 target_compile_options(${PROJECT_NAME}_test_suite INTERFACE ${TESSERACT_COMPILE_OPTIONS_PUBLIC})
 target_compile_definitions(${PROJECT_NAME}_test_suite INTERFACE ${TESSERACT_COMPILE_DEFINITIONS_PUBLIC})
 target_cxx_version(${PROJECT_NAME}_test_suite INTERFACE VERSION ${TESSERACT_CXX_VERSION})
@@ -10,7 +10,8 @@ target_include_directories(${PROJECT_NAME}_test_suite INTERFACE "$<BUILD_INTERFA
 
 # Create test suite benchmarks interface
 add_library(${PROJECT_NAME}_test_suite_benchmarks INTERFACE)
-target_link_libraries(${PROJECT_NAME}_test_suite_benchmarks INTERFACE Eigen3::Eigen tesseract::geometry)
+target_link_libraries(${PROJECT_NAME}_test_suite_benchmarks INTERFACE Eigen3::Eigen tesseract::common
+                                                                      tesseract::geometry)
 target_compile_options(${PROJECT_NAME}_test_suite_benchmarks INTERFACE ${TESSERACT_COMPILE_OPTIONS_PUBLIC})
 target_cxx_version(${PROJECT_NAME}_test_suite_benchmarks INTERFACE VERSION ${TESSERACT_CXX_VERSION})
 target_clang_tidy(${PROJECT_NAME}_test_suite_benchmarks ENABLE ${TESSERACT_ENABLE_CLANG_TIDY})

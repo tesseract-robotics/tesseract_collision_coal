@@ -2,7 +2,7 @@ find_package(octomap REQUIRED)
 find_package(coal REQUIRED)
 
 find_package(boost_plugin_loader REQUIRED)
-find_package(tesseract REQUIRED COMPONENTS collision geometry)
+find_package(tesseract REQUIRED COMPONENTS collision common geometry)
 
 # Create target for Coal implementation
 add_library(
@@ -22,6 +22,7 @@ target_link_libraries(
          octomap
          octomath
          tesseract::collision
+         tesseract::common
          tesseract::geometry)
 target_compile_options(${PROJECT_NAME}_coal PRIVATE ${TESSERACT_COMPILE_OPTIONS_PRIVATE})
 target_compile_options(${PROJECT_NAME}_coal PUBLIC ${TESSERACT_COMPILE_OPTIONS_PUBLIC})

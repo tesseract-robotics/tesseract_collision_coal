@@ -51,7 +51,6 @@ TESSERACT_COMMON_IGNORE_WARNINGS_PUSH
 #include <algorithm>
 #include <array>
 #include <cmath>
-#include <console_bridge/console.h>
 #include <functional>
 #include <limits>
 #include <memory>
@@ -60,6 +59,7 @@ TESSERACT_COMMON_IGNORE_WARNINGS_PUSH
 #include <utility>
 TESSERACT_COMMON_IGNORE_WARNINGS_POP
 
+#include <tesseract/common/logging.h>
 #include <tesseract/collision/coal/coal_utils.h>
 #include <tesseract/collision/coal/coal_collision_geometry_cache.h>
 #include <tesseract/collision/coal/coal_casthullshape.h>
@@ -235,7 +235,7 @@ CollisionGeometryPtr createShapePrimitive(const tesseract::geometry::Mesh::Const
     return g;
   }
 
-  CONSOLE_BRIDGE_logError("The mesh is empty!");
+  TESSERACT_LOG_ERROR("The mesh is empty!");
   return nullptr;
 }
 
@@ -330,7 +330,7 @@ CollisionGeometryPtr createShapePrimitive(const tesseract::geometry::ConvexMesh:
     return std::make_shared<coal::Convex<Polygon>>(vertices, vertex_count, new_faces, face_count);
   }
 
-  CONSOLE_BRIDGE_logError("The mesh is empty!");
+  TESSERACT_LOG_ERROR("The mesh is empty!");
   return nullptr;
 }
 
@@ -344,8 +344,8 @@ CollisionGeometryPtr createShapePrimitive(const tesseract::geometry::Octree::Con
     }
     default:
     {
-      CONSOLE_BRIDGE_logError("This Coal octree sub shape type (%d) is not supported for geometry octree",
-                              static_cast<int>(geom->getSubType()));
+      TESSERACT_LOG_ERROR("This Coal octree sub shape type ({}) is not supported for geometry octree",
+                          static_cast<int>(geom->getSubType()));
       return nullptr;
     }
   }
@@ -397,8 +397,8 @@ CollisionGeometryPtr createShapePrimitiveHelper(const CollisionShapeConstPtr& ge
     }
     default:
     {
-      CONSOLE_BRIDGE_logError("This geometric shape type (%d) is not supported using Coal yet",
-                              static_cast<int>(geom->getType()));
+      TESSERACT_LOG_ERROR("This geometric shape type ({}) is not supported using Coal yet",
+                          static_cast<int>(geom->getType()));
       return nullptr;
     }
   }
@@ -1147,14 +1147,14 @@ COW::Ptr createCoalCollisionObject(const tesseract::common::LinkId& id,
   // dont add object that does not have geometry
   if (shapes.empty() || shape_poses.empty() || (shapes.size() != shape_poses.size()))
   {
-    CONSOLE_BRIDGE_logDebug("ignoring link %s", id.name().c_str());
+    TESSERACT_LOG_DEBUG("ignoring link {}", id.name());
     return nullptr;
   }
 
   auto new_cow = std::make_shared<COW>(id, type_id, shapes, shape_poses);
 
   new_cow->m_enabled = enabled;
-  // CONSOLE_BRIDGE_logDebug("Created collision object for link %s", new_cow->getLinkId().name().c_str());
+  // TESSERACT_LOG_DEBUG("Created collision object for link {}", new_cow->getLinkId().name());
   return new_cow;
 }
 
