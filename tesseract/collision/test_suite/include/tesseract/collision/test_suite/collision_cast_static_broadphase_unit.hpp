@@ -182,6 +182,64 @@ inline void runTestActiveProbeMoveUpdatesBroadphase(ContinuousContactManager& ch
 }
 
 /**
+ * @brief Move a disabled active link onto a static one with the two-pose setter, then enable it and query.
+ *
+ * A disabled link is checked against nothing, so a manager may leave its sweep out of the broadphase while it
+ * is disabled. Once enabled the link is checked again, and the broadphase must then hold it at the pose it was
+ * last given rather than at the one it had when it was disabled.
+ *
+ * The bystanders make a stale broadphase visible. A tree that holds one object may test that object's own
+ * bounds, which follow its pose whether or not the tree is refreshed; with several active links the tree has
+ * inner nodes, whose bounds move only when it is refreshed. Every active link is parked on the same side of
+ * the anchor, so no bound left behind reaches it.
+ */
+inline void runTestEnabledLinkEntersBroadphaseAtCurrentPose(ContinuousContactManager& checker)
+{
+  const tesseract::common::LinkId mover("mover");
+  const tesseract::common::LinkId anchor("anchor");
+  const std::vector<Eigen::Vector3d> bystander_positions{ { 50, 0, 0 }, { 50, 50, 0 }, { 50, 0, 50 } };
+  const Eigen::Vector3d half_extents(0.5, 0.5, 0.5);
+
+  // The anchor stays where it is added, at the origin.
+  detail::addBoxLink(checker, anchor.name(), half_extents);
+  detail::addBoxLink(checker, mover.name(), half_extents);
+  std::vector<tesseract::common::LinkId> active{ mover };
+  for (std::size_t i = 0; i < bystander_positions.size(); ++i)
+  {
+    active.emplace_back("bystander_" + std::to_string(i));
+    detail::addBoxLink(checker, active.back().name(), half_extents);
+  }
+  checker.setActiveCollisionObjects(active);
+  checker.setDefaultCollisionMargin(0.0);
+
+  // The bystanders follow the mover in the active set.
+  for (std::size_t i = 0; i < bystander_positions.size(); ++i)
+  {
+    const Eigen::Isometry3d pose{ Eigen::Translation3d(bystander_positions[i]) };
+    checker.setCollisionObjectsTransform(active[i + 1], pose, pose);
+  }
+
+  const Eigen::Isometry3d parked{ Eigen::Translation3d(5, 0, 0) };
+  checker.setCollisionObjectsTransform(mover, parked, parked);
+
+  ContactResultMap result;
+  checker.contactTest(result, ContactRequest(ContactTestType::ALL));
+  ASSERT_TRUE(result.empty());
+
+  // Overlapping the anchor without coinciding with it.
+  const Eigen::Isometry3d target{ Eigen::Translation3d(0.9, 0, 0) };
+  checker.disableCollisionObject(mover);
+  checker.setCollisionObjectsTransform(mover, target, target);
+  checker.enableCollisionObject(mover);
+
+  EXPECT_TRUE(checker.getCollisionObjectsTransform(mover).isApprox(target, 1e-8));
+
+  result.clear();
+  checker.contactTest(result, ContactRequest(ContactTestType::ALL));
+  EXPECT_FALSE(result.empty()) << "the enabled link is still in the broadphase at the pose it was disabled at";
+}
+
+/**
  * @brief Sweep a probe, then reposition it with the single-pose setter and confirm the sweep does not follow it.
  *
  * The single-pose setter carries no sweep, so it must leave none behind. A cast hull that keeps the delta of
@@ -192,8 +250,8 @@ inline void runTestActiveProbeMoveUpdatesBroadphase(ContinuousContactManager& ch
  * by a stale delta.
  *
  * With @p disabled_during_move the probe is disabled across the repositioning and enabled again before the
- * query. A sweep written while disabled is ignored, but clearing one is not writing one: enabling refits
- * nothing, so a sweep left in place here is still applied at the next query.
+ * query. A sweep written while disabled is ignored, but clearing one is not writing one: a sweep left in
+ * place here is still applied at the next query.
  */
 inline void runTestSinglePoseClearsPreviousSweep(ContinuousContactManager& checker, bool disabled_during_move = false)
 {

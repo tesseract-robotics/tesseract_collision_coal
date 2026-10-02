@@ -36,6 +36,12 @@ constexpr const char* BULLET_CAST_STALE_SWEEP_SKIP = "Bullet cast managers do no
  * state - so it is skipped under its own name. */
 constexpr const char* BULLET_CAST_PROMOTION_SWEEP_SKIP = "Bullet cast managers do not clear a link's previous sweep "
                                                          "when it is promoted back to active";
+
+/** @brief BulletCastBVHManager's two-pose setters leave a disabled link's broadphase AABB where it was, and
+ * enabling the link refreshes nothing, so the tree keeps the link at the pose it was disabled at until its next
+ * two-pose set. BulletCastSimpleManager keeps no broadphase state and reads every AABB at query time. */
+constexpr const char* BULLET_CAST_BVH_ENABLE_SKIP = "BulletCastBVHManager does not flush a link moved by a two-pose "
+                                                    "setter while disabled when the link is enabled";
 }  // namespace
 
 TEST(TesseractCollisionUnit, BulletCastSimpleStaticObstacleSinglePoseUpdatesBroadphase)  // NOLINT
@@ -196,6 +202,27 @@ TEST(TesseractCollisionUnit, CoalCastBVHDisabledActiveProbeSinglePoseUpdatesBroa
 {
   tesseract_collision_coal::CoalCastBVHManager checker;
   test_suite::runTestActiveProbeMoveUpdatesBroadphase(checker, /*disabled_during_move=*/true);
+}
+
+// --- Active link moved with the two-pose setter while disabled, then enabled ---
+
+TEST(TesseractCollisionUnit, BulletCastSimpleEnabledLinkEntersBroadphaseAtCurrentPose)  // NOLINT
+{
+  BulletCastSimpleManager checker;
+  test_suite::runTestEnabledLinkEntersBroadphaseAtCurrentPose(checker);
+}
+
+TEST(TesseractCollisionUnit, BulletCastBVHEnabledLinkEntersBroadphaseAtCurrentPose)  // NOLINT
+{
+  GTEST_SKIP() << BULLET_CAST_BVH_ENABLE_SKIP;
+  BulletCastBVHManager checker;
+  test_suite::runTestEnabledLinkEntersBroadphaseAtCurrentPose(checker);
+}
+
+TEST(TesseractCollisionUnit, CoalCastBVHEnabledLinkEntersBroadphaseAtCurrentPose)  // NOLINT
+{
+  tesseract_collision_coal::CoalCastBVHManager checker;
+  test_suite::runTestEnabledLinkEntersBroadphaseAtCurrentPose(checker);
 }
 
 // --- A pose set without a sweep must leave none behind ---

@@ -294,8 +294,20 @@ bool CoalCastBVHManager::setCollisionObjectEnabled(const tesseract::common::Link
   auto cast_it = link2castcow_.find(id);
   if (cast_it != link2castcow_.end())
   {
-    cast_it->second->m_enabled = enabled;
-    cast_it->second->gjk_generation_++;
+    COW& cast_cow = *cast_it->second;
+    const bool was_enabled = cast_cow.m_enabled;
+    cast_cow.m_enabled = enabled;
+    cast_cow.gjk_generation_++;
+
+    // A sweep set on a disabled link does not reach the broadphase, so enabling the link publishes where it
+    // is.
+    if (enabled && !was_enabled)
+    {
+      static_update_.clear();
+      dynamic_update_.clear();
+      appendCastBroadphaseUpdate(cast_cow);
+      flushBatchUpdate();
+    }
   }
 
   return true;
