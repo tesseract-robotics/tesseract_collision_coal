@@ -64,6 +64,47 @@ namespace tesseract::collision::tesseract_collision_coal
  * CastHullShapes only when the link goes kinematic. Because a static link is collided through its regular
  * wrapper, it may hold any geometry Coal can collide - a mesh, a raw octree - whether or not that geometry
  * has a swept form. Promoting a link whose geometry has no swept form throws.
+ *
+ * Two kinematic links are not collided hull against hull, which would report a contact wherever they
+ * pass through the same space at different times. Of each pair of their shapes one is collided as it
+ * stands and the other is swept by its link's motion relative to the first, so links that move rigidly
+ * together are checked as an unswept pair, to rounding: their relative motion is guaranteed to come out as
+ * exactly no motion only when neither link is swept. A contact carries one time for both links.
+ *
+ * The smaller shape of a pair is the swept one, by the diagonal of its bounding box, and between shapes of
+ * one size the shape of the link whose name sorts last. A link with several shapes can thus be held for one
+ * of them and swept for another.
+ *
+ * The hull of such a pair holds both end poses exactly and, between them, the straight path of every point
+ * of the swept shape as the held link sees it. That misreads a contact inside the step in two ways, as a
+ * link's own hull does against a static object:
+ *  - Too near, where the held shape lies in the space the hull fills between the swept shape's two
+ *    orientations, or on the inside of a path that bends.
+ *  - Too far, where it lies on the outside of a path that bends, by an amount that falls with the square of
+ *    the step.
+ * Which shape is swept decides which of the two a contact meets and how large each is, and no choice is
+ * better throughout. Sweeping the smaller shape leaves the least to fill, and keeps down the part its own
+ * size adds to its reach from the axis of a relative turn. It is the worse choice where the smaller shape is
+ * much the farther from that axis: a small link beside a large one that turns in place is swept about the
+ * large one and reads too near, where the large one swept by its own turn would not.
+ *
+ * How far the path bends depends on what moves the two links:
+ *  - When one joint joins the two links, or one of the two does not move, the path is an arc about the axis
+ *    of the relative turn. It bends by at most the swept shape's reach from that axis times
+ *    `1 - cos(angle / 2)`, which is what d_arc compensation pads: that covers a reading that is too far and
+ *    adds to one that is too near. The reach is the shape's size plus its distance from the axis, which is
+ *    not known when the swept shape is chosen.
+ *  - With several joints between the links the path is no single arc, and the padding is an estimate.
+ *  - When the two links move independently, the held link's own turn bends the path as well, by about that
+ *    turn times the swept shape's travel over four. The relative turn does not show this: two links turning
+ *    by one angle about different axes have none. Neither the hull nor the padding covers it, so a pair of
+ *    two kinematic links is not conservative with compensation on.
+ * Only a shorter step bounds the last two.
+ *
+ * A pair reaches this check only if the two links' own hulls overlap in the broadphase, and each of those
+ * holds its link's two end poses in the world and the straight path between them. A link that turns can
+ * therefore pass through another inside the step unseen, where its arc leaves its own hull: d_arc
+ * compensation pads that hull by the arc's sagitta, and a shorter step bounds it without.
  */
 class CoalCastBVHManager : public ContinuousContactManager
 {
@@ -235,7 +276,10 @@ private:
   std::vector<tesseract::common::LinkId> collision_objects_; /** @brief A list of the collision objects */
   ContactTestDataWrapper contact_test_data_; /**< @brief Persistent contact test data (Bullet pattern) */
   std::size_t coal_co_count_{ 0 };           /**< @brief The number of coal collision objects */
-  bool d_arc_compensation_; /**< @brief When true, set CastHullShape swept-sphere radius to arc-sagitta */
+  /** @brief When true, pad every swept hull by an arc sagitta, as its swept-sphere radius: a link's own hull
+   *  by that of the link's turn in the world, on every transform update, and the hull of a pair of two moving
+   *  links by that of their relative turn, on every narrowphase query of the pair. */
+  bool d_arc_compensation_;
 
   /** @brief This is used to store static collision objects to update */
   std::vector<CollisionObjectRawPtr> static_update_;

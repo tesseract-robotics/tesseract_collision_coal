@@ -4,7 +4,7 @@
 
 When CastHullShape checks continuous collision, it computes the signed distance between an obstacle and the convex hull of a shape at two consecutive poses. This is exact for pure translation, but when the shape also rotates, points trace **circular arcs** while the convex hull connects them with **straight chords**. The gap — the arc-chord sagitta, d_arc — can exceed the collision safety margin, allowing the true swept arc to penetrate obstacles that the convex hull reports as safe.
 
-The Coal cast manager can close that gap. **d_arc compensation** computes the sagitta per shape on every transform update and applies it as the CastHullShape's swept sphere radius, so Coal's GJK subtracts it from reported distances and the broadphase AABB inflates to match. It is transparent to every caller and **disabled by default** — see *Enabling it*.
+The Coal cast manager can close that gap. **d_arc compensation** computes the sagitta per shape on every transform update — and, for a pair of two moving links, per narrowphase query of the pair, from their relative turn — and applies it as the CastHullShape's swept sphere radius, so Coal's GJK subtracts it from reported distances and the broadphase AABB inflates to match. It is transparent to every caller and **disabled by default** — see *Enabling it*.
 
 ## The Schulman proposal, and what we changed
 
@@ -100,25 +100,37 @@ plugins:
       d_arc_compensation: true
 ```
 
-Cost is a few arithmetic operations per shape per transform update, with no `acos`, `cos`, `sin` or `atan2` on any path, and nothing at all when a link's rotation is negligible; *How it works* breaks it down. Those are operation counts — the feature has not been benchmarked end to end.
+Cost is a few arithmetic operations per shape per transform update, with no `acos`, `cos`, `sin` or `atan2` on any path, and nothing at all when a link's rotation is negligible. A pair of two moving links costs the same again on **every narrowphase query of the pair**, not once per transform update: its sagitta is that of the two links' relative turn, which belongs to the pair and is computed when the pair is collided. *How it works* breaks both down. Those are operation counts — the feature has not been benchmarked end to end.
 
 **What changes when you enable it:** reported distances shrink by d_arc, and swept-volume AABBs inflate by it, so expect more broadphase candidate pairs. The effect is largest for segments turning near a half turn, where d_arc approaches r_max. That is the correction working, not a regression, but it is visible to anyone watching pair counts.
 
 ## What it does not bound
 
-Two gaps remain, both inherent in the formulation rather than introduced by it:
+Three gaps remain, all inherent in the formulation rather than introduced by it:
 
 - **The interpolation is assumed.** d_arc bounds the deviation of a *screw* motion from the chord. A single revolute or prismatic joint moves exactly that way, so the bound is exact. Multi-joint motion does not, and its true path can bulge past the bound by an amount nothing here measures. Only subdividing the segment controls that — see *Subdivision is not rotation-aware*.
 - **φ is recovered from the trace, so it lands in [0, π].** A segment turning further reads as its complement and yields a small d_arc. The convex hull of the two poses is already meaningless for such a segment, so subdivision is the only guard either way.
+- **A pair of two moving links is padded for its relative turn only.** That is the arc the pair's hull cuts when the relative motion is one screw: one joint between the two links, or one of the two standing still. Then the bound is exact, as for a single joint above. Any other motion bends the swept link's path, as the held link sees it, in ways the relative turn does not describe:
+  - With several joints between the links the path is no screw, and the padding is an estimate, as it is for a single link moved by several joints.
+  - When the two links move independently, the held link's own turn bends the path too, by about that turn times the swept link's travel over four. Two links turning by the same angle about different axes have no relative turn and get no padding, while each sees the other move along an arc.
+
+  So compensation does not make a pair of two moving links conservative. Colliding the two links' own padded hulls would, for links moved by one joint each, but it reports contacts between links that pass through the same space at different times, which is why such a pair is not collided that way. Subdivision is the control here too: the miss falls with the square of the step.
+
+  The padding is sized for the swept shape, which is the smaller of the two whatever the motion. Where that shape is the farther from the axis of the relative turn, as a small link beside a large one that turns in place, the pair's hull already reads too near, and the padding adds to that.
 
 ## How it works
 
-`CastCollisionObjectWrapper::setSweep()` in `coal_utils.cpp` computes d_arc per shape using the trig-free method (see below), then calls `CastHullShape::setSweptSphereRadius(d_arc)` before `updateCastTransform()`. This has two effects:
+d_arc is computed in two places, by the same trig-free method (see below), and both set it with `CastHullShape::setSweptSphereRadius(d_arc)` before `updateCastTransform()`:
 
-1. **Broadphase**: `computeLocalAABB()` inflates the swept-volume AABB by d_arc in all directions, ensuring the broadphase tree covers the arc, not just the chord.
+- **A link's own hull**, from the link's turn in the world: `CastCollisionObjectWrapper::setSweep()` in `coal_utils.cpp`, per shape, on every transform update. This is the hull a moving link is collided through against a static object, and the one that bounds it in the broadphase.
+- **The hull of a pair of two moving links**, from the links' relative turn: `writePairSweep()` in `coal_utils.cpp`, on every narrowphase query of the pair. Such a pair is not collided hull against hull. Of each pair of their shapes one is collided as it stands, and the other through a scratch hull swept by its link's motion relative to the first, which is rewritten before each query; with compensation on, that rewrite includes the sagitta. Links that turn together have no relative turn and get no padding, whatever their turn in the world.
+
+Setting the radius has two effects:
+
+1. **Broadphase**: `computeLocalAABB()` inflates the swept-volume AABB by d_arc in all directions, ensuring the broadphase tree covers the arc, not just the chord. The tree holds each link's own hull, so this is the sagitta of the link's turn in the world, for a pair of two moving links too.
 2. **Narrowphase**: Coal's GJK stores the swept sphere radius in `MinkowskiDiff::swept_sphere_radius` and subtracts it from the reported distance post-convergence. The collision constraint effectively becomes `distance ≥ margin + d_arc` without any change to callers.
 
-**Swept sphere interaction**: CastHullShape's `computeShapeSupport()` uses `WithSweptSphere` mode for the underlying shape's intrinsic radius (e.g., sphere, capsule). CastHullShape's own swept sphere radius (d_arc) is a second, independent inflation layer — no double-counting. In a self-collision pair (two CastHullShapes), Coal sums both radii: d_arc₁ + d_arc₂, which is correct since each link's arc gap is independent.
+**Swept sphere interaction**: CastHullShape's `computeShapeSupport()` uses `WithSweptSphere` mode for the underlying shape's intrinsic radius (e.g., sphere, capsule). CastHullShape's own swept sphere radius (d_arc) is a second, independent inflation layer — no double-counting. A pair of two moving links carries one radius, not the sum of two: the shape collided as it stands has none, and the other shape's scratch hull carries the sagitta of the relative turn. The two links' own hulls, each padded for its link's turn in the world, are never collided against each other.
 
 ### CastHullShape support function (unchanged)
 
@@ -182,7 +194,7 @@ The exact formula can be evaluated without any trigonometric function calls by e
 7. **r_max**: distance from the shape's bounding-sphere centre to the screw axis, plus the bounding radius.
 
 **Cost**, split by what `computeDArcScalars` does once per link and what `computeDArc` does once per
-shape on that link:
+shape on that link, on a transform update:
 
 - **Per link** (`computeDArcScalars`), only when the rotation exceeds the ~1.4e-7 rad early-return
   threshold: 1 `sqrt` (the half-angle cosine) and 1 division (the `1/(4·sin²(φ/2))` factor). Zero
@@ -192,6 +204,12 @@ shape on that link:
 - **Per shape, past the 120-degree handoff** (rare — the branch is taken for any rotation past 120
   degrees, a 60-degree range, but a single trajectory segment seldom turns that far): 3 `sqrt` calls
   and 2 divisions.
+
+A pair of two moving links pays one `computeDArcScalars` and one `computeDArc` **per narrowphase query
+of the pair** — one per pair of shapes the broadphase passes, each time it is collided — on top of the
+per-update cost of both links' own hulls: 2 `sqrt` calls and 2 divisions below the handoff, 4 and 3 past
+it, and none when the relative turn is under the early-return threshold, as it is for links that move
+together.
 
 No `acos`, `cos`, `sin`, or `atan2` on either path.
 
@@ -283,7 +301,7 @@ The screw-axis column is one motion measured four ways and does not move. The pa
 The paper uses the r·φ²/8 approximation for analytical clarity (to show d_arc is O(φ²)). For implementation, **use the exact formula r·(1 - cos(φ/2))**:
 - Always correct, valid for any φ
 - Tight (equals the maximum gap exactly, no overestimation)
-- Negligible cost per shape per timestep (see *How it works*)
+- Negligible cost wherever it is evaluated (see *How it works*)
 
 The approximation is only useful for symbolic/gradient analysis where φ² is easier to differentiate than 1 - cos(φ/2).
 

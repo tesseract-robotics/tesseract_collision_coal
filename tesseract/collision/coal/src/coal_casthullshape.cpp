@@ -81,6 +81,19 @@ CastHullShape::CastHullShape(std::shared_ptr<coal::ShapeBase> shape, const coal:
 {
 }
 
+CastHullShape::CastHullShape(const CastHullShape& other)
+  : coal::ShapeBase(other)
+  , shape_(other.shape_)
+  , castTransform_(other.castTransform_)
+  , wrapped_aabb_(other.wrapped_aabb_)
+  , hint0_(other.hint0_)
+  , hint1_(other.hint1_)
+  , support_data0_(other.support_data0_)
+  , support_data1_(other.support_data1_)
+{
+  // scratch_hull_ stays null: a scratch hull serves one hull's callers.
+}
+
 void CastHullShape::computeLocalAABB()
 {
   // Pose 0: the wrapped shape in its own frame, re-inflated by its swept-sphere radius read
@@ -184,6 +197,20 @@ bool CastHullShape::clearSweep()
   setSweptSphereRadius(0.0);
   updateCastTransform(identity_tf);
   return true;
+}
+
+CastHullShape& CastHullShape::scratchHull() const
+{
+  if (scratch_hull_ == nullptr)
+  {
+    // The copy brings this hull's sweep and radius, which are not the caller's, and a bound that describes
+    // them; writing the unswept state replaces all three.
+    scratch_hull_ = std::make_unique<CastHullShape>(*this);
+    scratch_hull_->setSweptSphereRadius(0.0);
+    scratch_hull_->updateCastTransform(coal::Transform3s());
+  }
+
+  return *scratch_hull_;
 }
 
 void CastHullShape::computeShapeSupport(const coal::Vec3s& dir,

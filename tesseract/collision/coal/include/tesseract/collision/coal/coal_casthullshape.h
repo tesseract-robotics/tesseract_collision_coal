@@ -71,6 +71,13 @@ class CastHullShape : public coal::ShapeBase
 public:
   CastHullShape(std::shared_ptr<coal::ShapeBase> shape, const coal::Transform3s& castTransform);
 
+  /// @brief Copy everything but the scratch hull: the copy has none until its own scratchHull() makes it.
+  CastHullShape(const CastHullShape& other);
+  ~CastHullShape() override = default;
+  CastHullShape& operator=(const CastHullShape&) = delete;
+  CastHullShape(CastHullShape&&) = delete;
+  CastHullShape& operator=(CastHullShape&&) = delete;
+
   void computeLocalAABB() override;
 
   // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
@@ -104,6 +111,17 @@ public:
 
   const coal::Transform3s& getCastTransform() const { return castTransform_; }
 
+  /// @brief Half the diagonal of the wrapped shape's own bounding box, its swept-sphere radius left out: a
+  /// measure of the shape's size that no sweep changes. Fixed when the hull is made.
+  coal::Scalar getShapeBoundRadius() const { return 0.5 * (wrapped_aabb_.max_ - wrapped_aabb_.min_).norm(); }
+
+  /// @brief A second hull over the same shape, for a caller that needs the shape swept by a motion other
+  /// than this hull's own. The same object on every call, made on the first, and unswept then: it takes
+  /// neither this hull's cast transform nor its swept-sphere radius. This class never reads or writes its
+  /// sweep afterwards: it holds whatever the caller wrote last, so a caller must write the sweep it wants
+  /// before each use. A copy of this hull does not carry it.
+  CastHullShape& scratchHull() const;
+
   /// @brief Accessors for the GJK sweep's mutable vertex hints and
   /// ShapeSupportData. After GJK converges, the hint vertex and its last_dir are
   /// high-quality starting points for support queries along related directions
@@ -128,6 +146,10 @@ private:
 
   std::shared_ptr<coal::ShapeBase> shape_;
   coal::Transform3s castTransform_;
+
+  /// See scratchHull(). Mutable for the same reason as the support hints below: made lazily, per
+  /// instance, and never shared between threads.
+  mutable std::unique_ptr<CastHullShape> scratch_hull_;
 
   /// @brief The wrapped shape's local AABB with its swept-sphere radius removed, captured at
   /// construction. computeLocalAABB re-inflates it by the shape's live radius rather than

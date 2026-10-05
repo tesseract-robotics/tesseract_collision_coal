@@ -54,6 +54,7 @@ TESSERACT_COMMON_IGNORE_WARNINGS_PUSH
 #include <functional>
 #include <limits>
 #include <memory>
+#include <optional>
 #include <stdexcept>
 #include <unordered_set>
 #include <utility>
@@ -782,6 +783,187 @@ static Eigen::Isometry3d toIsometry(const coal::Transform3s& tf)
   return out;
 }
 
+/// Sweep @p hull, whose shape sits at @p shape_tf, through the world-frame @p motion. With
+/// @p d_arc_compensation the hull is padded by the arc sagitta of the motion's turn.
+static void writePairSweep(CastHullShape& hull,
+                           const Eigen::Isometry3d& motion,
+                           const coal::Transform3s& shape_tf,
+                           bool d_arc_compensation)
+{
+  // No motion is the unswept state, which the conjugation below reaches only to rounding. Clearing the
+  // sweep drops the radius with it.
+  if (motion.matrix() == Eigen::Isometry3d::Identity().matrix())
+  {
+    hull.clearSweep();
+    return;
+  }
+
+  const coal::Transform3s motion_tf(motion.linear(), motion.translation());
+  const coal::Transform3s cast_tf = shape_tf.inverseTimes(motion_tf * shape_tf);
+
+  // The hull serves every pair that sweeps its object, and partners that move alike ask for the same sweep.
+  // The radius follows from the cast transform, so a hull that holds this one holds both.
+  if (cast_tf == hull.getCastTransform())
+    return;
+
+  // Ahead of the cast transform: writing that one recomputes the bound, which reads the radius.
+  if (d_arc_compensation)
+    hull.setSweptSphereRadius(computeDArc(cast_tf, *hull.getUnderlyingShape(), computeDArcScalars(cast_tf)));
+
+  hull.updateCastTransform(cast_tf);
+}
+
+/// The point of @p shape that a contact with outward normal @p normal_local rests on: its support along
+/// the normal, averaged over the supporting face when there is one.
+static coal::Vec3s restingPoint(const coal::ShapeBase& shape, const coal::Vec3s& normal_local, int hint, bool use_flat)
+{
+  coal::details::ShapeSupportData& scratch = averagingScratch();
+  // There is no earlier direction to warm-start from, so the hint alone seeds the climb.
+  scratch.last_dir.setZero();
+  double support = 0;
+  coal::Vec3s point;
+  GetAverageSupport(&shape, normal_local, support, point, hint, scratch, use_flat);
+  return point;
+}
+
+/// One query of a pair of two swept objects: which is held and which is swept, and by what motion.
+struct PairSweep
+{
+  /// @p co1 and @p co2 are the pair in the order of its cache key, @p cow1 and @p cow2 their wrappers and
+  /// @p entry its cache entry. @p pair_swapped tells whether a contact reports the key's first object in
+  /// its second slot.
+  PairSweep(const CollisionCacheEntry& entry,
+            const coal::CollisionObject* co1,
+            const coal::CollisionObject* co2,
+            const CastCollisionObjectWrapper* cow1,
+            const CastCollisionObjectWrapper* cow2,
+            bool pair_swapped)
+    : hull(entry.pair_hull)
+    , held_object(entry.sweeps_first ? co2 : co1)
+    , swept_object(entry.sweeps_first ? co1 : co2)
+    , held(entry.sweeps_first ? cow2 : cow1)
+    , swept(entry.sweeps_first ? cow1 : cow2)
+    , held_slot((entry.sweeps_first != pair_swapped) ? 1U : 0U)
+    , swept_slot(1U - held_slot)
+    , motion(held->getSweepDisplacementInverse() * swept->getSweepDisplacement())
+  {
+  }
+
+  const CastHullShape* hull;                 ///< The pair's hull: the swept shape under `motion`.
+  const coal::CollisionObject* held_object;  ///< Collided as its plain shape, at its start pose.
+  const coal::CollisionObject* swept_object;
+  const CastCollisionObjectWrapper* held;
+  const CastCollisionObjectWrapper* swept;
+  std::size_t held_slot;  ///< The held link's index in a ContactResult.
+  std::size_t swept_slot;
+  /// The world-frame motion of the swept link over its sweep with that of the held link removed: where the
+  /// swept link ends up in a world in which the held one never leaves its start pose. A link that is not
+  /// swept has exactly the identity for a displacement, and a product with that is exact, so two such links
+  /// give the exact identity. Links that move rigidly together give the identity to rounding.
+  Eigen::Isometry3d motion;
+};
+
+/// The rigid motion that takes @p link from where its sweep starts to where it is a fraction @p t of the
+/// way through it: the identity at 0 and the link's whole displacement at 1. In between, the position moves
+/// on a line and the orientation along the shortest arc.
+static Eigen::Isometry3d displacementAt(const CastCollisionObjectWrapper& link, double t)
+{
+  // A link that is not swept is exactly where it started, which the interpolation below reaches only to
+  // rounding.
+  if (t <= 0.0 || !link.isSwept())
+    return Eigen::Isometry3d::Identity();
+
+  const Eigen::Isometry3d& whole = link.getSweepDisplacement();
+  if (t >= 1.0)
+    return whole;
+
+  // The turn made by then is that share of the whole displacement's turn; the translation is the one that
+  // puts the link's origin on the line between its two positions.
+  const Eigen::Vector3d origin0 = link.getCollisionObjectsTransform().translation();
+  const Eigen::Vector3d origin1 = link.getSweepEndTransform().translation();
+  Eigen::Isometry3d part{ Eigen::Isometry3d::Identity() };
+  part.linear() = Eigen::Quaterniond::Identity().slerp(t, Eigen::Quaterniond(whole.linear())).toRotationMatrix();
+  part.translation() = (1.0 - t) * origin0 + t * origin1 - part.linear() * origin0;
+  return part;
+}
+
+/// sweepWitnessInLinkFrame for a shape that starts @p link's sweep at @p shape_tf0 and ends it where the
+/// link's displacement takes it. A link that is not swept has exactly the identity for a displacement, so
+/// its shape ends exactly where it starts.
+static Eigen::Vector3d pairWitnessInLinkFrame(const SweepWitness& w,
+                                              const CastCollisionObjectWrapper& link,
+                                              const Eigen::Isometry3d& shape_tf0)
+{
+  const Eigen::Isometry3d& link_tf0 = link.getCollisionObjectsTransform();
+  // Only a contact at the end of the sweep reads the shape's end pose.
+  if (w.cc_type != ContinuousCollisionType::CCType_Time1)
+    return sweepWitnessInLinkFrame(w, link_tf0, shape_tf0, shape_tf0);
+
+  return sweepWitnessInLinkFrame(w, link_tf0, shape_tf0, link.getSweepDisplacement() * shape_tf0);
+}
+
+/**
+ * @brief Populate the continuous collision fields of a contact between two swept objects.
+ *
+ * The pair was collided as the held object's plain shape against one hull, so the contact has one time,
+ * which both links report. Each link's local contact point follows the conventions of a single sweep; see
+ * sweepWitnessInLinkFrame.
+ *
+ * The query ran in a world where the held link never leaves its start pose. The world points and the
+ * normal are carried to where that link is at the contact time; the swept link is there with it, to the
+ * accuracy of the hull.
+ *
+ * @param held_hint The support vertex the narrowphase ended on for the held shape
+ * @param use_flat Scan every vertex for a support instead of climbing from a hint
+ */
+static void populatePairSweepFields(ContactResult& contact, const PairSweep& pair, int held_hint, bool use_flat)
+{
+  contact.cc_transform[pair.held_slot] = pair.held->getSweepEndTransform();
+  contact.cc_transform[pair.swept_slot] = pair.swept->getSweepEndTransform();
+
+  // contact.normal points from slot 0 to slot 1.
+  const coal::Vec3s swept_to_held = (pair.swept_slot == 0) ? coal::Vec3s(contact.normal) : coal::Vec3s(-contact.normal);
+
+  // The swept shape's two poses in the frame the query ran in, where the held link never leaves its start
+  // pose.
+  const Eigen::Isometry3d& swept_tf0 = pair.swept->getCollisionObjectsTransform();
+  const Eigen::Isometry3d swept_shape_tf0 = toIsometry(pair.swept_object->getTransform());
+  const Eigen::Isometry3d swept_shape_tf1 = pair.motion * swept_shape_tf0;
+  const SweepWitness swept_witness = locateOnSweep(*pair.hull,
+                                                   swept_shape_tf0,
+                                                   swept_shape_tf1,
+                                                   swept_tf0.translation(),
+                                                   pair.motion * swept_tf0.translation(),
+                                                   swept_to_held,
+                                                   contact.nearest_points[pair.swept_slot],
+                                                   use_flat);
+
+  contact.cc_time = { swept_witness.cc_time, swept_witness.cc_time };
+  contact.cc_type = { swept_witness.cc_type, swept_witness.cc_type };
+
+  // The local point conventions are stated against each shape's own end pose in the world, not against the
+  // relative one the query used.
+  contact.nearest_points_local[pair.swept_slot] = pairWitnessInLinkFrame(swept_witness, *pair.swept, swept_shape_tf0);
+
+  // The held shape is not swept, so it rests on one point throughout. A contact at the end of the sweep
+  // reports that point where the link's end pose puts it, as for a swept shape.
+  const Eigen::Isometry3d held_shape_tf0 = toIsometry(pair.held_object->getTransform());
+  const auto* held_hull = static_cast<const CastHullShape*>(pair.held_object->collisionGeometryPtr());
+  const coal::Vec3s held_pt_local = restingPoint(*held_hull->getUnderlyingShape(),
+                                                 held_shape_tf0.linear().transpose() * coal::Vec3s(-swept_to_held),
+                                                 held_hint,
+                                                 use_flat);
+  Eigen::Vector3d held_point = held_shape_tf0 * Eigen::Vector3d(held_pt_local);
+  if (swept_witness.cc_type == ContinuousCollisionType::CCType_Time1)
+    held_point = pair.held->getSweepDisplacement() * held_point;
+  contact.nearest_points_local[pair.held_slot] = applyInverse(pair.held->getCollisionObjectsTransform(), held_point);
+
+  const Eigen::Isometry3d carry = displacementAt(*pair.held, swept_witness.cc_time);
+  contact.nearest_points[0] = carry * contact.nearest_points[0];
+  contact.nearest_points[1] = carry * contact.nearest_points[1];
+  contact.normal = carry.linear() * contact.normal;
+}
+
 /**
  * @brief Populate continuous collision fields (cc_time, cc_type, cc_transform) on a ContactResult.
  *
@@ -879,6 +1061,60 @@ int getReportedSubshapeIndex(const coal::CollisionObject* object, int coal_subsh
 /// which costs it a warm start it may not have needed but cannot leave its leaves sharing a seed.
 static bool isMultiLeaf(const coal::CollisionGeometry& geometry) { return geometry.getObjectType() != coal::OT_GEOM; }
 
+bool pairSweepsFirst(coal::Scalar size1, coal::Scalar size2, const std::string& link1, const std::string& link2)
+{
+  return size1 < size2 || (!(size2 < size1) && link1 > link2);
+}
+
+/// Build the cache entry of a collision object pair. @p cow1 and @p cow2 are the wrappers of @p co1 and
+/// @p co2.
+static CollisionCacheEntry makeCacheEntry(const coal::CollisionObject& co1,
+                                          const coal::CollisionObject& co2,
+                                          const CollisionObjectWrapperBase& cow1,
+                                          const CollisionObjectWrapperBase& cow2)
+{
+  const auto* hull1 = dynamic_cast<const CastHullShape*>(co1.collisionGeometryPtr());
+  const auto* hull2 = dynamic_cast<const CastHullShape*>(co2.collisionGeometryPtr());
+
+  const coal::CollisionGeometry* geometry1 = co1.collisionGeometryPtr();
+  const coal::CollisionGeometry* geometry2 = co2.collisionGeometryPtr();
+  CastHullShape* pair_hull = nullptr;
+  bool sweeps_first = false;
+  if (hull1 != nullptr && hull2 != nullptr)
+  {
+    // Two swept objects are collided as the plain shape of one against a hull of the other's motion relative
+    // to it; CoalCastBVHManager states why. Which one is swept does not follow the cache key, whose order is
+    // that of two addresses.
+    sweeps_first = pairSweepsFirst(
+        hull1->getShapeBoundRadius(), hull2->getShapeBoundRadius(), cow1.getLinkId().name(), cow2.getLinkId().name());
+    pair_hull = &(sweeps_first ? hull1 : hull2)->scratchHull();
+    const coal::ShapeBase* held_shape = (sweeps_first ? hull2 : hull1)->getUnderlyingShape().get();
+    geometry1 = sweeps_first ? static_cast<const coal::CollisionGeometry*>(pair_hull) : held_shape;
+    geometry2 = sweeps_first ? held_shape : static_cast<const coal::CollisionGeometry*>(pair_hull);
+  }
+
+  coal::CollisionRequest col_request;
+  // NesterovAcceleration + DualityGap/Relative for both cast and discrete pairs.
+  // PolyakAcceleration fails cast sphere-sphere contact accuracy (compared to Bullet) regardless of
+  // criterion. DualityGap/Absolute with Nesterov misses collisions on CastHullShape.
+  col_request.gjk_variant = coal::GJKVariant::NesterovAcceleration;
+  col_request.gjk_convergence_criterion = coal::GJKConvergenceCriterion::DualityGap;
+  col_request.gjk_convergence_criterion_type = coal::GJKConvergenceCriterionType::Relative;
+  // Stated here rather than left to the staleness branch of CollisionCallback::collide, so that a pair's
+  // guess mode does not depend on that branch having run. Coal constructs a request with a single constant
+  // direction, which every leaf of a multi-leaf pair would then share.
+  col_request.gjk_initial_guess = coal::BoundingVolumeGuess;
+
+  CollisionCacheEntry entry{ std::move(col_request),
+                             coal::ComputeCollision(geometry1, geometry2),
+                             hull1 != nullptr || hull2 != nullptr,
+                             isMultiLeaf(*geometry1) || isMultiLeaf(*geometry2) };
+  entry.pair_hull = pair_hull;
+  entry.sweeps_first = sweeps_first;
+  entry.first_geometry = geometry1;
+  return entry;
+}
+
 bool CollisionCallback::collide(coal::CollisionObject* o1, coal::CollisionObject* o2)
 {
   if (cdata->done)
@@ -904,33 +1140,14 @@ bool CollisionCallback::collide(coal::CollisionObject* o1, coal::CollisionObject
   const bool pair_swapped = std::greater<>{}(o1, o2);
   auto* co1 = pair_swapped ? o2 : o1;
   auto* co2 = pair_swapped ? o1 : o2;
+  // The wrappers in the cache key's order.
+  const auto* cow1 = pair_swapped ? cd2 : cd1;
+  const auto* cow2 = pair_swapped ? cd1 : cd2;
   CollisionObjectPair object_pair = std::make_pair(co1, co2);
   auto col_cache_it = cdata->collision_cache->find(object_pair);
 
   if (col_cache_it == cdata->collision_cache->end())
-  {
-    const bool is_cast = dynamic_cast<const CastHullShape*>(co1->collisionGeometryPtr()) != nullptr ||
-                         dynamic_cast<const CastHullShape*>(co2->collisionGeometryPtr()) != nullptr;
-    const bool multi_leaf = isMultiLeaf(*co1->collisionGeometryPtr()) || isMultiLeaf(*co2->collisionGeometryPtr());
-
-    coal::CollisionRequest col_request;
-    // NesterovAcceleration + DualityGap/Relative for both cast and discrete pairs.
-    // PolyakAcceleration fails cast sphere-sphere contact accuracy (compared to Bullet) regardless of
-    // criterion. DualityGap/Absolute with Nesterov misses collisions on CastHullShape.
-    col_request.gjk_variant = coal::GJKVariant::NesterovAcceleration;
-    col_request.gjk_convergence_criterion = coal::GJKConvergenceCriterion::DualityGap;
-    col_request.gjk_convergence_criterion_type = coal::GJKConvergenceCriterionType::Relative;
-    // Stated here rather than left to the staleness branch below, so that a pair's guess mode does
-    // not depend on that branch having run. Coal constructs a request with a single constant
-    // direction, which every leaf of a multi-leaf pair would then share.
-    col_request.gjk_initial_guess = coal::BoundingVolumeGuess;
-
-    auto col_functor = coal::ComputeCollision(co1->collisionGeometryPtr(), co2->collisionGeometryPtr());
-    col_cache_it =
-        cdata->collision_cache
-            ->try_emplace(object_pair, CollisionCacheEntry{ std::move(col_request), col_functor, is_cast, multi_leaf })
-            .first;
-  }
+    col_cache_it = cdata->collision_cache->try_emplace(object_pair, makeCacheEntry(*co1, *co2, *cow1, *cow2)).first;
 
   auto& entry = col_cache_it->second;
   auto& cached_request = entry.request;
@@ -938,9 +1155,6 @@ bool CollisionCallback::collide(coal::CollisionObject* o1, coal::CollisionObject
   // Drop the warm-start seed when a COW generation changes (transform or enable/disable), so the
   // next check re-derives the guess from the current bounding volumes rather than reusing one
   // aimed at the previous poses.
-  // Reuse cd1/cd2 from above, applying the same swap to match cache key ordering.
-  const auto* cow1 = pair_swapped ? cd2 : cd1;
-  const auto* cow2 = pair_swapped ? cd1 : cd2;
   if (entry.gen0 != cow1->gjk_generation_ || entry.gen1 != cow2->gjk_generation_)
   {
     // A swept pair's deepest-point set degenerates to a face whose long axis is the sweep
@@ -961,6 +1175,23 @@ bool CollisionCallback::collide(coal::CollisionObject* o1, coal::CollisionObject
   cached_request.security_margin = security_margin;
   cached_request.distance_upper_bound = security_margin + cached_request.gjk_tolerance;
 
+  // Every pair but one of two swept objects pays this test and nothing else.
+  std::optional<PairSweep> pair;
+  if (entry.pair_hull != nullptr)
+  {
+    // Both objects hold a CastHullShape, which only a cast wrapper owns: makeCastCollisionObject is the one
+    // place a collision object is given one.
+    pair.emplace(entry,
+                 co1,
+                 co2,
+                 static_cast<const CastCollisionObjectWrapper*>(cow1),
+                 static_cast<const CastCollisionObjectWrapper*>(cow2),
+                 pair_swapped);
+    writePairSweep(
+        *entry.pair_hull, pair->motion, pair->swept_object->getTransform(), pair->swept->getDArcCompensation());
+  }
+
+  // Both objects sit at their start poses: a swept pair's motion is all in its hull.
   coal::CollisionResult col_result;
   entry.functor(co1->getTransform(), co2->getTransform(), cached_request, col_result);
 
@@ -988,8 +1219,9 @@ bool CollisionCallback::collide(coal::CollisionObject* o1, coal::CollisionObject
   // Some Coal traversal nodes (e.g., ShapeOcTreeCollisionTraversalNode) internally
   // swap arguments without compensating in the result, causing Contact o1/o2, b1/b2,
   // nearest_points, and normal to not match the (co1, co2) ordering. Detect this by
-  // checking if the first contact's o1 matches co1's geometry.
-  if (col_result.getContact(0).o1 != co1->collisionGeometryPtr())
+  // checking if the first contact's o1 is the geometry the functor collides as its first
+  // object, which for a pair of two swept objects is not the one co1 holds.
+  if (col_result.getContact(0).o1 != entry.first_geometry)
     col_result.swapObjects();
 
   const Eigen::Isometry3d& tf1 = cd1->getCollisionObjectsTransform();
@@ -998,6 +1230,10 @@ bool CollisionCallback::collide(coal::CollisionObject* o1, coal::CollisionObject
   // Coal result fields are in normalized (co1, co2) order; map back to original (o1, o2).
   const std::size_t idx0 = pair_swapped ? 1U : 0U;
   const std::size_t idx1 = pair_swapped ? 0U : 1U;
+
+  // With penetration disabled, GJK early-outs without EPA, so its shared
+  // warm-start seed is poorly aimed for support averaging; use the flat scan.
+  const bool use_flat = !cdata->req.calculate_penetration;
 
   bool found = false;
   for (size_t i = 0; i < col_result.numContacts(); ++i)
@@ -1023,11 +1259,15 @@ bool CollisionCallback::collide(coal::CollisionObject* o1, coal::CollisionObject
     contact.distance = coal_contact.penetration_depth;
     contact.normal = pair_swapped ? coal::Vec3s(-coal_contact.normal) : coal_contact.normal;
 
-    if (entry.is_cast)
+    if (pair)
     {
-      // With penetration disabled, GJK early-outs without EPA, so its shared
-      // warm-start seed is poorly aimed for support averaging; use the flat scan.
-      const bool use_flat = !cdata->req.calculate_penetration;
+      // The functor's objects are in the cache key's order, so the held one is its second when the first is
+      // swept.
+      const int held_hint = col_result.cached_support_func_guess[entry.sweeps_first ? 1 : 0];
+      populatePairSweepFields(contact, *pair, held_hint, use_flat);
+    }
+    else if (entry.is_cast)
+    {
       populateContinuousCollisionFields(contact, o1, o2, *cd1, *cd2, use_flat);
     }
 
@@ -1471,9 +1711,19 @@ bool CastCollisionObjectWrapper::setSweep(const Eigen::Isometry3d& pose1, const 
   // and whatever it accepts is reported as no motion at all.
   swept_ = end_pose.matrix() != world_pose_.matrix();
   if (swept_)
+  {
     sweep_end_pose_ = end_pose;
+    sweep_displacement_current_ = false;
+  }
 
   return changed;
+}
+
+void CastCollisionObjectWrapper::computeSweepDisplacement() const
+{
+  sweep_displacement_ = sweep_end_pose_ * world_pose_.inverse(Eigen::Isometry);
+  sweep_displacement_inverse_ = world_pose_ * sweep_end_pose_.inverse(Eigen::Isometry);
+  sweep_displacement_current_ = true;
 }
 
 CastCOW::Ptr makeCastCollisionObject(const COW::Ptr& cow, bool build_swept, bool d_arc_compensation)

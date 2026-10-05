@@ -37,14 +37,20 @@ TEST(TesseractCollisionUnit, BulletContinuousBVHCollisionSphereSphereConvexHullU
 TEST(TesseractCollisionUnit, CoalContinuousBVHCollisionSphereSphereUnit)  // NOLINT
 {
   tesseract_collision_coal::CoalCastBVHManager checker;
-  test_suite::runTest(checker, false);
+  test_suite::runTest(checker,
+                      /*use_convex_mesh=*/false,
+                      /*canonical_cast_witness=*/true,
+                      /*moving_pairs_share_time=*/true);
 }
 
 TEST(TesseractCollisionUnit, CoalContinuousBVHCollisionSphereSphereConvexHullUnit)  // NOLINT
 {
   tesseract_collision_coal::CoalCastBVHManager checker;
   // coal returns an arbitrary point of the degenerate contact overlap; see runTestConvex.
-  test_suite::runTest(checker, /*use_convex_mesh=*/true, /*canonical_cast_witness=*/false);
+  test_suite::runTest(checker,
+                      /*use_convex_mesh=*/true,
+                      /*canonical_cast_witness=*/false,
+                      /*moving_pairs_share_time=*/true);
 }
 
 int main(int argc, char** argv)

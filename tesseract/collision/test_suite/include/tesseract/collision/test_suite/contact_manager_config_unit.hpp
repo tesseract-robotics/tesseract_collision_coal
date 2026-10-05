@@ -258,7 +258,8 @@ inline void runTest(DiscreteContactManager& checker)
   EXPECT_NEAR(result_vector[0].normal[2], idx[2] * 0.0, 0.001);
 }
 
-inline void runTest(ContinuousContactManager& checker)
+/** @param moving_pairs_share_time Whether the backend collides two moving links at one shared time. */
+inline void runTest(ContinuousContactManager& checker, bool moving_pairs_share_time = false)
 {
   // Add collision objects
   detail::addCollisionObjects(checker);
@@ -359,7 +360,7 @@ inline void runTest(ContinuousContactManager& checker)
   EXPECT_NEAR(result_vector[0].normal[2], idx[2] * 0.0, 0.001);
 
   /////////////////////////////////////////////////////////////
-  // Test when object is in collision at cc_time 0.333 and 0.5
+  // Test when the two objects' sweeps cross
   /////////////////////////////////////////////////////////////
 
   // Set the start location
@@ -390,6 +391,20 @@ inline void runTest(ContinuousContactManager& checker)
   result.flattenMoveResults(result_vector);
 
   EXPECT_TRUE(!result_vector.empty());
+  if (moving_pairs_share_time)
+  {
+    // The spheres pass the crossing point at different times, so they are nearest in between: at
+    // t = 0.44, with their centres 0.4472 apart.
+    ASSERT_FALSE(result_vector.empty());
+    const ContactResult& cr = result_vector[0];
+    EXPECT_NEAR(cr.distance, -0.0528, 0.0001);
+    EXPECT_NEAR(cr.cc_time[0], 0.44, 0.001);
+    EXPECT_NEAR(cr.cc_time[1], 0.44, 0.001);
+    EXPECT_EQ(cr.cc_type[0], ContinuousCollisionType::CCType_Between);
+    EXPECT_EQ(cr.cc_type[1], ContinuousCollisionType::CCType_Between);
+    return;
+  }
+
   EXPECT_NEAR(result_vector[0].distance, -0.1, 0.0001);
 
   idx = { 0, 1, 1 };

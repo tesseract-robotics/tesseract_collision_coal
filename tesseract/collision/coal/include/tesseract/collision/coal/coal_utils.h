@@ -71,17 +71,28 @@ struct CollisionObjectPairHash
   std::size_t operator()(const CollisionObjectPair& p) const noexcept { return boost::hash_value(p); }
 };
 
+class CastHullShape;
+
 /** @brief Cached collision functor and GJK warm-start state for a collision object pair */
 struct CollisionCacheEntry
 {
   coal::CollisionRequest request;
   coal::ComputeCollision functor;
-  bool is_cast{ false };     ///< Cached at creation to avoid a dynamic_cast per contact.
-                             ///< Gates population of the continuous-collision fields on each result.
-  bool multi_leaf{ false };  ///< Cached at creation. Marks a pair with no usable warm start, which
-                             ///< keeps the bounding-volume guess it was constructed with.
-  uint32_t gen0{ 0 };        ///< COW generation when GJK guess was last seeded (shape 0).
-  uint32_t gen1{ 0 };        ///< COW generation when GJK guess was last seeded (shape 1).
+  bool is_cast{ false };       ///< Cached at creation to avoid a dynamic_cast per contact.
+                               ///< Gates population of the continuous-collision fields on each result.
+  bool multi_leaf{ false };    ///< Cached at creation. Marks a pair with no usable warm start, which
+                               ///< keeps the bounding-volume guess it was constructed with.
+  bool sweeps_first{ false };  ///< Whether pair_hull sweeps the key's first object rather than its second.
+  uint32_t gen0{ 0 };          ///< COW generation when GJK guess was last seeded (shape 0).
+  uint32_t gen1{ 0 };          ///< COW generation when GJK guess was last seeded (shape 1).
+  /// Set for a pair of two swept objects, null for every other pair. Such a pair is collided as one
+  /// object's plain shape against this hull: the scratch hull of the other object, which every pair
+  /// sweeping that object shares, and which is therefore rewritten with the object's motion relative to
+  /// its partner before every query. Not owned: it lives as long as the swept object's own hull, and an
+  /// entry does not outlive its objects.
+  CastHullShape* pair_hull{ nullptr };
+  /// The geometry the functor collides as its first object.
+  const coal::CollisionGeometry* first_geometry{ nullptr };
 };
 
 /** @brief Cache mapping collision object pairs to their precomputed collision functor and warm-start state */
@@ -90,8 +101,11 @@ using CollisionCacheMap = std::unordered_map<CollisionObjectPair, CollisionCache
 /// Default d_arc compensation setting (disabled). When enabled, CastHullShape's swept-sphere
 /// radius is set to the arc-chord sagitta of the shape's rotation, compensating for the gap
 /// between the convex hull (chord) and the true swept arc in continuous collision checks.
-/// Only used by the cast (continuous) manager. Configurable via the plugin YAML config key
-/// `d_arc_compensation`.
+/// A pair of two moving links is collided through a hull of their relative motion, which is
+/// padded by the sagitta of their relative turn instead, computed on every narrowphase query
+/// of the pair. That is the arc the pair's hull cuts only when one joint joins the two links or
+/// one of them does not move; see CoalCastBVHManager. Only used by the cast (continuous)
+/// manager. Configurable via the plugin YAML config key `d_arc_compensation`.
 inline constexpr bool kDefaultDArcCompensation = false;
 
 /** @brief Compute an AABB for a ShapeBase at transform tf, dispatching on getNodeType().
@@ -272,13 +286,16 @@ public:
   std::shared_ptr<CollisionObjectWrapper> clone() const;
 };
 
+/// The displacement of a link that is not swept: exactly the identity.
+inline const Eigen::Isometry3d kNoSweepDisplacement{ Eigen::Isometry3d::Identity() };
+
 /**
  * @brief The wrapper of a link as a continuous manager sweeps it: the link's shapes as CastHullShapes, and
  * the sweep they are set to.
  *
  * The sweep is held twice - per shape in the hulls, which the narrowphase collides, and per link here,
- * which a contact's fields read - and the two agree only while nothing writes one without the other.
- * setSweep writes both, and is the only way this type offers to set the link's pose.
+ * which a contact's fields and a pair of two swept links read - and the two agree only while nothing writes
+ * one without the other. setSweep writes both, and is the only way this type offers to set the link's pose.
  *
  * A wrapper made for a static link is deferred: it holds the link's own geometry in place of hulls and takes
  * no sweep until it is built. See makeCastCollisionObject and castCowNeedsSweptBuild.
@@ -328,12 +345,45 @@ public:
    *  kDefaultDArcCompensation. Fixed when the wrapper is made. */
   bool getDArcCompensation() const { return d_arc_compensation_; }
 
+  /** @brief The link's world displacement over its sweep, end * start^-1. Exactly the identity when the
+   *  sweep ends at the pose it starts at.
+   *
+   *  Worked out on the first call after a sweep is set, of this or of the inverse, so not safe to call from
+   *  two threads at once. */
+  const Eigen::Isometry3d& getSweepDisplacement() const
+  {
+    if (!swept_)
+      return kNoSweepDisplacement;
+    if (!sweep_displacement_current_)
+      computeSweepDisplacement();
+    return sweep_displacement_;
+  }
+
+  /** @brief The inverse of getSweepDisplacement, start * end^-1; exactly the identity likewise. */
+  const Eigen::Isometry3d& getSweepDisplacementInverse() const
+  {
+    if (!swept_)
+      return kNoSweepDisplacement;
+    if (!sweep_displacement_current_)
+      computeSweepDisplacement();
+    return sweep_displacement_inverse_;
+  }
+
 private:
   /** @brief See getDArcCompensation. */
   bool d_arc_compensation_;
-  /** @brief Whether the link is swept. The sweep end pose below is read only while it is. */
+  /** @brief Whether the link is swept. The sweep members below are read only while it is. */
   bool swept_{ false };
+  /** @brief Whether the two displacements below match the sweep. Few swept links meet another one in the
+   *  narrowphase, so they are worked out for the first reader rather than on every sweep set. */
+  mutable bool sweep_displacement_current_{ false };
+
   Eigen::Isometry3d sweep_end_pose_{ Eigen::Isometry3d::Identity() }; /**< @brief World pose the sweep ends at */
+  mutable Eigen::Isometry3d sweep_displacement_{ Eigen::Isometry3d::Identity() };         /**< @brief end * start^-1 */
+  mutable Eigen::Isometry3d sweep_displacement_inverse_{ Eigen::Isometry3d::Identity() }; /**< @brief start * end^-1 */
+
+  /** @brief Bring the two displacements up to date with the sweep. */
+  void computeSweepDisplacement() const;
 };
 
 CollisionGeometryPtr createShapePrimitive(const CollisionShapeConstPtr& geom);
@@ -434,6 +484,21 @@ void updateCollisionObjectFilters(const std::unordered_set<tesseract::common::Li
                                   CastCOW::Ptr& cast_cow,
                                   const std::unique_ptr<coal::BroadPhaseCollisionManager>& static_manager,
                                   const std::unique_ptr<coal::BroadPhaseCollisionManager>& dynamic_manager);
+
+/**
+ * @brief Which shape of a pair of two swept objects is the swept one
+ *
+ * The smaller shape, and between shapes of one size the shape of the link whose name sorts last;
+ * CoalCastBVHManager states why. For shapes of two links, giving the shapes the other way round gives the
+ * other answer, so the choice does not follow the order a caller holds the pair in.
+ *
+ * @param size1 The first shape's size, as CastHullShape::getShapeBoundRadius measures it
+ * @param size2 The second shape's size
+ * @param link1 The name of the first shape's link
+ * @param link2 The name of the second shape's link
+ * @return Whether the first shape is the swept one
+ */
+bool pairSweepsFirst(coal::Scalar size1, coal::Scalar size2, const std::string& link1, const std::string& link2);
 
 /**
  * @brief Create a cast collision object from a regular collision object

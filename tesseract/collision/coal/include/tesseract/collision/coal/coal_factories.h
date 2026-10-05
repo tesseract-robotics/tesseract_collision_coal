@@ -63,6 +63,10 @@ protected:
  *        class: CoalCastBVHManagerFactory
  *        config:
  *          d_arc_compensation: false
+ *
+ * `d_arc_compensation` pads every swept hull by the arc sagitta of its rotation: a moving link's hull by
+ * that of the link's turn in the world, and the hull of a pair of two moving links by that of their
+ * relative turn. See kDefaultDArcCompensation.
  */
 class CoalCastBVHManagerFactory : public ContinuousContactManagerFactory
 {
