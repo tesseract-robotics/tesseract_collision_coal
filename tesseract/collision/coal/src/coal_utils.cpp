@@ -605,6 +605,182 @@ bool needsCollisionCheck(const CollisionObjectWrapper* cd1,
          !isContactAllowed(pair, validator);
 }
 
+/// Where along a sweep a contact lies, with the swept shape's resting points at either end of it.
+struct SweepWitness
+{
+  double cc_time{ -1 };
+  ContinuousCollisionType cc_type{ ContinuousCollisionType::CCType_None };
+  coal::Vec3s pt_local0{ coal::Vec3s::Zero() };  ///< Averaged support at the start pose, in the shape's frame.
+  coal::Vec3s pt_local1{ coal::Vec3s::Zero() };  ///< Averaged support at the end pose, in the shape's frame.
+};
+
+/// The scratch GetAverageSupport climbs on, one per thread, its visited buffer staying allocated across
+/// calls. A call leaves nothing a later one reads: a caller seeds last_dir ahead of every climb, and the
+/// climb re-initialises visited.
+static coal::details::ShapeSupportData& averagingScratch()
+{
+  thread_local coal::details::ShapeSupportData scratch;
+  return scratch;
+}
+
+/**
+ * @brief Locate a contact on a swept shape.
+ *
+ * Uses the support-function approach of Bullet's calculateContinuousData: finds the shape's extreme points
+ * along the contact normal at either end of the sweep, then classifies the contact time by which pose has
+ * the greater support.
+ *
+ * @param hull The swept hull the narrowphase collided; its support hints seed the support queries
+ * @param shape_tf0 The shape's pose at the start of the sweep
+ * @param shape_tf1 The shape's pose at the end of the sweep, in the same frame
+ * @param link_origin0 The origin of the shape's link, not of the shape, at the start of the sweep
+ * @param link_origin1 The origin of the shape's link, not of the shape, at the end of the sweep
+ * @param normal Unit contact normal pointing from this object toward the other
+ * @param witness The narrowphase witness point on this object
+ * @param use_flat Scan every vertex for the support instead of climbing from the hull's hints
+ */
+static SweepWitness locateOnSweep(const CastHullShape& hull,
+                                  const Eigen::Isometry3d& shape_tf0,
+                                  const Eigen::Isometry3d& shape_tf1,
+                                  const Eigen::Vector3d& link_origin0,
+                                  const Eigen::Vector3d& link_origin1,
+                                  const coal::Vec3s& normal,
+                                  const Eigen::Vector3d& witness,
+                                  bool use_flat)
+{
+  SweepWitness w;
+
+  // Transform normal into local frames at t=0 and t=1
+  const coal::Vec3s normal_local0 = shape_tf0.linear().transpose() * normal;
+  const coal::Vec3s normal_local1 = shape_tf1.linear().transpose() * normal;
+
+  // Get averaged support points on the underlying shape at both local normals.
+  // The averaging climb runs on thread_local scratch (its visited buffer stays
+  // allocated across calls, like traversal_stack) rather than the sweep's own
+  // hint/ShapeSupportData, so it never perturbs the sweep's warm-start chain.
+  // When use_flat is false (penetration requested), EPA has converged, so the
+  // sweep's hint/last_dir already match the contact normal — seed the scratch
+  // from them for a high-quality start. When use_flat is true the flat scan
+  // ignores the scratch entirely (see getAverageSupportFromConvex), so the
+  // stale seed is harmless; the warm branch re-seeds last_dir and re-inits
+  // visited on every call, so interleaved flat/warm queries never corrupt it.
+  const coal::ShapeBase* underlying = hull.getUnderlyingShape().get();
+  coal::details::ShapeSupportData& avg_data = averagingScratch();
+
+  double sup_local0 = 0;
+  int hint0 = 0;
+  if (!use_flat)
+  {
+    hint0 = hull.getHint0();
+    avg_data.last_dir = hull.getSupportData0().last_dir;
+  }
+  GetAverageSupport(underlying, normal_local0, sup_local0, w.pt_local0, hint0, avg_data, use_flat);
+
+  double sup_local1 = 0;
+  int hint1 = 0;
+  if (!use_flat)
+  {
+    hint1 = hull.getHint1();
+    avg_data.last_dir = hull.getSupportData1().last_dir;
+  }
+  GetAverageSupport(underlying, normal_local1, sup_local1, w.pt_local1, hint1, avg_data, use_flat);
+
+  // Compare world-frame supports at the LINK origin as reference center,
+  // matching Bullet's compound-child treatment:
+  //
+  //   link_sup = sup_local + normal · link_origin
+  //
+  // Using the link origin (not the per-shape world center) avoids orbital-
+  // motion bias: when a multi-shape link rotates, each per-shape center
+  // orbits the link origin, adding a spurious translational term
+  // (normal · link_R * local_offset) to the comparison that differs between
+  // sub-shapes even though the link undergoes the same motion.  Bullet
+  // avoids this by building compound-child cast transforms at link level
+  // (no per-shape translation component); we replicate that here.
+  //
+  // For pure rotation: link_origin0 == link_origin1, so the dot-product
+  // terms cancel and the comparison reduces to sup_local1 vs sup_local0.
+  //
+  // For pure translation: sup_local0 == sup_local1 (same rotation ⇒ same
+  // local normal), so link_sup1 − link_sup0 = normal · (link_origin1 − link_origin0).
+  // A positive value means the shape's surface advances in the normal
+  // direction over the sweep → CCType_Time1, matching Bullet.
+  const double link_sup0 = sup_local0 + normal.dot(link_origin0);
+  const double link_sup1 = sup_local1 + normal.dot(link_origin1);
+
+  if (link_sup0 - link_sup1 > COAL_SUPPORT_FUNC_TOLERANCE)
+  {
+    w.cc_time = 0;
+    w.cc_type = ContinuousCollisionType::CCType_Time0;
+  }
+  else if (link_sup1 - link_sup0 > COAL_SUPPORT_FUNC_TOLERANCE)
+  {
+    w.cc_time = 1;
+    w.cc_type = ContinuousCollisionType::CCType_Time1;
+  }
+  else
+  {
+    w.cc_type = ContinuousCollisionType::CCType_Between;
+
+    // Compute cc_time from the ratio of distances between the GJK witness
+    // point and the surface support points at t=0 and t=1, matching
+    // Schulman et al. IJRR 2014, Eq. (17):
+    //   α = ||p1 - p_swept|| / (||p1 - p_swept|| + ||p0 - p_swept||)
+    // where α weights p0 (i.e., cc_time = 1-α = l0c/(l0c+l1c)).
+    const Eigen::Vector3d shape_ptWorld0 = shape_tf0 * Eigen::Vector3d(w.pt_local0);
+    const Eigen::Vector3d shape_ptWorld1 = shape_tf1 * Eigen::Vector3d(w.pt_local1);
+    const double l0c = (witness - shape_ptWorld0).norm();
+    const double l1c = (witness - shape_ptWorld1).norm();
+
+    if (l0c + l1c < COAL_LENGTH_TOLERANCE)
+      w.cc_time = 0.5;
+    else
+      w.cc_time = std::clamp(l0c / (l0c + l1c), 0.0, 1.0);
+  }
+
+  return w;
+}
+
+/**
+ * @brief The contact point of a located witness, in the link's frame at the start of its sweep.
+ *
+ * A contact pinned to one end of the sweep reports that end's support point, taken back through the
+ * link's start pose: the end-pose world point for a contact at time 1, so that the link's start pose times
+ * the result is the world contact point, as Bullet's calculateContinuousData has it. A contact in between
+ * reports the average of the two supports, which is a point of the shape.
+ *
+ * @param w The located witness: the contact's type and the shape's support point at either end of the sweep
+ * @param link_tf0 The link's pose at the start of the sweep
+ * @param shape_tf0 The shape's world pose at the start of the sweep
+ * @param shape_tf1 The shape's world pose at the end of the sweep
+ */
+static Eigen::Vector3d sweepWitnessInLinkFrame(const SweepWitness& w,
+                                               const Eigen::Isometry3d& link_tf0,
+                                               const Eigen::Isometry3d& shape_tf0,
+                                               const Eigen::Isometry3d& shape_tf1)
+{
+  switch (w.cc_type)
+  {
+    case ContinuousCollisionType::CCType_Time0:
+      return applyInverse(link_tf0, shape_tf0 * Eigen::Vector3d(w.pt_local0));
+    case ContinuousCollisionType::CCType_Time1:
+      return applyInverse(link_tf0, shape_tf1 * Eigen::Vector3d(w.pt_local1));
+    default:
+    {
+      const coal::Vec3s avg_pt_local = (w.pt_local0 + w.pt_local1) / 2.0;
+      return applyInverse(link_tf0, shape_tf0 * Eigen::Vector3d(avg_pt_local));
+    }
+  }
+}
+
+static Eigen::Isometry3d toIsometry(const coal::Transform3s& tf)
+{
+  Eigen::Isometry3d out{ Eigen::Isometry3d::Identity() };
+  out.linear() = tf.getRotation();
+  out.translation() = Eigen::Vector3d(tf.getTranslation());
+  return out;
+}
+
 /**
  * @brief Populate continuous collision fields (cc_time, cc_type, cc_transform) on a ContactResult.
  *
@@ -636,11 +812,10 @@ void populateContinuousCollisionFields(ContactResult& contact,
     if (cast_shape == nullptr)
       continue;
 
-    const auto& ct = cast_shape->getCastTransform();
-
     // Shape world transforms at t=0 and t=1
     const coal::Transform3s& tf_world0 = objects[i]->getTransform();
-    coal::Transform3s tf_world1 = tf_world0 * ct;
+    const Eigen::Isometry3d shape_tf0 = toIsometry(tf_world0);
+    const Eigen::Isometry3d shape_tf1 = toIsometry(tf_world0 * cast_shape->getCastTransform());
 
     // cc_transform = link transform at t=1
     // Recover link_tf2 from shape world transforms:
@@ -649,123 +824,23 @@ void populateContinuousCollisionFields(ContactResult& contact,
     //   link_tf2 = shape_tf1 * shape_tf0^-1 * link_tf1
     // This correctly handles shapes with non-identity local offsets,
     // matching Bullet's calculateContinuousData approach.
-    Eigen::Isometry3d shape_tf0;
-    shape_tf0.linear() = tf_world0.getRotation();
-    shape_tf0.translation() = Eigen::Vector3d(tf_world0.getTranslation());
-    Eigen::Isometry3d shape_tf1;
-    shape_tf1.linear() = tf_world1.getRotation();
-    shape_tf1.translation() = Eigen::Vector3d(tf_world1.getTranslation());
     contact.cc_transform[i] = shape_tf1 * shape_tf0.inverse() * contact.transform[i];
 
     // Normal pointing from current object toward the other (matching Bullet convention).
     // contact.normal has already been remapped to original (o1, o2) order after pair normalization.
     const coal::Vec3s normal_world = (i == 0) ? coal::Vec3s(contact.normal) : coal::Vec3s(-contact.normal);
 
-    // Transform normal into local frames at t=0 and t=1
-    coal::Vec3s normal_local0 = tf_world0.getRotation().transpose() * normal_world;
-    coal::Vec3s normal_local1 = tf_world1.getRotation().transpose() * normal_world;
-
-    // Get averaged support points on the underlying shape at both local normals.
-    // The averaging climb runs on thread_local scratch (its visited buffer stays
-    // allocated across calls, like traversal_stack) rather than the sweep's own
-    // hint/ShapeSupportData, so it never perturbs the sweep's warm-start chain.
-    // When use_flat is false (penetration requested), EPA has converged, so the
-    // sweep's hint/last_dir already match the contact normal — seed the scratch
-    // from them for a high-quality start. When use_flat is true the flat scan
-    // ignores the scratch entirely (see getAverageSupportFromConvex), so the
-    // stale seed is harmless; the warm branch re-seeds last_dir and re-inits
-    // visited on every call, so interleaved flat/warm queries never corrupt it.
-    const coal::ShapeBase* underlying = cast_shape->getUnderlyingShape().get();
-    thread_local coal::details::ShapeSupportData avg_data;
-
-    coal::Vec3s pt_local0;
-    double sup_local0 = 0;
-    int hint0 = 0;
-    if (!use_flat)
-    {
-      hint0 = cast_shape->getHint0();
-      avg_data.last_dir = cast_shape->getSupportData0().last_dir;
-    }
-    GetAverageSupport(underlying, normal_local0, sup_local0, pt_local0, hint0, avg_data, use_flat);
-
-    coal::Vec3s pt_local1;
-    double sup_local1 = 0;
-    int hint1 = 0;
-    if (!use_flat)
-    {
-      hint1 = cast_shape->getHint1();
-      avg_data.last_dir = cast_shape->getSupportData1().last_dir;
-    }
-    GetAverageSupport(underlying, normal_local1, sup_local1, pt_local1, hint1, avg_data, use_flat);
-
-    // Compare world-frame supports at the LINK origin as reference center,
-    // matching Bullet's compound-child treatment:
-    //
-    //   sup_world = sup_local + normal_world · link_center
-    //
-    // Using the link center (not the per-shape world center) avoids orbital-
-    // motion bias: when a multi-shape link rotates, each per-shape center
-    // orbits the link origin, adding a spurious translational term
-    // (normal · link_R * local_offset) to the comparison that differs between
-    // sub-shapes even though the link undergoes the same motion.  Bullet
-    // avoids this by building compound-child cast transforms at link level
-    // (no per-shape translation component); we replicate that here.
-    //
-    // For pure rotation: link_center0 == link_center1, so the dot-product
-    // terms cancel and the comparison reduces to sup_local1 vs sup_local0,
-    // unchanged from before.
-    //
-    // For pure translation: sup_local0 == sup_local1 (same rotation ⇒ same
-    // local normal), so link_sup1 − link_sup0 = normal · link_sweep.
-    // A positive value means the shape's surface advances in the normal
-    // direction over the sweep → CCType_Time1, matching Bullet.
-    const Eigen::Vector3d& nw(normal_world);
-    const double link_sup0 = sup_local0 + nw.dot(contact.transform[i].translation());
-    const double link_sup1 = sup_local1 + nw.dot(contact.cc_transform[i].translation());
-
-    if (link_sup0 - link_sup1 > COAL_SUPPORT_FUNC_TOLERANCE)
-    {
-      contact.cc_time[i] = 0;
-      contact.cc_type[i] = ContinuousCollisionType::CCType_Time0;
-      contact.nearest_points_local[i] = applyInverse(link_tf[i], shape_tf0 * Eigen::Vector3d(pt_local0));
-    }
-    else if (link_sup1 - link_sup0 > COAL_SUPPORT_FUNC_TOLERANCE)
-    {
-      contact.cc_time[i] = 1;
-      contact.cc_type[i] = ContinuousCollisionType::CCType_Time1;
-      // pt_local1 is the support point in the shape's local frame at t=1
-      // rotation.  Map it to world via shape_tf1 (shape at end pose), then
-      // to link-local.  This matches Bullet's calculateContinuousData, which
-      // uses the t=1 shape transform for the CCType_Time1 branch, so that
-      // transform[ki] * nearest_points_local[ki] == nearest_points[ki]
-      // (the actual world-frame contact point).
-      contact.nearest_points_local[i] = applyInverse(link_tf[i], shape_tf1 * Eigen::Vector3d(pt_local1));
-    }
-    else
-    {
-      contact.cc_type[i] = ContinuousCollisionType::CCType_Between;
-
-      // Compute cc_time from the ratio of distances between the GJK witness
-      // point and the surface support points at t=0 and t=1, matching
-      // Schulman et al. IJRR 2014, Eq. (17):
-      //   α = ||p1 - p_swept|| / (||p1 - p_swept|| + ||p0 - p_swept||)
-      // where α weights p0 (i.e., cc_time = 1-α = l0c/(l0c+l1c)).
-      const Eigen::Vector3d shape_ptWorld0 = shape_tf0 * Eigen::Vector3d(pt_local0);
-      const Eigen::Vector3d shape_ptWorld1 = shape_tf1 * Eigen::Vector3d(pt_local1);
-      const double l0c = (contact.nearest_points[i] - shape_ptWorld0).norm();
-      const double l1c = (contact.nearest_points[i] - shape_ptWorld1).norm();
-
-      if (l0c + l1c < COAL_LENGTH_TOLERANCE)
-        contact.cc_time[i] = 0.5;
-      else
-        contact.cc_time[i] = std::clamp(l0c / (l0c + l1c), 0.0, 1.0);
-
-      // nearest_points_local: average of the two local support points,
-      // transformed to world via shape_tf0, then to link-local coordinates.
-      // Matches Bullet's calculateContinuousData: (shape_ptLocal0 + shape_ptLocal1) / 2.0
-      const coal::Vec3s avg_pt_local = (pt_local0 + pt_local1) / 2.0;
-      contact.nearest_points_local[i] = applyInverse(link_tf[i], shape_tf0 * Eigen::Vector3d(avg_pt_local));
-    }
+    const SweepWitness w = locateOnSweep(*cast_shape,
+                                         shape_tf0,
+                                         shape_tf1,
+                                         contact.transform[i].translation(),
+                                         contact.cc_transform[i].translation(),
+                                         normal_world,
+                                         contact.nearest_points[i],
+                                         use_flat);
+    contact.cc_time[i] = w.cc_time;
+    contact.cc_type[i] = w.cc_type;
+    contact.nearest_points_local[i] = sweepWitnessInLinkFrame(w, link_tf[i], shape_tf0, shape_tf1);
   }
 }
 
