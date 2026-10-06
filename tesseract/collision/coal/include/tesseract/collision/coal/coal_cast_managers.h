@@ -65,11 +65,12 @@ namespace tesseract::collision::tesseract_collision_coal
  * wrapper, it may hold any geometry Coal can collide - a mesh, a raw octree - whether or not that geometry
  * has a swept form. Promoting a link whose geometry has no swept form throws.
  *
- * Two kinematic links are not collided hull against hull, which would report a contact wherever they
- * pass through the same space at different times. Of each pair of their shapes one is collided as it
- * stands and the other is swept by its link's motion relative to the first, so links that move rigidly
- * together are checked as an unswept pair, to rounding: their relative motion is guaranteed to come out as
- * exactly no motion only when neither link is swept. A contact carries one time for both links.
+ * Under relative cast, the default (see kDefaultRelativeCast), two kinematic links are not collided hull
+ * against hull, which would report a contact wherever they pass through the same space at different times.
+ * Of each pair of their shapes one is collided as it stands and the other is swept by its link's motion
+ * relative to the first, so links that move rigidly together are checked as an unswept pair, to rounding:
+ * their relative motion is guaranteed to come out as exactly no motion only when neither link is swept. A
+ * contact carries one time for both links.
  *
  * The smaller shape of a pair is the swept one, by the diagonal of its bounding box, and between shapes of
  * one size the shape of the link whose name sorts last. A link with several shapes can thus be held for one
@@ -97,11 +98,19 @@ namespace tesseract::collision::tesseract_collision_coal
  *  - With several joints between the links the path is no single arc, and the padding is an estimate.
  *  - When the two links move independently, the held link's own turn bends the path as well, by about that
  *    turn times the swept shape's travel over four. The relative turn does not show this: two links turning
- *    by one angle about different axes have none. Neither the hull nor the padding covers it, so a pair of
- *    two kinematic links is not conservative with compensation on.
+ *    by one angle about different axes have none. Neither the hull nor the padding covers it, so under
+ *    relative cast such a pair is not conservative with compensation on.
  * Only a shorter step bounds the last two.
  *
- * A pair reaches this check only if the two links' own hulls overlap in the broadphase, and each of those
+ * With relative cast off, each link's own hull is collided against the other's, and a contact carries a
+ * time per link. That reads too near wherever the two links pass through the same space at different times,
+ * and too far by at most the sum of how far each link's path leaves its own hull: d_arc compensation covers
+ * that for a link moved by a single joint and estimates it otherwise. With compensation on it is therefore
+ * conservative for two links each moved by a single joint, which relative cast is not. It gives no such
+ * guarantee where several joints move a link, as along one arm, and without compensation only a shorter step
+ * bounds it.
+ *
+ * Either way a pair is checked only if the two links' own hulls overlap in the broadphase, and each of those
  * holds its link's two end poses in the world and the straight path between them. A link that turns can
  * therefore pass through another inside the step unseen, where its arc leaves its own hull: d_arc
  * compensation pads that hull by the arc's sagitta, and a shorter step bounds it without.
@@ -115,7 +124,8 @@ public:
   using ConstUPtr = std::unique_ptr<const CoalCastBVHManager>;
 
   explicit CoalCastBVHManager(std::string name = "CoalCastBVHManager",
-                              bool d_arc_compensation = kDefaultDArcCompensation);
+                              bool d_arc_compensation = kDefaultDArcCompensation,
+                              bool relative_cast = kDefaultRelativeCast);
   ~CoalCastBVHManager() override = default;
   CoalCastBVHManager(const CoalCastBVHManager&) = delete;
   CoalCastBVHManager& operator=(const CoalCastBVHManager&) = delete;
@@ -277,8 +287,8 @@ private:
   ContactTestDataWrapper contact_test_data_; /**< @brief Persistent contact test data (Bullet pattern) */
   std::size_t coal_co_count_{ 0 };           /**< @brief The number of coal collision objects */
   /** @brief When true, pad every swept hull by an arc sagitta, as its swept-sphere radius: a link's own hull
-   *  by that of the link's turn in the world, on every transform update, and the hull of a pair of two moving
-   *  links by that of their relative turn, on every narrowphase query of the pair. */
+   *  by that of the link's turn in the world, on every transform update, and under relative cast the hull of
+   *  a pair of two moving links by that of their relative turn, on every narrowphase query of the pair. */
   bool d_arc_compensation_;
 
   /** @brief This is used to store static collision objects to update */

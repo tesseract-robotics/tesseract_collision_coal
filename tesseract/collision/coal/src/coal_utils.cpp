@@ -826,7 +826,7 @@ static coal::Vec3s restingPoint(const coal::ShapeBase& shape, const coal::Vec3s&
   return point;
 }
 
-/// One query of a pair of two swept objects: which is held and which is swept, and by what motion.
+/// One query of a pair collided through a pair hull: which is held and which is swept, and by what motion.
 struct PairSweep
 {
   /// @p co1 and @p co2 are the pair in the order of its cache key, @p cow1 and @p cow2 their wrappers and
@@ -903,7 +903,8 @@ static Eigen::Vector3d pairWitnessInLinkFrame(const SweepWitness& w,
 }
 
 /**
- * @brief Populate the continuous collision fields of a contact between two swept objects.
+ * @brief Populate the continuous collision fields of a contact between two swept objects collided through
+ * a pair hull.
  *
  * The pair was collided as the held object's plain shape against one hull, so the contact has one time,
  * which both links report. Each link's local contact point follows the conventions of a single sweep; see
@@ -1067,11 +1068,12 @@ bool pairSweepsFirst(coal::Scalar size1, coal::Scalar size2, const std::string& 
 }
 
 /// Build the cache entry of a collision object pair. @p cow1 and @p cow2 are the wrappers of @p co1 and
-/// @p co2.
+/// @p co2; @p relative_cast is ContactTestDataWrapper::relative_cast.
 static CollisionCacheEntry makeCacheEntry(const coal::CollisionObject& co1,
                                           const coal::CollisionObject& co2,
                                           const CollisionObjectWrapperBase& cow1,
-                                          const CollisionObjectWrapperBase& cow2)
+                                          const CollisionObjectWrapperBase& cow2,
+                                          bool relative_cast)
 {
   const auto* hull1 = dynamic_cast<const CastHullShape*>(co1.collisionGeometryPtr());
   const auto* hull2 = dynamic_cast<const CastHullShape*>(co2.collisionGeometryPtr());
@@ -1080,11 +1082,11 @@ static CollisionCacheEntry makeCacheEntry(const coal::CollisionObject& co1,
   const coal::CollisionGeometry* geometry2 = co2.collisionGeometryPtr();
   CastHullShape* pair_hull = nullptr;
   bool sweeps_first = false;
-  if (hull1 != nullptr && hull2 != nullptr)
+  if (relative_cast && hull1 != nullptr && hull2 != nullptr)
   {
-    // Two swept objects are collided as the plain shape of one against a hull of the other's motion relative
-    // to it; CoalCastBVHManager states why. Which one is swept does not follow the cache key, whose order is
-    // that of two addresses.
+    // Under relative cast two swept objects are collided as the plain shape of one against a hull of the
+    // other's motion relative to it; CoalCastBVHManager states why. Which one is swept does not follow the
+    // cache key, whose order is that of two addresses.
     sweeps_first = pairSweepsFirst(
         hull1->getShapeBoundRadius(), hull2->getShapeBoundRadius(), cow1.getLinkId().name(), cow2.getLinkId().name());
     pair_hull = &(sweeps_first ? hull1 : hull2)->scratchHull();
@@ -1147,7 +1149,9 @@ bool CollisionCallback::collide(coal::CollisionObject* o1, coal::CollisionObject
   auto col_cache_it = cdata->collision_cache->find(object_pair);
 
   if (col_cache_it == cdata->collision_cache->end())
-    col_cache_it = cdata->collision_cache->try_emplace(object_pair, makeCacheEntry(*co1, *co2, *cow1, *cow2)).first;
+    col_cache_it =
+        cdata->collision_cache->try_emplace(object_pair, makeCacheEntry(*co1, *co2, *cow1, *cow2, cdata->relative_cast))
+            .first;
 
   auto& entry = col_cache_it->second;
   auto& cached_request = entry.request;
@@ -1175,7 +1179,7 @@ bool CollisionCallback::collide(coal::CollisionObject* o1, coal::CollisionObject
   cached_request.security_margin = security_margin;
   cached_request.distance_upper_bound = security_margin + cached_request.gjk_tolerance;
 
-  // Every pair but one of two swept objects pays this test and nothing else.
+  // Every pair without a pair hull pays this test and nothing else.
   std::optional<PairSweep> pair;
   if (entry.pair_hull != nullptr)
   {
@@ -1220,7 +1224,7 @@ bool CollisionCallback::collide(coal::CollisionObject* o1, coal::CollisionObject
   // swap arguments without compensating in the result, causing Contact o1/o2, b1/b2,
   // nearest_points, and normal to not match the (co1, co2) ordering. Detect this by
   // checking if the first contact's o1 is the geometry the functor collides as its first
-  // object, which for a pair of two swept objects is not the one co1 holds.
+  // object, which for a pair collided through a pair hull is not the one co1 holds.
   if (col_result.getContact(0).o1 != entry.first_geometry)
     col_result.swapObjects();
 

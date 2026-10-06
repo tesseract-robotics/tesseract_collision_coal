@@ -63,10 +63,18 @@ protected:
  *        class: CoalCastBVHManagerFactory
  *        config:
  *          d_arc_compensation: false
+ *          relative_cast: true
  *
  * `d_arc_compensation` pads every swept hull by the arc sagitta of its rotation: a moving link's hull by
- * that of the link's turn in the world, and the hull of a pair of two moving links by that of their
- * relative turn. See kDefaultDArcCompensation.
+ * that of the link's turn in the world, and under relative cast the hull of a pair of two moving links by
+ * that of their relative turn. See kDefaultDArcCompensation.
+ *
+ * `relative_cast` collides a pair of two moving links as one link's shape against the other's motion
+ * relative to it. `false` collides the two links' own swept hulls instead, which reports a contact wherever
+ * the links pass through the same space, at whatever times. Neither is conservative throughout: with
+ * `d_arc_compensation` on, `false` is conservative for two links each moved by a single joint, which `true`
+ * is not, and CoalCastBVHManager states where each reads too far. Two entries of this factory with different
+ * configs give both, selected by name. See kDefaultRelativeCast.
  */
 class CoalCastBVHManagerFactory : public ContinuousContactManagerFactory
 {

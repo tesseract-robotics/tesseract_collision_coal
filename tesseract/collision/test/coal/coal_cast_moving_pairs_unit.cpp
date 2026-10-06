@@ -3,6 +3,7 @@ TESSERACT_COMMON_IGNORE_WARNINGS_PUSH
 #include <gtest/gtest.h>
 #include <Eigen/Geometry>
 #include <coal/shape/geometric_shapes.h>
+#include <yaml-cpp/yaml.h>
 #include <array>
 #include <cmath>
 #include <map>
@@ -12,11 +13,13 @@ TESSERACT_COMMON_IGNORE_WARNINGS_POP
 
 #include <tesseract/collision/coal/coal_cast_managers.h>
 #include <tesseract/collision/coal/coal_casthullshape.h>
+#include <tesseract/collision/coal/coal_factories.h>
 #include <tesseract/collision/coal/coal_utils.h>
 #include <tesseract/geometry/geometries.h>
 
 using namespace tesseract::collision;
 using tesseract::collision::tesseract_collision_coal::CoalCastBVHManager;
+using tesseract::collision::tesseract_collision_coal::CoalCastBVHManagerFactory;
 using tesseract::common::LinkId;
 
 namespace
@@ -30,7 +33,7 @@ Eigen::Isometry3d at(double x, double y = 0.0, double z = 0.0)
   return tf;
 }
 
-void addShape(CoalCastBVHManager& checker,
+void addShape(ContinuousContactManager& checker,
               const std::string& link,
               const CollisionShapeConstPtr& shape,
               const Eigen::Isometry3d& shape_pose = Eigen::Isometry3d::Identity())
@@ -135,7 +138,7 @@ void sweepTogether(ContinuousContactManager& checker, const Eigen::Isometry3d& m
 
 /// Spheres "p" and "q" of radius 0.25 on crossing paths, 0.4 apart at the crossing, which they pass at
 /// different times. Their centres are nearest at t = 0.44: p at (-0.2, 0.16, 0), q at (0.2, 0, -0.12).
-void addCrossingSpheres(CoalCastBVHManager& checker)
+void addCrossingSpheres(ContinuousContactManager& checker)
 {
   const auto sphere = std::make_shared<tesseract::geometry::Sphere>(0.25);
   addShape(checker, "p", sphere);
@@ -561,6 +564,32 @@ TEST(CoalCastMovingPairsUnit, ClonedManagerAnswersOnItsOwn)  // NOLINT
   clone->setCollisionObjectsTransform("q", at(0.2, 0.0, -1.0));
   EXPECT_TRUE(contacts(*clone).empty());
   EXPECT_NEAR(onlyContact(checker).distance, original.distance, 1e-6);
+}
+
+TEST(CoalCastMovingPairsUnit, RelativeCastSettingReachesTheManagerAndItsClone)  // NOLINT
+{
+  // The spheres' hulls overlap by 0.1 where their paths cross, and the spheres themselves are nearest at
+  // CROSSING_TIME. They only translate, so arc compensation adds nothing to either reading.
+  const double hull_against_hull = -0.1;
+  const double at_one_time = (Q_AT_CROSSING - P_AT_CROSSING).norm() - 0.5;
+
+  const CoalCastBVHManagerFactory factory;
+  YAML::Node config;
+  config["d_arc_compensation"] = true;
+  config["relative_cast"] = false;
+  const ContinuousContactManager::UPtr separate = factory.create("separate", config);
+  addCrossingSpheres(*separate);
+  sweepCrossingSpheres(*separate);
+  EXPECT_NEAR(onlyContact(*separate).distance, hull_against_hull, 1e-4);
+
+  const ContinuousContactManager::UPtr clone = separate->clone();
+  sweepCrossingSpheres(*clone);
+  EXPECT_NEAR(onlyContact(*clone).distance, hull_against_hull, 1e-4);
+
+  const ContinuousContactManager::UPtr by_default = factory.create("default", YAML::Node());
+  addCrossingSpheres(*by_default);
+  sweepCrossingSpheres(*by_default);
+  EXPECT_NEAR(onlyContact(*by_default).distance, at_one_time, 1e-4);
 }
 
 TEST(CoalCastMovingPairsUnit, EveryRequestKindSeesTheSamePair)  // NOLINT

@@ -69,7 +69,7 @@ TEST(CoalFactorySchemaUnit, DiscreteAcceptsNoConfig)  // NOLINT
   EXPECT_TRUE(errors.empty()) << joinErrors(errors);
 }
 
-TEST(CoalFactorySchemaUnit, CastAcceptsDArcCompensation)  // NOLINT
+TEST(CoalFactorySchemaUnit, CastAcceptsItsKeys)  // NOLINT
 {
   auto schema = YAML::convert<ContactManagersPluginInfo>::schema();
 
@@ -81,6 +81,7 @@ TEST(CoalFactorySchemaUnit, CastAcceptsDArcCompensation)  // NOLINT
           class: CoalCastBVHManagerFactory
           config:
             d_arc_compensation: true
+            relative_cast: false
   )");
 
   auto errors = schema.applyConfig(config);
@@ -129,7 +130,7 @@ TEST(CoalFactorySchemaUnit, CastRejectsUnknownConfigKey)  // NOLINT
 {
   auto schema = YAML::convert<ContactManagersPluginInfo>::schema();
 
-  // The cast config declares only d_arc_compensation, so an undeclared key is rejected
+  // The cast config rejects any key it does not declare
   YAML::Node config = YAML::Load(R"(
     continuous_plugins:
       default: CoalCastBVHManager
@@ -182,19 +183,23 @@ TEST(CoalFactorySchemaUnit, CastFactoryCreateRejectsNonBooleanDArcCompensation) 
   }
 }
 
-TEST(CoalFactorySchemaUnit, CastFactorySchemaDeclaresDArcCompensation)  // NOLINT
+TEST(CoalFactorySchemaUnit, CastFactorySchemaDeclaresItsKeys)  // NOLINT
 {
   // Validation goes through the registered schema function, so the factory's own schema() is the
   // copy tooling reads. The two must not drift.
   const tesseract::collision::tesseract_collision_coal::CoalCastBVHManagerFactory factory;
   const PropertyTree schema = factory.schema();
 
-  ASSERT_EQ(schema.size(), 1U);
-  const auto default_value = schema.at("d_arc_compensation").getAttribute(property_attribute::DEFAULT);
-  ASSERT_TRUE(default_value.has_value());
-  // ASSERT_TRUE returns on failure, but bugprone-unchecked-optional-access cannot see that through the macro
-  // NOLINTNEXTLINE(bugprone-unchecked-optional-access)
-  EXPECT_EQ(default_value->as<bool>(), tesseract::collision::tesseract_collision_coal::kDefaultDArcCompensation);
+  ASSERT_EQ(schema.size(), 2U);
+  const auto expect_default = [&schema](const char* key, bool expected) {
+    const auto default_value = schema.at(key).getAttribute(property_attribute::DEFAULT);
+    ASSERT_TRUE(default_value.has_value()) << key;
+    // ASSERT_TRUE returns on failure, but bugprone-unchecked-optional-access cannot see that through the macro
+    // NOLINTNEXTLINE(bugprone-unchecked-optional-access)
+    EXPECT_EQ(default_value->as<bool>(), expected) << key;
+  };
+  expect_default("d_arc_compensation", tesseract::collision::tesseract_collision_coal::kDefaultDArcCompensation);
+  expect_default("relative_cast", tesseract::collision::tesseract_collision_coal::kDefaultRelativeCast);
 }
 
 TEST(CoalFactorySchemaUnit, DiscreteFactorySchemaDeclaresNoKeys)  // NOLINT

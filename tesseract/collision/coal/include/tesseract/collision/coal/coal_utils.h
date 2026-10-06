@@ -85,11 +85,11 @@ struct CollisionCacheEntry
   bool sweeps_first{ false };  ///< Whether pair_hull sweeps the key's first object rather than its second.
   uint32_t gen0{ 0 };          ///< COW generation when GJK guess was last seeded (shape 0).
   uint32_t gen1{ 0 };          ///< COW generation when GJK guess was last seeded (shape 1).
-  /// Set for a pair of two swept objects, null for every other pair. Such a pair is collided as one
-  /// object's plain shape against this hull: the scratch hull of the other object, which every pair
-  /// sweeping that object shares, and which is therefore rewritten with the object's motion relative to
-  /// its partner before every query. Not owned: it lives as long as the swept object's own hull, and an
-  /// entry does not outlive its objects.
+  /// Set for a pair of two swept objects under relative cast (see kDefaultRelativeCast), null for every
+  /// other pair. Such a pair is collided as one object's plain shape against this hull: the scratch hull of
+  /// the other object, which every pair sweeping that object shares, and which is therefore rewritten with
+  /// the object's motion relative to its partner before every query. Not owned: it lives as long as the
+  /// swept object's own hull, and an entry does not outlive its objects.
   CastHullShape* pair_hull{ nullptr };
   /// The geometry the functor collides as its first object.
   const coal::CollisionGeometry* first_geometry{ nullptr };
@@ -101,12 +101,18 @@ using CollisionCacheMap = std::unordered_map<CollisionObjectPair, CollisionCache
 /// Default d_arc compensation setting (disabled). When enabled, CastHullShape's swept-sphere
 /// radius is set to the arc-chord sagitta of the shape's rotation, compensating for the gap
 /// between the convex hull (chord) and the true swept arc in continuous collision checks.
-/// A pair of two moving links is collided through a hull of their relative motion, which is
-/// padded by the sagitta of their relative turn instead, computed on every narrowphase query
-/// of the pair. That is the arc the pair's hull cuts only when one joint joins the two links or
-/// one of them does not move; see CoalCastBVHManager. Only used by the cast (continuous)
-/// manager. Configurable via the plugin YAML config key `d_arc_compensation`.
+/// Under relative cast a pair of two moving links is collided through a hull of their relative
+/// motion, which is padded by the sagitta of their relative turn instead, computed on every
+/// narrowphase query of the pair. That is the arc the pair's hull cuts only when one joint joins
+/// the two links or one of them does not move; see CoalCastBVHManager. Only used by the cast
+/// (continuous) manager. Configurable via the plugin YAML config key `d_arc_compensation`.
 inline constexpr bool kDefaultDArcCompensation = false;
+
+/// Default relative cast setting (enabled). When enabled, a pair of two moving links is collided
+/// as one link's shape against a hull of the other's motion relative to it; when disabled, as the
+/// two links' own swept hulls. CoalCastBVHManager states what each misreads. Only used by the cast
+/// (continuous) manager. Configurable via the plugin YAML config key `relative_cast`.
+inline constexpr bool kDefaultRelativeCast = true;
 
 /** @brief Compute an AABB for a ShapeBase at transform tf, dispatching on getNodeType().
  *  Primitive shapes (Box, Sphere, Capsule, ...) use their exact analytic computeBV
@@ -294,8 +300,9 @@ inline const Eigen::Isometry3d kNoSweepDisplacement{ Eigen::Isometry3d::Identity
  * the sweep they are set to.
  *
  * The sweep is held twice - per shape in the hulls, which the narrowphase collides, and per link here,
- * which a contact's fields and a pair of two swept links read - and the two agree only while nothing writes
- * one without the other. setSweep writes both, and is the only way this type offers to set the link's pose.
+ * which a contact's fields and, under relative cast, a pair of two swept links read - and the two agree only
+ * while nothing writes one without the other. setSweep writes both, and is the only way this type offers to
+ * set the link's pose.
  *
  * A wrapper made for a static link is deferred: it holds the link's own geometry in place of hulls and takes
  * no sweep until it is built. See makeCastCollisionObject and castCowNeedsSweptBuild.
@@ -486,7 +493,7 @@ void updateCollisionObjectFilters(const std::unordered_set<tesseract::common::Li
                                   const std::unique_ptr<coal::BroadPhaseCollisionManager>& dynamic_manager);
 
 /**
- * @brief Which shape of a pair of two swept objects is the swept one
+ * @brief Which shape of a pair of two swept objects is the swept one under relative cast
  *
  * The smaller shape, and between shapes of one size the shape of the link whose name sorts last;
  * CoalCastBVHManager states why. For shapes of two links, giving the shapes the other way round gives the
@@ -550,6 +557,9 @@ bool needsCollisionCheck(const CollisionObjectWrapperBase* cd1,
 struct ContactTestDataWrapper : ContactTestData
 {
   CollisionCacheMap* collision_cache{ nullptr };
+  /// See kDefaultRelativeCast. Read when a pair's cache entry is made, so it must not change while
+  /// collision_cache holds entries.
+  bool relative_cast{ kDefaultRelativeCast };
 };
 
 // Disable warnings about non-virtual destructor for coal::CollisionCallBackBase

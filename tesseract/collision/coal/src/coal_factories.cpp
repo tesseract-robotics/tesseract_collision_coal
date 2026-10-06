@@ -32,8 +32,9 @@
 
 namespace
 {
-/** @brief The only key CoalCastBVHManagerFactory accepts; the schema and createImpl must agree on it */
+/** @brief The keys CoalCastBVHManagerFactory accepts; the schema and createImpl must agree on them */
 constexpr const char* kDArcCompensationKey = "d_arc_compensation";
+constexpr const char* kRelativeCastKey = "relative_cast";
 
 tesseract::common::PropertyTree coalDiscreteBVHManagerFactorySchema()
 {
@@ -47,6 +48,9 @@ tesseract::common::PropertyTree coalCastBVHManagerFactorySchema()
       .attribute(tesseract::common::property_attribute::TYPE, tesseract::common::property_type::CONTAINER)
       .boolean(kDArcCompensationKey)
           .defaultVal(tesseract::collision::tesseract_collision_coal::kDefaultDArcCompensation)
+          .done()
+      .boolean(kRelativeCastKey)
+          .defaultVal(tesseract::collision::tesseract_collision_coal::kDefaultRelativeCast)
           .done()
       .build();
   // clang-format on
@@ -72,12 +76,16 @@ CoalDiscreteBVHManagerFactory::createImpl(const std::string& name,
 std::unique_ptr<tesseract::collision::ContinuousContactManager>
 CoalCastBVHManagerFactory::createImpl(const std::string& name, const tesseract::common::PropertyTree& config) const
 {
-  // A null config leaves the schema default unapplied, so fall back to it here
+  // A null config leaves the schema defaults unapplied, so fall back to them here
   bool d_arc_compensation{ kDefaultDArcCompensation };
   if (const auto* value = config.find(kDArcCompensationKey); value != nullptr && !value->isNull())
     d_arc_compensation = value->as<bool>();
 
-  return std::make_unique<CoalCastBVHManager>(name, d_arc_compensation);
+  bool relative_cast{ kDefaultRelativeCast };
+  if (const auto* value = config.find(kRelativeCastKey); value != nullptr && !value->isNull())
+    relative_cast = value->as<bool>();
+
+  return std::make_unique<CoalCastBVHManager>(name, d_arc_compensation, relative_cast);
 }
 
 PLUGIN_ANCHOR_IMPL(CoalFactoriesAnchor)  // LCOV_EXCL_LINE

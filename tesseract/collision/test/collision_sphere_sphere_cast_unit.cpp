@@ -53,6 +53,14 @@ TEST(TesseractCollisionUnit, CoalContinuousBVHCollisionSphereSphereConvexHullUni
                       /*moving_pairs_share_time=*/true);
 }
 
+TEST(TesseractCollisionUnit, CoalContinuousBVHCollisionSphereSphereSeparateCastsUnit)  // NOLINT
+{
+  tesseract_collision_coal::CoalCastBVHManager checker("CoalCastBVHManager",
+                                                       tesseract_collision_coal::kDefaultDArcCompensation,
+                                                       /*relative_cast=*/false);
+  test_suite::runTest(checker, /*use_convex_mesh=*/false);
+}
+
 int main(int argc, char** argv)
 {
   testing::InitGoogleTest(&argc, argv);

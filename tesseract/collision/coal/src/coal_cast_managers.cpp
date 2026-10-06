@@ -58,13 +58,14 @@ namespace tesseract::collision::tesseract_collision_coal
 static const CollisionShapesConst EMPTY_COLLISION_SHAPES_CONST;
 static const tesseract::common::VectorIsometry3d EMPTY_COLLISION_SHAPES_TRANSFORMS;
 
-CoalCastBVHManager::CoalCastBVHManager(std::string name, bool d_arc_compensation)
+CoalCastBVHManager::CoalCastBVHManager(std::string name, bool d_arc_compensation, bool relative_cast)
   : name_(std::move(name)), d_arc_compensation_(d_arc_compensation)
 {
   static_manager_ = std::make_unique<coal::DynamicAABBTreeCollisionManager>();
   dynamic_manager_ = std::make_unique<coal::DynamicAABBTreeCollisionManager>();
   contact_test_data_.collision_margin_data = CollisionMarginData(0);
   contact_test_data_.collision_cache = &collision_cache;
+  contact_test_data_.relative_cast = relative_cast;
 }
 
 std::string CoalCastBVHManager::getName() const { return name_; }
@@ -73,7 +74,7 @@ ContinuousContactManager::UPtr CoalCastBVHManager::clone() const
 {
   CoalCollisionGeometryCache::prune();
 
-  auto manager = std::make_unique<CoalCastBVHManager>(name_, d_arc_compensation_);
+  auto manager = std::make_unique<CoalCastBVHManager>(name_, d_arc_compensation_, contact_test_data_.relative_cast);
 
   std::vector<COW::Ptr> cloned_cows;
   cloned_cows.reserve(collision_objects_.size());
