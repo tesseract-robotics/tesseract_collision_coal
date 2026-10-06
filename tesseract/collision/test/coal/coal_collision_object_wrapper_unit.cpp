@@ -1,6 +1,8 @@
 #include <tesseract/common/macros.h>
 TESSERACT_COMMON_IGNORE_WARNINGS_PUSH
 #include <gtest/gtest.h>
+#include <type_traits>
+#include <utility>
 #include <coal/shape/geometric_shapes.h>
 #include <Eigen/Geometry>
 TESSERACT_COMMON_IGNORE_WARNINGS_POP
@@ -11,6 +13,32 @@ TESSERACT_COMMON_IGNORE_WARNINGS_POP
 
 namespace tesseract::collision::tesseract_collision_coal
 {
+// The pose setter and clone belong to the regular wrapper alone.
+template <typename T, typename = void>
+struct HasPoseSetter : std::false_type
+{
+};
+template <typename T>
+struct HasPoseSetter<
+    T,
+    std::void_t<decltype(std::declval<T&>().setCollisionObjectsTransform(std::declval<Eigen::Isometry3d>()))>>
+  : std::true_type
+{
+};
+template <typename T, typename = void>
+struct HasClone : std::false_type
+{
+};
+template <typename T>
+struct HasClone<T, std::void_t<decltype(std::declval<const T&>().clone())>> : std::true_type
+{
+};
+
+static_assert(HasPoseSetter<CollisionObjectWrapper>::value);
+static_assert(HasClone<CollisionObjectWrapper>::value);
+static_assert(!HasPoseSetter<CollisionObjectWrapperBase>::value);
+static_assert(!HasClone<CollisionObjectWrapperBase>::value);
+
 TEST(CoalCollisionObjectWrapperUnit, SourceShapeIndexFallsBackToShapeIndex)  // NOLINT
 {
   auto sphere = std::make_shared<coal::Sphere>(0.1);

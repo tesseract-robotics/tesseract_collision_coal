@@ -595,8 +595,8 @@ void GetAverageSupport(const coal::ShapeBase* shape,
   outsupport = localNormal.dot(outpt);
 }
 
-bool needsCollisionCheck(const CollisionObjectWrapper* cd1,
-                         const CollisionObjectWrapper* cd2,
+bool needsCollisionCheck(const CollisionObjectWrapperBase* cd1,
+                         const CollisionObjectWrapperBase* cd2,
                          const tesseract::common::LinkIdPair& pair,
                          const std::shared_ptr<const tesseract::common::ContactAllowedValidator>& validator)
 {
@@ -788,6 +788,8 @@ static Eigen::Isometry3d toIsometry(const coal::Transform3s& tf)
  * finds the shape's extreme points along the contact normal at t=0 and t=1, then
  * classifies the collision time based on which pose has greater support.
  *
+ * @p cow1 and @p cow2 are the wrappers of @p o1 and @p o2.
+ *
  * Only kinematic objects carry CastHullShape geometry: a static link is collided through its regular
  * wrapper, and its cast wrapper joins no broadphase, so it never surfaces here as o1/o2. The group
  * check and dynamic_cast below are defensive against that becoming reachable, not against a state seen
@@ -796,16 +798,16 @@ static Eigen::Isometry3d toIsometry(const coal::Transform3s& tf)
 void populateContinuousCollisionFields(ContactResult& contact,
                                        const coal::CollisionObject* o1,
                                        const coal::CollisionObject* o2,
-                                       const Eigen::Isometry3d& tf1,
-                                       const Eigen::Isometry3d& tf2,
+                                       const CollisionObjectWrapperBase& cow1,
+                                       const CollisionObjectWrapperBase& cow2,
                                        bool use_flat)
 {
   const std::array<const coal::CollisionObject*, 2> objects = { o1, o2 };
-  const std::array<Eigen::Isometry3d, 2> link_tf = { tf1, tf2 };
+  const std::array<const CollisionObjectWrapperBase*, 2> cows = { &cow1, &cow2 };
   for (std::size_t i = 0; i < 2; ++i)
   {
-    const auto* cow = static_cast<const CollisionObjectWrapper*>(objects[i]->getUserData());
-    if (cow == nullptr || isStatic(*cow))
+    const CollisionObjectWrapperBase* cow = cows[i];
+    if (isStatic(*cow))
       continue;
 
     const auto* cast_shape = dynamic_cast<const CastHullShape*>(objects[i]->collisionGeometryPtr());
@@ -840,7 +842,8 @@ void populateContinuousCollisionFields(ContactResult& contact,
                                          use_flat);
     contact.cc_time[i] = w.cc_time;
     contact.cc_type[i] = w.cc_type;
-    contact.nearest_points_local[i] = sweepWitnessInLinkFrame(w, link_tf[i], shape_tf0, shape_tf1);
+    contact.nearest_points_local[i] =
+        sweepWitnessInLinkFrame(w, cow->getCollisionObjectsTransform(), shape_tf0, shape_tf1);
   }
 }
 
@@ -883,8 +886,8 @@ bool CollisionCallback::collide(coal::CollisionObject* o1, coal::CollisionObject
   if (cdata->done)
     return true;
 
-  const auto* cd1 = static_cast<const CollisionObjectWrapper*>(o1->getUserData());
-  const auto* cd2 = static_cast<const CollisionObjectWrapper*>(o2->getUserData());
+  const auto* cd1 = static_cast<const CollisionObjectWrapperBase*>(o1->getUserData());
+  const auto* cd2 = static_cast<const CollisionObjectWrapperBase*>(o2->getUserData());
 
   link_pair.assign(cd1->getLinkId(), cd2->getLinkId());
 
@@ -1005,8 +1008,8 @@ bool CollisionCallback::collide(coal::CollisionObject* o1, coal::CollisionObject
     ContactResult contact;
     contact.link_ids[0] = cd1->getLinkId();
     contact.link_ids[1] = cd2->getLinkId();
-    contact.shape_id[0] = CollisionObjectWrapper::getShapeIndex(o1);
-    contact.shape_id[1] = CollisionObjectWrapper::getShapeIndex(o2);
+    contact.shape_id[0] = CollisionObjectWrapperBase::getShapeIndex(o1);
+    contact.shape_id[1] = CollisionObjectWrapperBase::getShapeIndex(o2);
     contact.subshape_id[0] =
         getReportedSubshapeIndex(o1, static_cast<int>(pair_swapped ? coal_contact.b2 : coal_contact.b1));
     contact.subshape_id[1] =
@@ -1027,7 +1030,7 @@ bool CollisionCallback::collide(coal::CollisionObject* o1, coal::CollisionObject
       // With penetration disabled, GJK early-outs without EPA, so its shared
       // warm-start seed is poorly aimed for support averaging; use the flat scan.
       const bool use_flat = !cdata->req.calculate_penetration;
-      populateContinuousCollisionFields(contact, o1, o2, tf1, tf2, use_flat);
+      populateContinuousCollisionFields(contact, o1, o2, *cd1, *cd2, use_flat);
     }
 
     if (!found)
@@ -1041,10 +1044,10 @@ bool CollisionCallback::collide(coal::CollisionObject* o1, coal::CollisionObject
   return cdata->done;
 }
 
-CollisionObjectWrapper::CollisionObjectWrapper(tesseract::common::LinkId id,
-                                               const int& type_id,
-                                               CollisionShapesConst shapes,
-                                               tesseract::common::VectorIsometry3d shape_poses)
+CollisionObjectWrapperBase::CollisionObjectWrapperBase(tesseract::common::LinkId&& id,
+                                                       const int& type_id,
+                                                       CollisionShapesConst&& shapes,
+                                                       tesseract::common::VectorIsometry3d&& shape_poses)
   : link_id_(std::move(id)), type_id_(type_id), shapes_(std::move(shapes)), shape_poses_(std::move(shape_poses))
 {
   // Preconditions guaranteed by createCoalCollisionObject() which validates before construction.
@@ -1096,12 +1099,12 @@ CollisionObjectWrapper::CollisionObjectWrapper(tesseract::common::LinkId id,
   }
 }
 
-int CollisionObjectWrapper::getShapeIndex(const coal::CollisionObject* co)
+int CollisionObjectWrapperBase::getShapeIndex(const coal::CollisionObject* co)
 {
   return static_cast<const CoalCollisionObjectWrapper*>(co)->getSourceShapeIndex();
 }
 
-void CollisionObjectWrapper::setCollisionObjectsTransform(const Eigen::Isometry3d& pose)
+void CollisionObjectWrapperBase::setCollisionObjectsTransform(const Eigen::Isometry3d& pose)
 {
   world_pose_ = pose;
   for (auto& co : collision_objects_)
@@ -1120,14 +1123,14 @@ void CollisionObjectWrapper::setCollisionObjectsTransform(const Eigen::Isometry3
   }
 }
 
-void CollisionObjectWrapper::setContactDistanceThreshold(double contact_distance)
+void CollisionObjectWrapperBase::setContactDistanceThreshold(double contact_distance)
 {
   contact_distance_ = contact_distance;
   for (auto& co : collision_objects_)
     co->setContactDistanceThreshold(contact_distance_);
 }
 
-void CollisionObjectWrapper::appendCollisionObjectsRaw(std::vector<CollisionObjectRawPtr>& out) const
+void CollisionObjectWrapperBase::appendCollisionObjectsRaw(std::vector<CollisionObjectRawPtr>& out) const
 {
   for (const auto& co : collision_objects_)
     out.push_back(co.get());
@@ -1136,29 +1139,34 @@ void CollisionObjectWrapper::appendCollisionObjectsRaw(std::vector<CollisionObje
 std::shared_ptr<CollisionObjectWrapper> CollisionObjectWrapper::clone() const
 {
   auto clone_cow = std::make_shared<CollisionObjectWrapper>();
-  clone_cow->link_id_ = link_id_;
-  clone_cow->type_id_ = type_id_;
-  clone_cow->shapes_ = shapes_;
-  clone_cow->shape_poses_ = shape_poses_;
+  clone_cow->cloneFrom(*this);
+  return clone_cow;
+}
 
-  clone_cow->collision_objects_.reserve(collision_objects_.size());
-  for (const auto& co : collision_objects_)
+void CollisionObjectWrapperBase::cloneFrom(const CollisionObjectWrapper& other)
+{
+  link_id_ = other.link_id_;
+  type_id_ = other.type_id_;
+  shapes_ = other.shapes_;
+  shape_poses_ = other.shape_poses_;
+
+  collision_objects_.reserve(other.collision_objects_.size());
+  for (const auto& co : other.collision_objects_)
   {
     assert(std::dynamic_pointer_cast<CoalCollisionObjectWrapper>(co) != nullptr);
     auto collObj =
         std::make_shared<CoalCollisionObjectWrapper>(*std::static_pointer_cast<CoalCollisionObjectWrapper>(co));
-    collObj->setUserData(clone_cow.get());
+    collObj->setUserData(this);
     collObj->setTransform(co->getTransform());
     collObj->updateAABB();
-    clone_cow->collision_objects_.push_back(collObj);
+    collision_objects_.push_back(collObj);
   }
 
-  clone_cow->world_pose_ = world_pose_;
-  clone_cow->contact_distance_ = contact_distance_;
-  clone_cow->m_collisionFilterGroup = m_collisionFilterGroup;
-  clone_cow->m_collisionFilterMask = m_collisionFilterMask;
-  clone_cow->m_enabled = m_enabled;
-  return clone_cow;
+  world_pose_ = other.world_pose_;
+  contact_distance_ = other.contact_distance_;
+  m_collisionFilterGroup = other.m_collisionFilterGroup;
+  m_collisionFilterMask = other.m_collisionFilterMask;
+  m_enabled = other.m_enabled;
 }
 
 /// Add the raw pointers of @p objects to @p ptrs for O(1) membership tests.
@@ -1269,11 +1277,14 @@ bool buildCoalCollisionObjects(const std::vector<CollisionObjectSpec>& objects, 
   return success;
 }
 
-bool isStatic(const COW& cow) { return cow.m_collisionFilterGroup == CollisionFilterGroups::StaticFilter; }
+bool isStatic(const CollisionObjectWrapperBase& cow)
+{
+  return cow.m_collisionFilterGroup == CollisionFilterGroups::StaticFilter;
+}
 
-bool isKinematic(const COW& cow) { return !isStatic(cow); }
+bool isKinematic(const CollisionObjectWrapperBase& cow) { return !isStatic(cow); }
 
-void applyCollisionFilterMask(COW& cow)
+void applyCollisionFilterMask(CollisionObjectWrapperBase& cow)
 {
   if (isStatic(cow))
     cow.m_collisionFilterMask = CollisionFilterGroups::KinematicFilter;
@@ -1281,7 +1292,8 @@ void applyCollisionFilterMask(COW& cow)
     cow.m_collisionFilterMask = CollisionFilterGroups::StaticFilter | CollisionFilterGroups::KinematicFilter;
 }
 
-bool applyCollisionMarginThreshold(COW& cow, const tesseract::common::CollisionMarginData& margin_data)
+bool applyCollisionMarginThreshold(CollisionObjectWrapperBase& cow,
+                                   const tesseract::common::CollisionMarginData& margin_data)
 {
   const double margin = margin_data.getMaxCollisionMargin(cow.getLinkId());
   if (margin == cow.getContactDistanceThreshold())
@@ -1406,6 +1418,8 @@ bool clearCastSweep(CollisionObjectWrapper& cast_cow)
 COW::Ptr makeCastCollisionObject(const COW::Ptr& cow, bool build_swept)
 {
   auto cast_cow = cow->clone();
+  // Collision objects name their wrapper through user data, which is read back as the base type.
+  CollisionObjectWrapperBase* const owner = cast_cow.get();
 
   // A static link is collided through its regular wrapper, so its cast wrapper is a placeholder that nothing
   // reads: it joins no broadphase, and updateCollisionObjectFilters builds it at the moment the link goes
@@ -1457,7 +1471,7 @@ COW::Ptr makeCastCollisionObject(const COW::Ptr& cow, bool build_swept)
       cast_co->setSourceShapeIndex(static_cast<int>(old_shape_index));
       cast_co->setSourceSubshapeIndex(co->getSourceSubshapeIndex());
       cast_co->setContactDistanceThreshold(co->getContactDistanceThreshold());
-      cast_co->setUserData(cast_cow.get());
+      cast_co->setUserData(owner);
 
       // Store everything
       new_collision_objects.push_back(cast_co);
@@ -1515,7 +1529,7 @@ COW::Ptr makeCastCollisionObject(const COW::Ptr& cow, bool build_swept)
         cast_co->setSourceShapeIndex(static_cast<int>(old_shape_index));
         cast_co->setSourceSubshapeIndex(octree_subshape_index++);
         cast_co->setContactDistanceThreshold(co->getContactDistanceThreshold());
-        cast_co->setUserData(cast_cow.get());
+        cast_co->setUserData(owner);
 
         new_collision_objects.push_back(cast_co);
         new_shapes.push_back(current_shapes[old_shape_index]);

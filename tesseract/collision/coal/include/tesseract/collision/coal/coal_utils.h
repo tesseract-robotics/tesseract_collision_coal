@@ -166,22 +166,17 @@ enum CollisionFilterGroups : std::int8_t
   AllFilter = -1  // all bits sets: DefaultFilter | StaticFilter | KinematicFilter
 };
 
+class CollisionObjectWrapper;
+
 /**
- * @brief This is a Tesseract link collision object wrapper which add items specific to tesseract. It is a wrapper
- * around a tesseract link which may contain several collision objects.
+ * @brief What a link's regular and cast wrapper share: the link's shapes, filter state and collision objects.
+ *
+ * Not used on its own: setting the link's pose is left to each wrapper type. A collision object's user data
+ * names its wrapper as this type.
  */
-class CollisionObjectWrapper
+class CollisionObjectWrapperBase
 {
 public:
-  using Ptr = std::shared_ptr<CollisionObjectWrapper>;
-  using ConstPtr = std::shared_ptr<const CollisionObjectWrapper>;
-
-  CollisionObjectWrapper() = default;
-  CollisionObjectWrapper(tesseract::common::LinkId id,
-                         const int& type_id,
-                         CollisionShapesConst shapes,
-                         tesseract::common::VectorIsometry3d shape_poses);
-
   short int m_collisionFilterGroup{ CollisionFilterGroups::StaticFilter };
   short int m_collisionFilterMask{ CollisionFilterGroups::KinematicFilter };
   bool m_enabled{ true };
@@ -199,8 +194,6 @@ public:
 
   tesseract::common::VectorIsometry3d& getCollisionGeometriesTransforms() { return shape_poses_; }
 
-  void setCollisionObjectsTransform(const Eigen::Isometry3d& pose);
-
   void setContactDistanceThreshold(double contact_distance);
 
   double getContactDistanceThreshold() const { return contact_distance_; }
@@ -214,8 +207,6 @@ public:
   /** @brief Append raw pointers from this wrapper's collision objects into @p out. */
   void appendCollisionObjectsRaw(std::vector<CollisionObjectRawPtr>& out) const;
 
-  std::shared_ptr<CollisionObjectWrapper> clone() const;
-
   /**
    * @brief Given Coal collision shape get the index to the links collision shape
    * @param co Coal collision shape
@@ -224,6 +215,21 @@ public:
   static int getShapeIndex(const coal::CollisionObject* co);
 
 protected:
+  CollisionObjectWrapperBase() = default;
+  CollisionObjectWrapperBase(tesseract::common::LinkId&& id,
+                             const int& type_id,
+                             CollisionShapesConst&& shapes,
+                             tesseract::common::VectorIsometry3d&& shape_poses);
+  ~CollisionObjectWrapperBase() = default;
+
+  /** @brief Set the link's pose, and place every collision object by it. */
+  void setCollisionObjectsTransform(const Eigen::Isometry3d& pose);
+
+  /** @brief Make this wrapper a copy of @p other, with collision objects of its own. Only a regular wrapper is
+   *  copied: a copy of a cast wrapper would share its hulls.
+   *  @pre This wrapper holds no collision objects. */
+  void cloneFrom(const CollisionObjectWrapper& other);
+
   tesseract::common::LinkId link_id_;                             // id derived from name, also carries the name string
   int type_id_{ -1 };                                             // user defined type id
   Eigen::Isometry3d world_pose_{ Eigen::Isometry3d::Identity() }; /**< @brief Collision Object World Transformation */
@@ -232,6 +238,31 @@ protected:
   std::vector<CollisionObjectPtr> collision_objects_;
 
   double contact_distance_{ 0 }; /**< @brief The contact distance threshold */
+};
+
+/**
+ * @brief This is a Tesseract link collision object wrapper which add items specific to tesseract. It is a wrapper
+ * around a tesseract link which may contain several collision objects.
+ */
+class CollisionObjectWrapper : public CollisionObjectWrapperBase
+{
+public:
+  using Ptr = std::shared_ptr<CollisionObjectWrapper>;
+  using ConstPtr = std::shared_ptr<const CollisionObjectWrapper>;
+
+  CollisionObjectWrapper() = default;
+  CollisionObjectWrapper(tesseract::common::LinkId id,
+                         const int& type_id,
+                         CollisionShapesConst shapes,
+                         tesseract::common::VectorIsometry3d shape_poses)
+    : CollisionObjectWrapperBase(std::move(id), type_id, std::move(shapes), std::move(shape_poses))
+  {
+  }
+
+  /** @brief Set the link's pose. */
+  using CollisionObjectWrapperBase::setCollisionObjectsTransform;
+
+  std::shared_ptr<CollisionObjectWrapper> clone() const;
 };
 
 CollisionGeometryPtr createShapePrimitive(const CollisionShapeConstPtr& geom);
@@ -266,7 +297,7 @@ bool buildCoalCollisionObjects(const std::vector<CollisionObjectSpec>& objects, 
  * StaticFilter groups can only collide with KinematicFilter groups.
  * KinematicFilter groups can collide with both StaticFilter and KinematicFilter groups.
  */
-void applyCollisionFilterMask(COW& cow);
+void applyCollisionFilterMask(CollisionObjectWrapperBase& cow);
 
 /**
  * @brief Check whether a collision object is filtered as static, i.e. its link is not active.
@@ -275,7 +306,7 @@ void applyCollisionFilterMask(COW& cow);
  * rather than comparing m_collisionFilterGroup: == StaticFilter and != KinematicFilter agree only for
  * as long as the group holds nothing else.
  */
-bool isStatic(const COW& cow);
+bool isStatic(const CollisionObjectWrapperBase& cow);
 
 /**
  * @brief Check whether a collision object is filtered as kinematic, i.e. its link is active.
@@ -284,7 +315,7 @@ bool isStatic(const COW& cow);
  * rather than comparing m_collisionFilterGroup: != StaticFilter and == KinematicFilter agree only for
  * as long as the group holds nothing else.
  */
-bool isKinematic(const COW& cow);
+bool isKinematic(const CollisionObjectWrapperBase& cow);
 
 /**
  * @brief Set a collision object's contact distance threshold from the current margin data.
@@ -296,7 +327,8 @@ bool isKinematic(const COW& cow);
  * @param margin_data The current collision margin data
  * @return True if the threshold changed
  */
-bool applyCollisionMarginThreshold(COW& cow, const tesseract::common::CollisionMarginData& margin_data);
+bool applyCollisionMarginThreshold(CollisionObjectWrapperBase& cow,
+                                   const tesseract::common::CollisionMarginData& margin_data);
 
 /**
  * @brief Update collision objects filters
@@ -378,13 +410,14 @@ inline bool castCowNeedsSweptBuild(const CollisionObjectWrapper& cast_cow)
 
 /**
  * @brief This is used to check if a collision check is required between the provided two collision objects
- * @param cow1 The first collision object
- * @param cow2 The second collision object
+ * @param cd1 The first collision object
+ * @param cd2 The second collision object
+ * @param pair The link ids of the two collision objects
  * @param validator  The contact allowed validator
  * @return True if the two collision objects should be checked for collision, otherwise false
  */
-bool needsCollisionCheck(const CollisionObjectWrapper* cd1,
-                         const CollisionObjectWrapper* cd2,
+bool needsCollisionCheck(const CollisionObjectWrapperBase* cd1,
+                         const CollisionObjectWrapperBase* cd2,
                          const tesseract::common::LinkIdPair& pair,
                          const std::shared_ptr<const tesseract::common::ContactAllowedValidator>& validator);
 
