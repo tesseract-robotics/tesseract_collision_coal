@@ -63,6 +63,7 @@ TESSERACT_COMMON_IGNORE_WARNINGS_POP
 #include <tesseract/collision/coal/coal_utils.h>
 #include <tesseract/collision/coal/coal_collision_geometry_cache.h>
 #include <tesseract/collision/coal/coal_casthullshape.h>
+#include <tesseract/collision/coal/coal_d_arc.h>
 #include <tesseract/collision/coal/coal_collision_object_wrapper.h>
 #include <tesseract/geometry/geometries.h>
 
@@ -791,9 +792,9 @@ static Eigen::Isometry3d toIsometry(const coal::Transform3s& tf)
  * @p cow1 and @p cow2 are the wrappers of @p o1 and @p o2.
  *
  * Only kinematic objects carry CastHullShape geometry: a static link is collided through its regular
- * wrapper, and its cast wrapper joins no broadphase, so it never surfaces here as o1/o2. The group
- * check and dynamic_cast below are defensive against that becoming reachable, not against a state seen
- * today.
+ * wrapper, and its cast wrapper joins no broadphase, so it never surfaces here as o1/o2. The dynamic_cast
+ * below is what tells a swept object from the regular one it may be paired with, and the wrapper is read
+ * as a cast wrapper only behind it.
  */
 void populateContinuousCollisionFields(ContactResult& contact,
                                        const coal::CollisionObject* o1,
@@ -819,14 +820,11 @@ void populateContinuousCollisionFields(ContactResult& contact,
     const Eigen::Isometry3d shape_tf0 = toIsometry(tf_world0);
     const Eigen::Isometry3d shape_tf1 = toIsometry(tf_world0 * cast_shape->getCastTransform());
 
-    // cc_transform = link transform at t=1
-    // Recover link_tf2 from shape world transforms:
-    //   shape_tf0 = link_tf1 * local_tf
-    //   shape_tf1 = link_tf2 * local_tf
-    //   link_tf2 = shape_tf1 * shape_tf0^-1 * link_tf1
-    // This correctly handles shapes with non-identity local offsets,
-    // matching Bullet's calculateContinuousData approach.
-    contact.cc_transform[i] = shape_tf1 * shape_tf0.inverse() * contact.transform[i];
+    // The link's pose at t=1 is the one its sweep was set with. The hulls hold it per shape and to
+    // rounding; the wrapper holds it as given. Only a cast wrapper owns a CastHullShape -
+    // makeCastCollisionObject is the one place a collision object is given one - so the downcast is safe
+    // here.
+    contact.cc_transform[i] = static_cast<const CastCollisionObjectWrapper*>(cow)->getSweepEndTransform();
 
     // Normal pointing from current object toward the other (matching Bullet convention).
     // contact.normal has already been remapped to original (o1, o2) order after pair normalization.
@@ -1169,6 +1167,12 @@ void CollisionObjectWrapperBase::cloneFrom(const CollisionObjectWrapper& other)
   m_enabled = other.m_enabled;
 }
 
+CastCollisionObjectWrapper::CastCollisionObjectWrapper(const CollisionObjectWrapper& link, bool d_arc_compensation)
+  : d_arc_compensation_(d_arc_compensation)
+{
+  cloneFrom(link);
+}
+
 /// Add the raw pointers of @p objects to @p ptrs for O(1) membership tests.
 static void addPointers(std::unordered_set<const coal::CollisionObject*>& ptrs,
                         const std::vector<CollisionObjectPtr>& objects)
@@ -1344,7 +1348,7 @@ void updateCollisionObjectFilters(const std::unordered_set<tesseract::common::Li
 
 void updateCollisionObjectFilters(const std::unordered_set<tesseract::common::LinkId>& active_ids,
                                   const COW::Ptr& cow,
-                                  COW::Ptr& cast_cow,
+                                  CastCOW::Ptr& cast_cow,
                                   const std::unique_ptr<coal::BroadPhaseCollisionManager>& static_manager,
                                   const std::unique_ptr<coal::BroadPhaseCollisionManager>& dynamic_manager)
 {
@@ -1375,17 +1379,13 @@ void updateCollisionObjectFilters(const std::unordered_set<tesseract::common::Li
       // later allocation can reuse: a deferred wrapper is registered in no broadphase, so no contact test
       // ever reaches its objects and no entry is ever keyed on one. Registering one would break that.
       if (castCowNeedsSweptBuild(*cast_cow))
-      {
-        cast_cow = makeCastCollisionObject(cow);
-        cast_cow->setContactDistanceThreshold(cow->getContactDistanceThreshold());
-      }
+        cast_cow = makeCastCollisionObject(cow, /*build_swept=*/true, cast_cow->getDArcCompensation());
 
-      // Clearing the hulls first is load-bearing: a hull's cast transform determines its geometry's local
-      // AABB, and setCollisionObjectsTransform derives each object's own AABB from that.
-      clearCastSweep(*cast_cow);
-      cast_cow->setCollisionObjectsTransform(cow->getCollisionObjectsTransform());
+      // Set unswept at the link's pose: a static link's cast wrapper is not kept current.
+      const Eigen::Isometry3d& pose = cow->getCollisionObjectsTransform();
+      cast_cow->setSweep(pose, pose);
 
-      // Both writes above invalidate any cached GJK guess held against this wrapper: setActiveCollisionObjects
+      // That write invalidates any cached GJK guess held against this wrapper: setActiveCollisionObjects
       // keeps the narrowphase cache, whose entries are re-seeded only when a generation changes, and the
       // guesses in it were formed against the pose and sweep the wrapper carried before it went static.
       cast_cow->gjk_generation_++;
@@ -1404,20 +1404,81 @@ void updateCollisionObjectFilters(const std::unordered_set<tesseract::common::Li
   applyCollisionFilterMask(*cast_cow);
 }
 
-bool clearCastSweep(CollisionObjectWrapper& cast_cow)
+bool CastCollisionObjectWrapper::setSweep(const Eigen::Isometry3d& pose1, const Eigen::Isometry3d& pose2)
 {
-  assert(!castCowNeedsSweptBuild(cast_cow));
+  assert(!castCowNeedsSweptBuild(*this));
 
   bool changed = false;
-  for (const auto& co : cast_cow.getCollisionObjects())
-    changed = static_cast<CastHullShape*>(co->collisionGeometryPtr())->clearSweep() || changed;
+
+  // A zero-length sweep is the unswept state, which every hull resolves to regardless of its local offset,
+  // so it is clearSweep's business rather than a per-shape product - and the products would not reach it
+  // exactly anyway, since (tf * local)^-1 * (tf * local) leaves rounding noise that defeats the equality
+  // test below.
+  //
+  // The comparison must be exact because it stands in for that computation: whatever it accepts has to
+  // produce the identity, and a relative tolerance accepts real motion far from the origin.
+  if (pose1.matrix() == pose2.matrix())
+  {
+    for (const auto& co : collision_objects_)
+      changed = static_cast<CastHullShape*>(co->collisionGeometryPtr())->clearSweep() || changed;
+  }
+  else
+  {
+    const coal::Transform3s tf1(pose1.rotation(), pose1.translation());
+    const coal::Transform3s tf2(pose2.rotation(), pose2.translation());
+
+    // Precompute rotation-angle scalars once per link (conjugation-invariant).
+    DArcScalars d_arc_scalars;
+    if (d_arc_compensation_)
+      d_arc_scalars = computeDArcScalars(tf1.inverseTimes(tf2));
+
+    // Update cast transforms so computeLocalAABB reflects the swept volume.
+    for (const auto& co : collision_objects_)
+    {
+      auto* cast_shape = static_cast<CastHullShape*>(co->collisionGeometryPtr());
+      assert(cast_shape != nullptr);
+
+      // Compute per-shape relative transform accounting for local offset.
+      // Each shape's world transform is link_tf * local_tf, so the relative
+      // motion in the shape's local frame is:
+      //   (tf1 * local_tf)^-1 * (tf2 * local_tf)
+      // This matches Bullet's compound shape handling where each child gets
+      // its own delta_tf = (tf1 * local_tf).inverseTimes(tf2 * local_tf).
+      const auto& shape_pose = shape_poses_[static_cast<std::size_t>(co->getShapeIndex())];
+      const auto local_tf = coal::Transform3s(shape_pose.rotation(), shape_pose.translation());
+      const coal::Transform3s new_cast_tf = (tf1 * local_tf).inverseTimes(tf2 * local_tf);
+
+      const auto& cur_cast_tf = cast_shape->getCastTransform();
+      if (new_cast_tf == cur_cast_tf)
+        continue;
+
+      changed = true;
+      if (d_arc_compensation_)
+        cast_shape->setSweptSphereRadius(computeDArc(new_cast_tf, *cast_shape->getUnderlyingShape(), d_arc_scalars));
+      cast_shape->updateCastTransform(new_cast_tf);
+    }
+  }
+
+  // Taken ahead of the pose write: a caller may pass this wrapper's own poses, which that write changes.
+  // NOLINTNEXTLINE(performance-unnecessary-copy-initialization)
+  const Eigen::Isometry3d end_pose = pose2;
+
+  // After the hulls, and even when the link has not moved: this recomputes each object's AABB from its
+  // hull's local one, and a broadphase update copies that AABB rather than deriving it.
+  setCollisionObjectsTransform(pose1);
+
+  // The comparison must be exact: it stands in for products that reach the identity only to rounding,
+  // and whatever it accepts is reported as no motion at all.
+  swept_ = end_pose.matrix() != world_pose_.matrix();
+  if (swept_)
+    sweep_end_pose_ = end_pose;
 
   return changed;
 }
 
-COW::Ptr makeCastCollisionObject(const COW::Ptr& cow, bool build_swept)
+CastCOW::Ptr makeCastCollisionObject(const COW::Ptr& cow, bool build_swept, bool d_arc_compensation)
 {
-  auto cast_cow = cow->clone();
+  auto cast_cow = std::make_shared<CastCollisionObjectWrapper>(*cow, d_arc_compensation);
   // Collision objects name their wrapper through user data, which is read back as the base type.
   CollisionObjectWrapperBase* const owner = cast_cow.get();
 

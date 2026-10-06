@@ -177,6 +177,13 @@ class CollisionObjectWrapper;
 class CollisionObjectWrapperBase
 {
 public:
+  // Neither copied nor moved: a wrapper's collision objects name it by address, through their user data.
+  // CollisionObjectWrapper::clone makes a copy with collision objects of its own.
+  CollisionObjectWrapperBase(const CollisionObjectWrapperBase&) = delete;
+  CollisionObjectWrapperBase& operator=(const CollisionObjectWrapperBase&) = delete;
+  CollisionObjectWrapperBase(CollisionObjectWrapperBase&&) = delete;
+  CollisionObjectWrapperBase& operator=(CollisionObjectWrapperBase&&) = delete;
+
   short int m_collisionFilterGroup{ CollisionFilterGroups::StaticFilter };
   short int m_collisionFilterMask{ CollisionFilterGroups::KinematicFilter };
   bool m_enabled{ true };
@@ -265,10 +272,76 @@ public:
   std::shared_ptr<CollisionObjectWrapper> clone() const;
 };
 
+/**
+ * @brief The wrapper of a link as a continuous manager sweeps it: the link's shapes as CastHullShapes, and
+ * the sweep they are set to.
+ *
+ * The sweep is held twice - per shape in the hulls, which the narrowphase collides, and per link here,
+ * which a contact's fields read - and the two agree only while nothing writes one without the other.
+ * setSweep writes both, and is the only way this type offers to set the link's pose.
+ *
+ * A wrapper made for a static link is deferred: it holds the link's own geometry in place of hulls and takes
+ * no sweep until it is built. See makeCastCollisionObject and castCowNeedsSweptBuild.
+ *
+ * A cast wrapper is built from its link's regular wrapper and has no clone, because a copy would share its
+ * hulls.
+ */
+class CastCollisionObjectWrapper final : public CollisionObjectWrapperBase
+{
+public:
+  using Ptr = std::shared_ptr<CastCollisionObjectWrapper>;
+  using ConstPtr = std::shared_ptr<const CastCollisionObjectWrapper>;
+
+  /** @brief A copy of @p link as CollisionObjectWrapper::clone makes one, not swept.
+   *  @param link The link's regular wrapper
+   *  @param d_arc_compensation See getDArcCompensation */
+  CastCollisionObjectWrapper(const CollisionObjectWrapper& link, bool d_arc_compensation);
+
+  /**
+   * @brief Set the link's sweep: from @p pose1 to @p pose2
+   *
+   * Equal poses are the unswept state, in the hulls and here. Otherwise each hull is padded by the arc sagitta
+   * of the link's turn if the wrapper was made with arc compensation.
+   *
+   * The hulls are written first and the wrapper's poses after: a hull's cast transform determines its
+   * geometry's local AABB, and setting the wrapper's poses derives each object's own AABB from that. So the
+   * objects' bounds are current on return, whether or not the link moved.
+   *
+   * @pre The wrapper is not deferred. A built cast wrapper holds CastHullShapes and nothing else -
+   * makeCastCollisionObject either converts a shape or throws - so the downcast inside is safe exactly then.
+   * Check castCowNeedsSweptBuild first.
+   *
+   * @param pose1 The link's world pose at the start of the sweep; may be a pose this wrapper holds
+   * @param pose2 The link's world pose at the end of the sweep; may be a pose this wrapper holds
+   * @return Whether any hull was rewritten. A hull that changes while the link stays put still has to reach
+   * the broadphase, so a change here is not implied by the link having moved.
+   */
+  bool setSweep(const Eigen::Isometry3d& pose1, const Eigen::Isometry3d& pose2);
+
+  /** @brief The pose the link's current sweep ends at; its world pose when it is not swept. */
+  const Eigen::Isometry3d& getSweepEndTransform() const { return swept_ ? sweep_end_pose_ : world_pose_; }
+
+  /** @brief Whether the link's current sweep ends at a pose other than the one it starts at. */
+  bool isSwept() const { return swept_; }
+
+  /** @brief Whether a swept hull of this link is padded by the arc sagitta of the turn it is swept through; see
+   *  kDefaultDArcCompensation. Fixed when the wrapper is made. */
+  bool getDArcCompensation() const { return d_arc_compensation_; }
+
+private:
+  /** @brief See getDArcCompensation. */
+  bool d_arc_compensation_;
+  /** @brief Whether the link is swept. The sweep end pose below is read only while it is. */
+  bool swept_{ false };
+  Eigen::Isometry3d sweep_end_pose_{ Eigen::Isometry3d::Identity() }; /**< @brief World pose the sweep ends at */
+};
+
 CollisionGeometryPtr createShapePrimitive(const CollisionShapeConstPtr& geom);
 
 using COW = CollisionObjectWrapper;
 using Link2COW = std::unordered_map<tesseract::common::LinkId, COW::Ptr>;
+using CastCOW = CastCollisionObjectWrapper;
+using Link2CastCOW = std::unordered_map<tesseract::common::LinkId, CastCOW::Ptr>;
 
 COW::Ptr createCoalCollisionObject(const tesseract::common::LinkId& id,
                                    const int& type_id,
@@ -358,7 +431,7 @@ void updateCollisionObjectFilters(const std::unordered_set<tesseract::common::Li
  */
 void updateCollisionObjectFilters(const std::unordered_set<tesseract::common::LinkId>& active_ids,
                                   const COW::Ptr& cow,
-                                  COW::Ptr& cast_cow,
+                                  CastCOW::Ptr& cast_cow,
                                   const std::unique_ptr<coal::BroadPhaseCollisionManager>& static_manager,
                                   const std::unique_ptr<coal::BroadPhaseCollisionManager>& dynamic_manager);
 
@@ -373,23 +446,11 @@ void updateCollisionObjectFilters(const std::unordered_set<tesseract::common::Li
  * updateCollisionObjectFilters builds it on promotion to kinematic. Deferring is what lets a static link hold
  * geometry Coal can collide but not sweep, such as a mesh. A plane throws too when built swept: it has no
  * support function for a CastHullShape to sweep.
+ * @param d_arc_compensation Whether the wrapper pads its swept hulls by an arc sagitta. A deferred wrapper
+ * keeps it for the wrapper updateCollisionObjectFilters builds in its place.
  * @return A cast collision object, built or deferred
  */
-COW::Ptr makeCastCollisionObject(const COW::Ptr& cow, bool build_swept = true);
-
-/**
- * @brief Return every hull of a cast collision object to the unswept state
- *
- * A built cast wrapper holds CastHullShapes and nothing else - makeCastCollisionObject either converts a
- * shape or throws - so the downcast inside is safe exactly when the wrapper is not still deferred. Check
- * castCowNeedsSweptBuild first, or pass a rebuilt wrapper.
- *
- * @param cast_cow The cast collision object whose hulls to clear
- * @return True if any hull changed. Publishing new bounds takes a world transform re-apply either way:
- * clearing a hull moves the geometry's local AABB, and only setCollisionObjectsTransform recomputes the
- * object's own from it.
- */
-bool clearCastSweep(CollisionObjectWrapper& cast_cow);
+CastCOW::Ptr makeCastCollisionObject(const COW::Ptr& cow, bool build_swept, bool d_arc_compensation);
 
 /**
  * @brief Check whether a cast COW is still deferred, and so must be built before it can carry a sweep.
@@ -400,7 +461,7 @@ bool clearCastSweep(CollisionObjectWrapper& cast_cow);
  * An empty wrapper reads as built. The deferred placeholder is therefore required to carry the link's
  * own collision objects; a placeholder with none would make promotion skip the build silently.
  */
-inline bool castCowNeedsSweptBuild(const CollisionObjectWrapper& cast_cow)
+inline bool castCowNeedsSweptBuild(const CastCollisionObjectWrapper& cast_cow)
 {
   for (const auto& co : cast_cow.getCollisionObjects())
     if (co->collisionGeometryPtr()->getNodeType() != coal::GEOM_CUSTOM)

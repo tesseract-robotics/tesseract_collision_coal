@@ -113,7 +113,7 @@ Two gaps remain, both inherent in the formulation rather than introduced by it:
 
 ## How it works
 
-`updateCastShapeTransforms()` in `coal_cast_managers.cpp` computes d_arc per shape using the trig-free method (see below), then calls `CastHullShape::setSweptSphereRadius(d_arc)` before `updateCastTransform()`. This has two effects:
+`CastCollisionObjectWrapper::setSweep()` in `coal_utils.cpp` computes d_arc per shape using the trig-free method (see below), then calls `CastHullShape::setSweptSphereRadius(d_arc)` before `updateCastTransform()`. This has two effects:
 
 1. **Broadphase**: `computeLocalAABB()` inflates the swept-volume AABB by d_arc in all directions, ensuring the broadphase tree covers the arc, not just the chord.
 2. **Narrowphase**: Coal's GJK stores the swept sphere radius in `MinkowskiDiff::swept_sphere_radius` and subtracts it from the reported distance post-convergence. The collision constraint effectively becomes `distance ≥ margin + d_arc` without any change to callers.

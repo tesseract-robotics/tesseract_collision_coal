@@ -50,8 +50,6 @@ TESSERACT_COMMON_IGNORE_WARNINGS_POP
 #include <tesseract/geometry/geometry.h>
 #include <tesseract/collision/coal/coal_cast_managers.h>
 #include <tesseract/collision/coal/coal_collision_geometry_cache.h>
-#include <tesseract/collision/coal/coal_casthullshape.h>
-#include <tesseract/collision/coal/coal_d_arc.h>
 #include <tesseract/collision/coal/coal_utils.h>
 #include <tesseract/common/utils.h>
 
@@ -153,7 +151,7 @@ bool CoalCastBVHManager::hasCollisionObject(const tesseract::common::LinkId& id)
   return (link2cow_.find(id) != link2cow_.end());
 }
 
-const CollisionObjectWrapper* CoalCastBVHManager::getCastCollisionObject(const tesseract::common::LinkId& id) const
+const CastCollisionObjectWrapper* CoalCastBVHManager::getCastCollisionObject(const tesseract::common::LinkId& id) const
 {
   auto it = link2castcow_.find(id);
   return (it == link2castcow_.end()) ? nullptr : it->second.get();
@@ -295,7 +293,7 @@ bool CoalCastBVHManager::setCollisionObjectEnabled(const tesseract::common::Link
   auto cast_it = link2castcow_.find(id);
   if (cast_it != link2castcow_.end())
   {
-    COW& cast_cow = *cast_it->second;
+    CastCOW& cast_cow = *cast_it->second;
     const bool was_enabled = cast_cow.m_enabled;
     cast_cow.m_enabled = enabled;
     cast_cow.gjk_generation_++;
@@ -325,7 +323,9 @@ bool CoalCastBVHManager::isCollisionObjectEnabled(const tesseract::common::LinkI
 
 Eigen::Isometry3d CoalCastBVHManager::getCollisionObjectsTransform(const tesseract::common::LinkId& id) const
 {
-  // Returns pose1 (start) — link2cow_ tracks the start pose; pose2 is encoded in the cast hull and unrecoverable.
+  // Returns pose1 (start), which link2cow_ tracks. The pose a sweep ends at is on an active link's cast
+  // wrapper: getCastCollisionObject(id)->getSweepEndTransform(). A static link's cast wrapper is not kept
+  // current.
   return link2cow_.at(id)->getCollisionObjectsTransform();
 }
 
@@ -449,7 +449,7 @@ void CoalCastBVHManager::setActiveCollisionObjects(const std::unordered_set<tess
   for (auto& [id, cow] : link2cow_)
   {
     // Get the cast collision object
-    COW::Ptr& cast_cow = link2castcow_.at(id);
+    CastCOW::Ptr& cast_cow = link2castcow_.at(id);
 
     // Use the specialized function that properly handles both regular and cast objects
     updateCollisionObjectFilters(active_, cow, cast_cow, static_manager_, dynamic_manager_);
@@ -549,7 +549,8 @@ void CoalCastBVHManager::addCollisionObject(const COW::Ptr& cow)
   // regular wrapper - and built when it goes kinematic. Kinematic objects (e.g. during clone) build
   // immediately to avoid a wasted clone.
   const bool is_kinematic = isKinematic(*cow);
-  COW::Ptr& cast_ref = (link2castcow_[lid] = makeCastCollisionObject(cow, /*build_swept=*/is_kinematic));
+  CastCOW::Ptr& cast_ref =
+      (link2castcow_[lid] = makeCastCollisionObject(cow, /*build_swept=*/is_kinematic, d_arc_compensation_));
 
   if (!is_kinematic)
   {
@@ -587,7 +588,8 @@ void CoalCastBVHManager::addCollisionObjects(const std::vector<COW::Ptr>& cows, 
     applyCollisionMarginThreshold(*cow, contact_test_data_.collision_margin_data);
 
     const bool is_kinematic = isKinematic(*cow);
-    COW::Ptr& cast_ref = (link2castcow_[lid] = makeCastCollisionObject(cow, /*build_swept=*/is_kinematic));
+    CastCOW::Ptr& cast_ref =
+        (link2castcow_[lid] = makeCastCollisionObject(cow, /*build_swept=*/is_kinematic, d_arc_compensation_));
 
     if (!is_kinematic)
     {
@@ -616,7 +618,7 @@ void CoalCastBVHManager::addCollisionObjects(const std::vector<COW::Ptr>& cows, 
     {
       for (auto& [id, cow_ref] : link2cow_)
       {
-        COW::Ptr& cast_cow = link2castcow_.at(id);
+        CastCOW::Ptr& cast_cow = link2castcow_.at(id);
         updateCollisionObjectFilters(active_, cow_ref, cast_cow, static_manager_, dynamic_manager_);
       }
     }
@@ -631,7 +633,7 @@ void CoalCastBVHManager::appendRegularBroadphaseUpdate(COW& reg_cow)
     reg_cow.appendCollisionObjectsRaw(static_update_);
 }
 
-void CoalCastBVHManager::appendCastBroadphaseUpdate(COW& cast_cow)
+void CoalCastBVHManager::appendCastBroadphaseUpdate(CastCOW& cast_cow)
 {
   if (isKinematic(cast_cow))
     cast_cow.appendCollisionObjectsRaw(dynamic_update_);
@@ -657,7 +659,7 @@ void CoalCastBVHManager::collectTransformUpdate(Link2COW::iterator it, const Eig
   if (cast_it == link2castcow_.end())
     return;
 
-  COW& cast_cow = *cast_it->second;
+  CastCOW& cast_cow = *cast_it->second;
 
   // A static link's cast wrapper carries no pose or sweep that anything reads: it is in no broadphase, and
   // updateCollisionObjectFilters brings both current at the moment the link is promoted. Writing them here
@@ -665,131 +667,49 @@ void CoalCastBVHManager::collectTransformUpdate(Link2COW::iterator it, const Eig
   if (!isKinematic(cast_cow))
     return;
 
-  // A pose set without a sweep must leave no sweep behind: the hulls hold whatever the last dual-pose call
-  // wrote, and re-applying that delta from the new pose sweeps the object through space it never crossed.
-  // Whether a hull holds a stale sweep is independent of whether the link moved, so the two are asked
-  // separately - setting a link back to the pose a sweep started from moves nothing and must still drop it.
-  const bool swept = updateCastShapeTransforms(cast_cow, pose, pose);
-  if (!swept && !moved)
+  // A pose set without a sweep must leave no sweep behind: re-applying the last dual-pose call's sweep from
+  // the new pose would sweep the object through space it never crossed. Whether the wrapper holds a sweep
+  // is independent of whether the link moved, so the two are asked separately - setting a link back to the
+  // pose a sweep started from moves nothing and must still drop it.
+  if (!moved && !cast_cow.isSwept())
     return;
 
+  cast_cow.setSweep(pose, pose);
   cast_cow.gjk_generation_++;
-
-  // Re-applied even when the pose has not moved: this recomputes each object's AABB from the hull's local
-  // one, and the broadphase update copies that AABB rather than deriving it.
-  cast_cow.setCollisionObjectsTransform(pose);
   appendCastBroadphaseUpdate(cast_cow);
 }
 
-bool CoalCastBVHManager::updateCastShapeTransforms(COW& cast_cow,
-                                                   const Eigen::Isometry3d& pose1,
-                                                   const Eigen::Isometry3d& pose2) const
-{
-  assert(isKinematic(cast_cow));
-  assert(!castCowNeedsSweptBuild(cast_cow));
-
-  bool changed = false;
-
-  // A zero-length sweep is the unswept state, which every hull resolves to regardless of its local offset,
-  // so it is clearSweep's business rather than a per-shape product - and the products would not reach it
-  // exactly anyway, since (tf * local)^-1 * (tf * local) leaves rounding noise that defeats the equality
-  // test below.
-  //
-  // The comparison must be exact because it stands in for that computation: whatever it accepts has to
-  // produce the identity, and a relative tolerance accepts real motion far from the origin.
-  if (pose1.matrix() == pose2.matrix())
-  {
-    for (const auto& co : cast_cow.getCollisionObjects())
-    {
-      auto* cast_shape = static_cast<CastHullShape*>(co->collisionGeometryPtr());
-      changed = cast_shape->clearSweep() || changed;
-    }
-
-    return changed;
-  }
-
-  const coal::Transform3s tf1(pose1.rotation(), pose1.translation());
-  const coal::Transform3s tf2(pose2.rotation(), pose2.translation());
-
-  // Precompute rotation-angle scalars once per link (conjugation-invariant).
-  DArcScalars d_arc_scalars;
-  if (d_arc_compensation_)
-    d_arc_scalars = computeDArcScalars(tf1.inverseTimes(tf2));
-
-  const auto& shape_poses = cast_cow.getCollisionGeometriesTransforms();
-
-  // Update cast transforms so computeLocalAABB reflects the swept volume.
-  for (const auto& co : cast_cow.getCollisionObjects())
-  {
-    auto* cast_shape = static_cast<CastHullShape*>(co->collisionGeometryPtr());
-    assert(cast_shape != nullptr);
-
-    // Compute per-shape relative transform accounting for local offset.
-    // Each shape's world transform is link_tf * local_tf, so the relative
-    // motion in the shape's local frame is:
-    //   (tf1 * local_tf)^-1 * (tf2 * local_tf)
-    // This matches Bullet's compound shape handling where each child gets
-    // its own delta_tf = (tf1 * local_tf).inverseTimes(tf2 * local_tf).
-    const auto& shape_pose = shape_poses[static_cast<std::size_t>(co->getShapeIndex())];
-    const auto local_tf = coal::Transform3s(shape_pose.rotation(), shape_pose.translation());
-    const coal::Transform3s new_cast_tf = (tf1 * local_tf).inverseTimes(tf2 * local_tf);
-
-    const auto& cur_cast_tf = cast_shape->getCastTransform();
-    if (new_cast_tf == cur_cast_tf)
-      continue;
-
-    changed = true;
-    if (d_arc_compensation_)
-      cast_shape->setSweptSphereRadius(computeDArc(new_cast_tf, *cast_shape->getUnderlyingShape(), d_arc_scalars));
-    cast_shape->updateCastTransform(new_cast_tf);
-  }
-
-  return changed;
-}
-
-void CoalCastBVHManager::collectCastTransformUpdate(Link2COW::iterator cast_it,
+void CoalCastBVHManager::collectCastTransformUpdate(Link2CastCOW::iterator cast_it,
                                                     Link2COW::iterator reg_it,
                                                     const Eigen::Isometry3d& pose1,
                                                     const Eigen::Isometry3d& pose2)
 {
-  COW::Ptr& cow = cast_it->second;
+  CastCOW::Ptr& cow = cast_it->second;
 
-  const Eigen::Isometry3d& cur_tf = cow->getCollisionObjectsTransform();
-
-  // Publish the regular object before the early returns below: for a static link it is what static_manager_
+  // Publish the regular object before the early return below: for a static link it is what static_manager_
   // holds. Its GJK generation follows whether it changed, which is what the helper reports - whether the
   // cast wrapper changed is a separate question, and one the static path never publishes.
   if (reg_it != link2cow_.end())
     collectRegularTransformUpdate(*reg_it->second, pose1);
 
-  // Match Bullet behavior: do not update cast sweep state/AABB for disabled objects.
-  // Still sync the cast COW's transform so it's correct when re-enabled.
-  if (!cow->m_enabled)
-  {
-    // Ahead of the write: cur_tf aliases the wrapper's stored pose, so comparing after it would compare
-    // pose1 against itself.
-    if (!tesseract::common::almostEqualRelativeAndAbs(cur_tf, pose1))
-      cow->gjk_generation_++;
-    cow->setCollisionObjectsTransform(pose1);
-    return;
-  }
-
-  // A static link's cast wrapper is deferred: it holds the link's own geometry, on which the
-  // static_cast<CastHullShape*> below would be undefined behaviour. Setting a sweep on a static link is
-  // meaningless in any case.
+  // A static link's cast wrapper is deferred: it holds the link's own geometry, which carries no sweep, and
+  // nothing reads its pose until the link is promoted. Setting a sweep on a static link is meaningless in
+  // any case.
   if (!isKinematic(*cow))
     return;
 
-  // The sweep write is unconditional, so it leads the disjunction rather than being short-circuited away.
-  if (updateCastShapeTransforms(*cow, pose1, pose2) || !tesseract::common::almostEqualRelativeAndAbs(cur_tf, pose1))
+  // Read before setSweep overwrites the wrapper's pose.
+  const bool moved = !tesseract::common::almostEqualRelativeAndAbs(cow->getCollisionObjectsTransform(), pose1);
+
+  // A disabled link takes its sweep as an enabled one does, so that it is the sweep the link is checked
+  // along once enabled.
+  if (cow->setSweep(pose1, pose2) || moved)
     cow->gjk_generation_++;
 
-  // Re-apply world transform so CoalCollisionObjectWrapper::updateAABB uses the
-  // updated CastHullShape local AABB (swept volume).
-  cow->setCollisionObjectsTransform(pose1);
-
-  // Append to the broadphase update vector (flushed by caller).
-  appendCastBroadphaseUpdate(*cow);
+  // Append to the broadphase update vector (flushed by caller). A disabled link is checked against nothing
+  // and stays out of it; enabling it publishes the bounds it then has.
+  if (cow->m_enabled)
+    appendCastBroadphaseUpdate(*cow);
 }
 
 void CoalCastBVHManager::flushBatchUpdate()

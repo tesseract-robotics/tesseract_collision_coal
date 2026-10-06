@@ -178,7 +178,7 @@ public:
    *  setActiveCollisionObjects when it promotes a link whose cast shapes were still deferred, since
    *  building them replaces the wrapper. Constness stops at the wrapper: its collisionGeometryPtr()
    *  still yields a mutable, shared coal::CollisionGeometry*. */
-  const CollisionObjectWrapper* getCastCollisionObject(const tesseract::common::LinkId& id) const;
+  const CastCollisionObjectWrapper* getCastCollisionObject(const tesseract::common::LinkId& id) const;
 
   /** @brief Get the number of entries in the narrowphase collision cache, otherwise unobservable
    *  from outside the manager; useful as a test/diagnostic hook */
@@ -230,7 +230,7 @@ private:
   CollisionCacheMap collision_cache;
 
   Link2COW link2cow_;                                    /** @brief A map of all collision objects being managed */
-  Link2COW link2castcow_;                                /** @brief A map of cast collision objects being managed. */
+  Link2CastCOW link2castcow_;                            /** @brief A map of cast collision objects being managed. */
   std::unordered_set<tesseract::common::LinkId> active_; /** @brief A list of the active collision objects */
   std::vector<tesseract::common::LinkId> collision_objects_; /** @brief A list of the collision objects */
   ContactTestDataWrapper contact_test_data_; /**< @brief Persistent contact test data (Bullet pattern) */
@@ -252,7 +252,7 @@ private:
 
   /** @brief Append a cast collision object wrapper to the dynamic batch update vector.
    *  @see appendRegularBroadphaseUpdate for the registration rule both helpers encode. */
-  void appendCastBroadphaseUpdate(COW& cast_cow);
+  void appendCastBroadphaseUpdate(CastCOW& cast_cow);
 
   /** @brief Publish a link's new pose to its regular wrapper, and to the broadphase if it holds it.
    *
@@ -264,19 +264,6 @@ private:
    *          whether the link moved is a property of the link, not of either wrapper. */
   bool collectRegularTransformUpdate(COW& reg_cow, const Eigen::Isometry3d& pose);
 
-  /** @brief Write the sweep from @p pose1 to @p pose2 into a cast wrapper's hulls.
-   *
-   *  Only a kinematic link's cast wrapper may be passed. A static link's is deferred and still holds the
-   *  link's own geometry, on which the static_cast below is undefined behaviour. Callers check the filter
-   *  group; the assertion here records that they must.
-   *
-   *  pose1 == pose2 is a zero-length sweep, which is the unswept state every hull resolves to regardless of
-   *  its local offset, so that case defers to CastHullShape::clearSweep rather than computing it per shape.
-   *
-   *  @return Whether any hull was rewritten. A hull that changes while the link stays put still has to reach
-   *          the broadphase, so a change here is not implied by the link having moved. */
-  bool updateCastShapeTransforms(COW& cast_cow, const Eigen::Isometry3d& pose1, const Eigen::Isometry3d& pose2) const;
-
   /** @brief Collect a single link's transform update into the batch update vectors.
    *  Bumps the COW's GJK generation counter whenever anything was rewritten. */
   void collectTransformUpdate(Link2COW::iterator it, const Eigen::Isometry3d& pose);
@@ -287,7 +274,7 @@ private:
    *  was rewritten.
    *  @param cast_it Iterator into link2castcow_ for the link to update
    *  @param reg_it Iterator into link2cow_ for the same link (may be link2cow_.end()) */
-  void collectCastTransformUpdate(Link2COW::iterator cast_it,
+  void collectCastTransformUpdate(Link2CastCOW::iterator cast_it,
                                   Link2COW::iterator reg_it,
                                   const Eigen::Isometry3d& pose1,
                                   const Eigen::Isometry3d& pose2);

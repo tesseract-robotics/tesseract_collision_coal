@@ -51,12 +51,12 @@ inline void runTestDisabledObjectSweepDoesNotUpdateCastState(ContinuousContactMa
   const Eigen::Isometry3d start = Eigen::Isometry3d(Eigen::Translation3d(-2.0, 0.0, 0.0));
   const Eigen::Isometry3d end = Eigen::Isometry3d(Eigen::Translation3d(0.0, 0.0, 0.0));
 
-  // Disable the sphere, set a sweep transform (should be ignored), re-enable it
+  // Disable the sphere, set a sweep transform, re-enable it
   checker.disableCollisionObject("moving_sphere");
   checker.setCollisionObjectsTransform("moving_sphere", start, end);
   checker.enableCollisionObject("moving_sphere");
 
-  // Force a broadphase update at the start pose while leaving cast sweep state untouched
+  // Set only the start pose: no sweep may remain, whatever became of the one set while disabled
   checker.setCollisionObjectsTransform("moving_sphere", start);
 
   ContactResultMap no_sweep_result;

@@ -38,6 +38,9 @@ static_assert(HasPoseSetter<CollisionObjectWrapper>::value);
 static_assert(HasClone<CollisionObjectWrapper>::value);
 static_assert(!HasPoseSetter<CollisionObjectWrapperBase>::value);
 static_assert(!HasClone<CollisionObjectWrapperBase>::value);
+static_assert(!HasPoseSetter<CastCollisionObjectWrapper>::value);
+static_assert(!HasClone<CastCollisionObjectWrapper>::value);
+static_assert(!std::is_convertible_v<CastCollisionObjectWrapper*, CollisionObjectWrapper*>);
 
 TEST(CoalCollisionObjectWrapperUnit, SourceShapeIndexFallsBackToShapeIndex)  // NOLINT
 {
