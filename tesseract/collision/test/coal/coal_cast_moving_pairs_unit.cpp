@@ -881,7 +881,36 @@ TEST(CoalCastMovingPairsUnit, LinksTurningTogetherFromGeneralPosesAreCollidedUns
     const Eigen::Vector3d a_to_b = Eigen::AngleAxisd(0.5 * angle, axis) * (frame.linear() * Eigen::Vector3d::UnitX());
     const Eigen::Vector3d slot0_to_slot1 = (slotOf(contact, "a") == 0U) ? a_to_b : Eigen::Vector3d(-a_to_b);
     EXPECT_LT((contact.normal - slot0_to_slot1).norm(), 1e-6);
+
+    // The hull holds one pose, so the contact lies between the ends of the sweep, and each link reports the
+    // centre of the face that faces the other.
+    EXPECT_EQ(contact.cc_type[0], ContinuousCollisionType::CCType_Between);
+    EXPECT_EQ(contact.cc_type[1], ContinuousCollisionType::CCType_Between);
+    const std::size_t a = slotOf(contact, "a");
+    EXPECT_LT((contact.nearest_points_local[a] - Eigen::Vector3d(0.5 * BOX, 0.0, 0.0)).norm(), 1e-5);
+    EXPECT_LT((contact.nearest_points_local[1U - a] - Eigen::Vector3d(-0.5 * BOX, 0.0, 0.0)).norm(), 1e-5);
   }
+}
+
+TEST(CoalCastMovingPairsUnit, LinkThatIsNotSweptReportsItsContactAtTheMiddle)  // NOLINT
+{
+  // An active link set to one pose is not swept. Its contact with a static obstacle is reported between the
+  // ends of the sweep, at the middle, at the centre of the face that faces the obstacle.
+  CoalCastBVHManager checker;
+  addBox(checker, "a");
+  addBox(checker, "s");
+  checker.setActiveCollisionObjects({ LinkId("a") });
+  checker.setDefaultCollisionMargin(0.1);
+  const Eigen::Isometry3d frame = generalFrame();
+  checker.setCollisionObjectsTransform("a", frame * aStart());
+  checker.setCollisionObjectsTransform("s", frame * bStart());
+  const ContactResult contact = onlyContact(checker);
+  const std::size_t a = slotOf(contact, "a");
+
+  EXPECT_NEAR(contact.distance, GAP, 1e-5);
+  EXPECT_EQ(contact.cc_type[a], ContinuousCollisionType::CCType_Between);
+  EXPECT_EQ(contact.cc_time[a], 0.5);
+  EXPECT_LT((contact.nearest_points_local[a] - Eigen::Vector3d(0.5 * BOX, 0.0, 0.0)).norm(), 1e-5);
 }
 
 TEST(CoalCastMovingPairsUnit, RelativeMotionAboveRoundingIsSwept)  // NOLINT

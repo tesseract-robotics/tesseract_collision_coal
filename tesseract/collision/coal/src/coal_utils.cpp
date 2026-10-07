@@ -631,7 +631,9 @@ static coal::details::ShapeSupportData& averagingScratch()
  *
  * Uses the support-function approach of Bullet's calculateContinuousData: finds the shape's extreme points
  * along the contact normal at either end of the sweep, then classifies the contact time by which pose has
- * the greater support.
+ * the greater support. A hull whose cast transform is the identity has one pose, whatever @p shape_tf1 and
+ * the link origins say: its contact is reported between the ends, at the middle, with one resting point for
+ * both.
  *
  * @param hull The swept hull the narrowphase collided; its support hints seed the support queries
  * @param shape_tf0 The shape's pose at the start of the sweep
@@ -665,10 +667,29 @@ static SweepWitness locateOnSweep(const CastHullShape& hull,
   // sweep's hint/last_dir already match the contact normal — seed the scratch
   // from them for a high-quality start. When use_flat is true the flat scan
   // ignores the scratch entirely (see getAverageSupportFromConvex), so the
-  // stale seed is harmless; the warm branch re-seeds last_dir and re-inits
+  // stale seed is harmless; the warm climb re-seeds last_dir and re-inits
   // visited on every call, so interleaved flat/warm queries never corrupt it.
   const coal::ShapeBase* underlying = hull.getUnderlyingShape().get();
   coal::details::ShapeSupportData& avg_data = averagingScratch();
+
+  // A hull that holds no sweep has one pose. One support answers for both ends, seeded from the pose-1 hint
+  // and last_dir, which the hull's own support queries run on. The contact is as near all through the sweep,
+  // so it is reported at the middle.
+  if (hull.isCastIdentity())
+  {
+    double sup_local = 0;
+    int hint = 0;
+    if (!use_flat)
+    {
+      hint = hull.getHint1();
+      avg_data.last_dir = hull.getSupportData1().last_dir;
+    }
+    GetAverageSupport(underlying, normal_local0, sup_local, w.pt_local0, hint, avg_data, use_flat);
+    w.pt_local1 = w.pt_local0;
+    w.cc_type = ContinuousCollisionType::CCType_Between;
+    w.cc_time = 0.5;
+    return w;
+  }
 
   double sup_local0 = 0;
   int hint0 = 0;

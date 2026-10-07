@@ -112,6 +112,9 @@ public:
 
   const coal::Transform3s& getCastTransform() const { return castTransform_; }
 
+  /// @brief Whether the cast transform is exactly the identity: the hull holds one pose.
+  bool isCastIdentity() const { return cast_is_identity_; }
+
   /// @brief Half the diagonal of the wrapped shape's own bounding box, its swept-sphere radius left out: a
   /// measure of the shape's size that no sweep changes. Fixed when the hull is made.
   coal::Scalar getShapeBoundRadius() const { return 0.5 * (wrapped_aabb_.max_ - wrapped_aabb_.min_).norm(); }
