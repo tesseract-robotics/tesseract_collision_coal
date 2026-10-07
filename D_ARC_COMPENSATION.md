@@ -123,7 +123,7 @@ Three gaps remain, all inherent in the formulation rather than introduced by it:
 d_arc is computed in two places, by the same trig-free method (see below), and both set it with `CastHullShape::setSweptSphereRadius(d_arc)` before `updateCastTransform()`:
 
 - **A link's own hull**, from the link's turn in the world: `CastCollisionObjectWrapper::setSweep()` in `coal_utils.cpp`, per shape, on every transform update. This is the hull a moving link is collided through against a static object, and the one that bounds it in the broadphase.
-- **The hull of a pair of two moving links**, from the links' relative turn: `writePairSweep()` in `coal_utils.cpp`, on every narrowphase query of the pair, under relative cast. Such a pair is then not collided hull against hull. Of each pair of their shapes one is collided as it stands, and the other through a scratch hull swept by its link's motion relative to the first, which is rewritten before each query; with compensation on, that rewrite includes the sagitta. Links that turn together have no relative turn and get no padding, whatever their turn in the world.
+- **The hull of a pair of two moving links**, from the links' relative turn: `writePairSweep()` in `coal_utils.cpp`, on every narrowphase query of the pair, under relative cast. Such a pair is then not collided hull against hull. Of each pair of their shapes one is collided as it stands, and the other through a scratch hull swept by its link's motion relative to the first, which is rewritten before each query; with compensation on, that rewrite includes the sagitta. Links that turn together have no relative turn and get no padding, whatever their turn in the world; where they move rigidly together the hull is left unswept.
 
 Setting the radius has two effects:
 
@@ -208,8 +208,8 @@ shape on that link, on a transform update:
 Under relative cast a pair of two moving links pays one `computeDArcScalars` and one `computeDArc`
 **per narrowphase query of the pair** — one per pair of shapes the broadphase passes, each time it is
 collided — on top of the per-update cost of both links' own hulls: 2 `sqrt` calls and 2 divisions below
-the handoff, 4 and 3 past it, and none when the relative turn is under the early-return threshold, as it
-is for links that move together.
+the handoff, 4 and 3 past it, and none when the relative turn is under the early-return threshold. A pair
+whose links move rigidly together reaches neither call: its hull is left unswept.
 
 No `acos`, `cos`, `sin`, or `atan2` on either path.
 

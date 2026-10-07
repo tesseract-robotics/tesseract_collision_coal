@@ -68,17 +68,17 @@ namespace tesseract::collision::tesseract_collision_coal
  * Under relative cast, the default (see kDefaultRelativeCast), two kinematic links are not collided hull
  * against hull, which would report a contact wherever they pass through the same space at different times.
  * Of each pair of their shapes one is collided as it stands and the other is swept by its link's motion
- * relative to the first, so links that move rigidly together are checked as an unswept pair, to rounding:
- * their relative motion is guaranteed to come out as exactly no motion only when neither link is swept. A
- * contact carries one time for both links.
+ * relative to the first, so links that move rigidly together are checked as an unswept pair: a relative
+ * motion that moves the swept shape by no more than rounding counts as none, by the default tolerances of
+ * tesseract::common::almostEqualRelativeAndAbs. A contact carries one time for both links.
  *
  * The smaller shape of a pair is the swept one, by the diagonal of its bounding box, and between shapes of
  * one size the shape of the link whose name sorts last. A link with several shapes can thus be held for one
  * of them and swept for another.
  *
- * The hull of such a pair holds both end poses exactly and, between them, the straight path of every point
- * of the swept shape as the held link sees it. That misreads a contact inside the step in two ways, as a
- * link's own hull does against a static object:
+ * The hull of such a pair, where it is swept, holds both end poses exactly and, between them, the straight
+ * path of every point of the swept shape as the held link sees it. That misreads a contact inside the step
+ * in two ways, as a link's own hull does against a static object:
  *  - Too near, where the held shape lies in the space the hull fills between the swept shape's two
  *    orientations, or on the inside of a path that bends.
  *  - Too far, where it lies on the outside of a path that bends, by an amount that falls with the square of

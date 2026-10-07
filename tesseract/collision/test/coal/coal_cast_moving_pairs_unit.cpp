@@ -9,6 +9,7 @@ TESSERACT_COMMON_IGNORE_WARNINGS_PUSH
 #include <map>
 #include <memory>
 #include <string>
+#include <tuple>
 TESSERACT_COMMON_IGNORE_WARNINGS_POP
 
 #include <tesseract/collision/coal/coal_cast_managers.h>
@@ -835,46 +836,101 @@ TEST(CoalCastMovingPairsUnit, ArcCompensationFollowsTheRelativeTurn)  // NOLINT
   EXPECT_NEAR(distance(true, carry), distance(true, still), 1e-5);
 }
 
-TEST(CoalCastMovingPairsUnit, LinksTurningTogetherFromGeneralPosesAreSweptByRounding)  // NOLINT
+TEST(CoalCastMovingPairsUnit, LinksTurningTogetherFromGeneralPosesAreCollidedUnswept)  // NOLINT
 {
   // From poses like a real link's, a shared turn leaves a relative motion that is the identity only to
-  // rounding. The pair is then collided through a hull swept by that residue, not through an unswept one. It
-  // must read the gap all the same, and with arc compensation the residue must pad the hull by nothing.
-  const Eigen::Isometry3d frame = generalFrame();
+  // rounding, and the rounding grows with the distance from the origin. The pair is collided through an
+  // unswept hull all the same, with arc compensation or without and whatever sweep the hull held before,
+  // and reads the gap, the middle of the sweep and the turned normal.
   const Eigen::Vector3d axis = Eigen::Vector3d(2.0, -1.0, 2.0).normalized();
   const double angle = 0.4;
   const Eigen::Isometry3d motion = turnAbout(Eigen::Vector3d(0.3, -2.0, 0.4), axis, angle) * at(0.1, 0.2, 0.3);
 
-  for (const bool convex : { false, true })
+  for (const auto& [distant, convex, d_arc_compensation] : { std::tuple{ false, false, true },
+                                                             std::tuple{ false, true, true },
+                                                             std::tuple{ true, false, true },
+                                                             std::tuple{ false, false, false } })
   {
-    for (const bool d_arc_compensation : { false, true })
-    {
-      SCOPED_TRACE(std::string(convex ? "convex meshes" : "boxes") +
-                   (d_arc_compensation ? ", arc compensation on" : ", arc compensation off"));
-      CoalCastBVHManager checker("test", d_arc_compensation);
-      addGappedBoxes(checker, 0.1, convex);
-      checker.setCollisionObjectsTransform("a", frame * aStart(), motion * frame * aStart());
-      checker.setCollisionObjectsTransform("b", frame * bStart(), motion * frame * bStart());
-      const ContactResult contact = onlyContact(checker);
+    SCOPED_TRACE(std::string(distant ? "far from the origin, " : "near the origin, ") +
+                 (convex ? "convex meshes" : "boxes") + (d_arc_compensation ? "" : ", no arc compensation"));
+    const Eigen::Isometry3d frame = distant ? at(120.0, -80.0, 40.0) * generalFrame() : generalFrame();
+    CoalCastBVHManager checker("test", d_arc_compensation);
+    addGappedBoxes(checker, 0.1, convex);
 
-      EXPECT_TRUE(std::isfinite(contact.distance));
-      EXPECT_NEAR(contact.distance, GAP, 1e-5);
+    // First b makes the turn alone. The shapes are equal and b sorts last, so it is the swept link: its
+    // scratch hull is left holding that sweep and, with compensation, the radius that covers its arc.
+    checker.setCollisionObjectsTransform("a", frame * aStart(), frame * aStart());
+    checker.setCollisionObjectsTransform("b", frame * bStart(), motion * frame * bStart());
+    contacts(checker);
+    const auto* hull = pairHull(checker, "b");
+    ASSERT_NE(hull, nullptr);
+    ASSERT_FALSE(hull->getCastTransform() == coal::Transform3s());
+    ASSERT_EQ(hull->getSweptSphereRadius() > 0.0, d_arc_compensation);
 
-      // The shapes are equal and b sorts last, so it is the swept link: its scratch hull holds the sweep the
-      // query ran with.
-      const auto* hull = pairHull(checker, "b");
-      ASSERT_NE(hull, nullptr);
-      EXPECT_FALSE(hull->getCastTransform() == coal::Transform3s()) << "the pair was collided unswept";
-      EXPECT_EQ(hull->getSweptSphereRadius(), 0.0);
+    checker.setCollisionObjectsTransform("a", frame * aStart(), motion * frame * aStart());
+    checker.setCollisionObjectsTransform("b", frame * bStart(), motion * frame * bStart());
+    const ContactResult contact = onlyContact(checker);
 
-      // As near all through the sweep, the links are reported at its middle, having made half the turn.
-      EXPECT_NEAR(contact.cc_time[0], 0.5, 1e-6);
-      EXPECT_NEAR(contact.cc_time[1], 0.5, 1e-6);
-      const Eigen::Vector3d a_to_b = Eigen::AngleAxisd(0.5 * angle, axis) * (frame.linear() * Eigen::Vector3d::UnitX());
-      const Eigen::Vector3d slot0_to_slot1 = (slotOf(contact, "a") == 0U) ? a_to_b : Eigen::Vector3d(-a_to_b);
-      EXPECT_LT((contact.normal - slot0_to_slot1).norm(), 1e-6);
-    }
+    EXPECT_NEAR(contact.distance, GAP, 1e-5);
+    EXPECT_TRUE(hull->getCastTransform() == coal::Transform3s()) << "the pair was collided through a sweep";
+    EXPECT_EQ(hull->getSweptSphereRadius(), 0.0);
+
+    // As near all through the sweep, the links are reported at its middle, having made half the turn.
+    EXPECT_NEAR(contact.cc_time[0], 0.5, 1e-6);
+    EXPECT_NEAR(contact.cc_time[1], 0.5, 1e-6);
+    const Eigen::Vector3d a_to_b = Eigen::AngleAxisd(0.5 * angle, axis) * (frame.linear() * Eigen::Vector3d::UnitX());
+    const Eigen::Vector3d slot0_to_slot1 = (slotOf(contact, "a") == 0U) ? a_to_b : Eigen::Vector3d(-a_to_b);
+    EXPECT_LT((contact.normal - slot0_to_slot1).norm(), 1e-6);
   }
+}
+
+TEST(CoalCastMovingPairsUnit, RelativeMotionAboveRoundingIsSwept)  // NOLINT
+{
+  // Each pair is swept by a motion with no turn worth the name, so arc compensation pads it by nothing.
+  const auto expect_swept = [](const std::string& what,
+                               const Eigen::Isometry3d& a_start,
+                               const Eigen::Isometry3d& a_end,
+                               const Eigen::Isometry3d& b_start,
+                               const Eigen::Isometry3d& b_end) {
+    SCOPED_TRACE(what);
+    CoalCastBVHManager checker("test", /*d_arc_compensation=*/true);
+    addGappedBoxes(checker, 0.1);
+    checker.setCollisionObjectsTransform("a", a_start, a_end);
+    checker.setCollisionObjectsTransform("b", b_start, b_end);
+    EXPECT_NEAR(onlyContact(checker).distance, GAP, 1e-5);
+
+    const auto* hull = pairHull(checker, "b");
+    ASSERT_NE(hull, nullptr);
+    EXPECT_FALSE(hull->getCastTransform() == coal::Transform3s()) << "the pair's motion was discarded";
+    EXPECT_EQ(hull->getSweptSphereRadius(), 0.0);
+  };
+
+  // b ends 1e-9 from where the shared motion would put it, which is far above rounding.
+  const Eigen::Isometry3d frame = generalFrame();
+  const Eigen::Isometry3d motion =
+      turnAbout(Eigen::Vector3d(0.3, -2.0, 0.4), Eigen::Vector3d(2.0, -1.0, 2.0).normalized(), 0.4) * at(0.1, 0.2, 0.3);
+  expect_swept("a step aside",
+               frame * aStart(),
+               motion * frame * aStart(),
+               frame * bStart(),
+               at(0.0, 1e-9) * motion * frame * bStart());
+
+  // b turns by 1e-9 about its own centre while a holds still. That carries its shape nowhere: the turn alone
+  // counts.
+  expect_swept("a slight turn in place",
+               frame * aStart(),
+               frame * aStart(),
+               frame * bStart(),
+               frame * bStart() * turnAbout(Eigen::Vector3d::Zero(), 1e-9));
+
+  // Far from the origin, b turns about the origin by an angle that alone would count as none, while a holds
+  // still. The turn carries b's shape 7e-9 along, and that is what counts.
+  const Eigen::Isometry3d distant = at(120.0, -80.0, 40.0) * generalFrame();
+  expect_swept("a slight turn about a distant centre",
+               distant * aStart(),
+               distant * aStart(),
+               distant * bStart(),
+               turnAbout(Eigen::Vector3d::Zero(), 5e-11) * distant * bStart());
 }
 
 TEST(CoalCastMovingPairsUnit, PairWithAStillLinkReportsWhatAStaticPartnerDoes)  // NOLINT

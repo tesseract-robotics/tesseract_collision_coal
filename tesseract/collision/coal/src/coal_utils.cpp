@@ -61,6 +61,7 @@ TESSERACT_COMMON_IGNORE_WARNINGS_PUSH
 TESSERACT_COMMON_IGNORE_WARNINGS_POP
 
 #include <tesseract/common/logging.h>
+#include <tesseract/common/utils.h>
 #include <tesseract/collision/coal/coal_utils.h>
 #include <tesseract/collision/coal/coal_collision_geometry_cache.h>
 #include <tesseract/collision/coal/coal_casthullshape.h>
@@ -783,15 +784,16 @@ static Eigen::Isometry3d toIsometry(const coal::Transform3s& tf)
   return out;
 }
 
-/// Sweep @p hull, whose shape sits at @p shape_tf, through the world-frame @p motion. With
-/// @p d_arc_compensation the hull is padded by the arc sagitta of the motion's turn.
+/// Sweep @p hull, whose shape sits at @p shape_tf, through the world-frame @p motion, or clear its sweep
+/// where that moves the shape by no more than rounding. With @p d_arc_compensation the hull is padded by
+/// the arc sagitta of the motion's turn.
 static void writePairSweep(CastHullShape& hull,
                            const Eigen::Isometry3d& motion,
                            const coal::Transform3s& shape_tf,
                            bool d_arc_compensation)
 {
-  // No motion is the unswept state, which the conjugation below reaches only to rounding. Clearing the
-  // sweep drops the radius with it.
+  // No motion is the unswept state. Two links that are not swept give it exactly, and need no conjugation.
+  // Clearing the sweep drops the radius with it.
   if (motion.matrix() == Eigen::Isometry3d::Identity().matrix())
   {
     hull.clearSweep();
@@ -805,6 +807,14 @@ static void writePairSweep(CastHullShape& hull,
   // The radius follows from the cast transform, so a hull that holds this one holds both.
   if (cast_tf == hull.getCastTransform())
     return;
+
+  // Links that move rigidly together leave a motion that is none only to rounding. It is judged in the
+  // shape's own frame, where the tolerance bounds how far the shape moves wherever its link is.
+  if (tesseract::common::almostEqualRelativeAndAbs(toIsometry(cast_tf), Eigen::Isometry3d::Identity()))
+  {
+    hull.clearSweep();
+    return;
+  }
 
   // Ahead of the cast transform: writing that one recomputes the bound, which reads the radius.
   if (d_arc_compensation)
@@ -849,7 +859,7 @@ struct PairSweep
   {
   }
 
-  const CastHullShape* hull;                 ///< The pair's hull: the swept shape under `motion`.
+  const CastHullShape* hull;                 ///< The pair's hull, as writePairSweep leaves it.
   const coal::CollisionObject* held_object;  ///< Collided as its plain shape, at its start pose.
   const coal::CollisionObject* swept_object;
   const CastCollisionObjectWrapper* held;
