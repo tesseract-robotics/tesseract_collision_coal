@@ -63,8 +63,9 @@ namespace tesseract::collision::tesseract_collision_coal
  *
  * Wraps an underlying coal::ShapeBase and a cast transform (relative motion from
  * t=0 to t=1). The narrowphase uses the Schulman support function which queries
- * the underlying shape's exact support at both poses, so no convex hull vertices
- * are materialized. This mirrors Bullet's btCastHullShape design.
+ * the underlying shape's exact support at both poses, or once where the cast
+ * transform is the identity, so no convex hull vertices are materialized. This
+ * mirrors Bullet's btCastHullShape design.
  */
 class CastHullShape : public coal::ShapeBase
 {
@@ -127,7 +128,10 @@ public:
   /// high-quality starting points for support queries along related directions
   /// (e.g. the contact normal), so callers may read them to seed their own
   /// queries. Callers should climb on their own scratch rather than mutating
-  /// these, so they do not perturb the sweep's warm-start chain.
+  /// these, so they do not perturb the sweep's warm-start chain. While the cast
+  /// transform is exactly the identity, queries run on the pose-1 hint and data
+  /// alone and the pose-0 ones are stale: seed from the pose-1 ones. Writing a
+  /// sweep to such a hull copies the pose-1 hint and last_dir to pose 0.
   int& getHint0() const { return hint0_; }
   int& getHint1() const { return hint1_; }
   coal::details::ShapeSupportData& getSupportData0() const { return support_data0_; }
@@ -146,6 +150,8 @@ private:
 
   std::shared_ptr<coal::ShapeBase> shape_;
   coal::Transform3s castTransform_;
+  /// Whether castTransform_ is exactly the identity. Every writer of castTransform_ keeps it current.
+  bool cast_is_identity_;
 
   /// See scratchHull(). Mutable for the same reason as the support hints below: made lazily, per
   /// instance, and never shared between threads.

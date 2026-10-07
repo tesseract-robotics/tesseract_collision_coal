@@ -77,7 +77,10 @@ coal::AABB tightAABB(coal::ShapeBase& s)
 }  // namespace
 
 CastHullShape::CastHullShape(std::shared_ptr<coal::ShapeBase> shape, const coal::Transform3s& castTransform)
-  : shape_(std::move(shape)), castTransform_(castTransform), wrapped_aabb_(tightAABB(*shape_))
+  : shape_(std::move(shape))
+  , castTransform_(castTransform)
+  , cast_is_identity_(castTransform_ == coal::Transform3s())
+  , wrapped_aabb_(tightAABB(*shape_))
 {
 }
 
@@ -85,6 +88,7 @@ CastHullShape::CastHullShape(const CastHullShape& other)
   : coal::ShapeBase(other)
   , shape_(other.shape_)
   , castTransform_(other.castTransform_)
+  , cast_is_identity_(other.cast_is_identity_)
   , wrapped_aabb_(other.wrapped_aabb_)
   , hint0_(other.hint0_)
   , hint1_(other.hint1_)
@@ -184,18 +188,28 @@ bool CastHullShape::isEqual(const coal::CollisionGeometry& _other) const
 
 void CastHullShape::updateCastTransform(const coal::Transform3s& castTransform)
 {
+  const bool was_identity = cast_is_identity_;
   castTransform_ = castTransform;
+  cast_is_identity_ = (castTransform_ == coal::Transform3s());
+
+  // A hull with an identity cast transform runs its queries on the pose-1 hint and last_dir alone. A sweep
+  // starts the pose-0 ones from where those queries left off.
+  if (was_identity && !cast_is_identity_)
+  {
+    hint0_ = hint1_;
+    support_data0_.last_dir = support_data1_.last_dir;
+  }
+
   computeLocalAABB();
 }
 
 bool CastHullShape::clearSweep()
 {
-  const coal::Transform3s identity_tf;
-  if (castTransform_ == identity_tf && getSweptSphereRadius() == 0.0)
+  if (cast_is_identity_ && getSweptSphereRadius() == 0.0)
     return false;
 
   setSweptSphereRadius(0.0);
-  updateCastTransform(identity_tf);
+  updateCastTransform(coal::Transform3s());
   return true;
 }
 
@@ -231,6 +245,15 @@ void CastHullShape::computeShapeSupport(const coal::Vec3s& dir,
                                         coal::details::ShapeSupportData& data0,
                                         coal::details::ShapeSupportData& data1) const
 {
+  if (cast_is_identity_)
+  {
+    // The two poses are one, so one query answers for both. It runs on the pose-1 hint and data, the pose
+    // a tie favours; the pose-0 ones go stale until a sweep is written.
+    support =
+        coal::details::getSupport<coal::details::SupportOptions::WithSweptSphere>(shape_.get(), dir, hint1, data1);
+    return;
+  }
+
   // Support at pose 0 (shape in its local frame, identity transform).
   // Use WithSweptSphere so that shapes with intrinsic radii (Sphere, Capsule)
   // include that radius in the support point — necessary for correct swept-hull

@@ -134,7 +134,7 @@ Setting the radius has two effects:
 
 ### CastHullShape support function (unchanged)
 
-`coal_casthullshape.cpp` — `computeShapeSupport()` implements the Schulman convex-hull support function: it evaluates the underlying shape's support at both pose 0 and pose 1, and returns whichever has a larger dot product with the query direction. This computes `sd(convhull(A(t), A(t+1)), B)`. The d_arc compensation is applied externally via the swept sphere radius, not by modifying the support function.
+`coal_casthullshape.cpp` — `computeShapeSupport()` implements the Schulman convex-hull support function: it evaluates the underlying shape's support at both pose 0 and pose 1, and returns whichever has a larger dot product with the query direction; a hull that holds no sweep has one pose and evaluates it once. This computes `sd(convhull(A(t), A(t+1)), B)`. The d_arc compensation is applied externally via the swept sphere radius, not by modifying the support function.
 
 Bullet's `btCastHullShape` uses the same Schulman support function, but does not compensate d_arc.
 
