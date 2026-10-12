@@ -95,6 +95,7 @@ add_gtest(${PROJECT_NAME}_coal_cast_octree_leaf_seed_unit coal/coal_cast_octree_
 add_gtest(${PROJECT_NAME}_coal_batched_transform_unit coal/coal_batched_transform_unit.cpp)
 add_gtest(${PROJECT_NAME}_coal_deferred_cast_shape_unit coal/coal_deferred_cast_shape_unit.cpp)
 add_gtest(${PROJECT_NAME}_coal_static_mesh_cast_unit coal/coal_static_mesh_cast_unit.cpp)
+add_gtest(${PROJECT_NAME}_coal_plane_cast_unit coal/coal_plane_cast_unit.cpp)
 add_gtest(${PROJECT_NAME}_coal_d_arc_compensation_unit coal/coal_d_arc_compensation_unit.cpp)
 target_link_libraries(${PROJECT_NAME}_coal_d_arc_compensation_unit PRIVATE ${PROJECT_NAME}_coal_factories)
 add_gtest(${PROJECT_NAME}_coal_factory_schema_unit coal/coal_factory_schema_unit.cpp)

@@ -339,7 +339,8 @@ void updateCollisionObjectFilters(const std::unordered_set<tesseract::common::Li
  * throws. When false the wrapper is a plain clone carrying the link's own geometry: a static link is collided
  * through its regular wrapper, so its cast wrapper is a placeholder that nothing reads until
  * updateCollisionObjectFilters builds it on promotion to kinematic. Deferring is what lets a static link hold
- * geometry Coal can collide but not sweep, such as a mesh.
+ * geometry Coal can collide but not sweep, such as a mesh. A plane throws too when built swept: it has no
+ * support function for a CastHullShape to sweep.
  * @return A cast collision object, built or deferred
  */
 COW::Ptr makeCastCollisionObject(const COW::Ptr& cow, bool build_swept = true);

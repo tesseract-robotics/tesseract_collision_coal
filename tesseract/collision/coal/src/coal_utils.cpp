@@ -1365,6 +1365,11 @@ COW::Ptr makeCastCollisionObject(const COW::Ptr& cow, bool build_swept)
     assert(old_shape_index < current_shape_poses.size());
 
     auto geo = co->collisionGeometry();
+    // coal::Plane is a ShapeBase with no support function: refuse it before the arm below wraps it.
+    if (geo->getNodeType() == coal::GEOM_PLANE)
+      throw std::runtime_error("Link '" + cow->getLinkId().name() +
+                               "': I cannot continuous collision check a plane on an active link");
+
     auto* shape_base_ptr = dynamic_cast<coal::ShapeBase*>(geo.get());
     if (shape_base_ptr != nullptr)
     {

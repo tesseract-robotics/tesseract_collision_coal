@@ -612,8 +612,9 @@ TEST(CoalCastHullShapeUnit, TightLocalAABBBoundsPrimitivesWithoutWritingToThem) 
   }
 
   {
-    // A tesseract PLANE link reaches this arm. A halfspace is unbounded on two axes, so there is
-    // no finite extent to assert -- only that the arm dispatches and leaves the shape unwritten.
+    // Only a direct caller reaches this arm: the plugin sweeps neither a plane nor a halfspace. A
+    // halfspace is unbounded on two axes, so there is no finite extent to assert -- only that the arm
+    // dispatches and leaves the shape unwritten.
     auto halfspace = std::make_shared<coal::Halfspace>(coal::Vec3s(0.0, 0.0, 1.0), 0.0);
     halfspace->computeLocalAABB();
     poison(*halfspace);
