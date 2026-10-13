@@ -11,6 +11,7 @@ add_library(
   src/coal_casthullshape.cpp
   src/coal_collision_geometry_cache.cpp
   src/coal_collision_object_wrapper.cpp
+  src/coal_d_arc.cpp
   src/coal_discrete_managers.cpp
   src/coal_utils.cpp)
 target_link_libraries(

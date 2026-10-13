@@ -71,17 +71,28 @@ struct CollisionObjectPairHash
   std::size_t operator()(const CollisionObjectPair& p) const noexcept { return boost::hash_value(p); }
 };
 
+class CastHullShape;
+
 /** @brief Cached collision functor and GJK warm-start state for a collision object pair */
 struct CollisionCacheEntry
 {
   coal::CollisionRequest request;
   coal::ComputeCollision functor;
-  bool is_cast{ false };     ///< Cached at creation to avoid a dynamic_cast per contact.
-                             ///< Gates population of the continuous-collision fields on each result.
-  bool multi_leaf{ false };  ///< Cached at creation. Marks a pair with no usable warm start, which
-                             ///< keeps the bounding-volume guess it was constructed with.
-  uint32_t gen0{ 0 };        ///< COW generation when GJK guess was last seeded (shape 0).
-  uint32_t gen1{ 0 };        ///< COW generation when GJK guess was last seeded (shape 1).
+  bool is_cast{ false };       ///< Cached at creation to avoid a dynamic_cast per contact.
+                               ///< Gates population of the continuous-collision fields on each result.
+  bool multi_leaf{ false };    ///< Cached at creation. Marks a pair with no usable warm start, which
+                               ///< keeps the bounding-volume guess it was constructed with.
+  bool sweeps_first{ false };  ///< Whether pair_hull sweeps the key's first object rather than its second.
+  uint32_t gen0{ 0 };          ///< COW generation when GJK guess was last seeded (shape 0).
+  uint32_t gen1{ 0 };          ///< COW generation when GJK guess was last seeded (shape 1).
+  /// Set for a pair of two swept objects under relative cast (see kDefaultRelativeCast), null for every
+  /// other pair. Such a pair is collided as one object's plain shape against this hull: the scratch hull of
+  /// the other object, which every pair sweeping that object shares, and which is therefore rewritten with
+  /// the object's motion relative to its partner before every query. Not owned: it lives as long as the
+  /// swept object's own hull, and an entry does not outlive its objects.
+  CastHullShape* pair_hull{ nullptr };
+  /// The geometry the functor collides as its first object.
+  const coal::CollisionGeometry* first_geometry{ nullptr };
 };
 
 /** @brief Cache mapping collision object pairs to their precomputed collision functor and warm-start state */
@@ -90,9 +101,18 @@ using CollisionCacheMap = std::unordered_map<CollisionObjectPair, CollisionCache
 /// Default d_arc compensation setting (disabled). When enabled, CastHullShape's swept-sphere
 /// radius is set to the arc-chord sagitta of the shape's rotation, compensating for the gap
 /// between the convex hull (chord) and the true swept arc in continuous collision checks.
-/// Only used by the cast (continuous) manager. Configurable via the plugin YAML config key
-/// `d_arc_compensation`.
+/// Under relative cast a pair of two moving links is collided through a hull of their relative
+/// motion, which is padded by the sagitta of their relative turn instead, computed on every
+/// narrowphase query of the pair. That is the arc the pair's hull cuts only when one joint joins
+/// the two links or one of them does not move; see CoalCastBVHManager. Only used by the cast
+/// (continuous) manager. Configurable via the plugin YAML config key `d_arc_compensation`.
 inline constexpr bool kDefaultDArcCompensation = false;
+
+/// Default relative cast setting (enabled). When enabled, a pair of two moving links is collided
+/// as one link's shape against a hull of the other's motion relative to it; when disabled, as the
+/// two links' own swept hulls. CoalCastBVHManager states what each misreads. Only used by the cast
+/// (continuous) manager. Configurable via the plugin YAML config key `relative_cast`.
+inline constexpr bool kDefaultRelativeCast = true;
 
 /** @brief Compute an AABB for a ShapeBase at transform tf, dispatching on getNodeType().
  *  Primitive shapes (Box, Sphere, Capsule, ...) use their exact analytic computeBV
@@ -166,21 +186,23 @@ enum CollisionFilterGroups : std::int8_t
   AllFilter = -1  // all bits sets: DefaultFilter | StaticFilter | KinematicFilter
 };
 
+class CollisionObjectWrapper;
+
 /**
- * @brief This is a Tesseract link collision object wrapper which add items specific to tesseract. It is a wrapper
- * around a tesseract link which may contain several collision objects.
+ * @brief What a link's regular and cast wrapper share: the link's shapes, filter state and collision objects.
+ *
+ * Not used on its own: setting the link's pose is left to each wrapper type. A collision object's user data
+ * names its wrapper as this type.
  */
-class CollisionObjectWrapper
+class CollisionObjectWrapperBase
 {
 public:
-  using Ptr = std::shared_ptr<CollisionObjectWrapper>;
-  using ConstPtr = std::shared_ptr<const CollisionObjectWrapper>;
-
-  CollisionObjectWrapper() = default;
-  CollisionObjectWrapper(tesseract::common::LinkId id,
-                         const int& type_id,
-                         CollisionShapesConst shapes,
-                         tesseract::common::VectorIsometry3d shape_poses);
+  // Neither copied nor moved: a wrapper's collision objects name it by address, through their user data.
+  // CollisionObjectWrapper::clone makes a copy with collision objects of its own.
+  CollisionObjectWrapperBase(const CollisionObjectWrapperBase&) = delete;
+  CollisionObjectWrapperBase& operator=(const CollisionObjectWrapperBase&) = delete;
+  CollisionObjectWrapperBase(CollisionObjectWrapperBase&&) = delete;
+  CollisionObjectWrapperBase& operator=(CollisionObjectWrapperBase&&) = delete;
 
   short int m_collisionFilterGroup{ CollisionFilterGroups::StaticFilter };
   short int m_collisionFilterMask{ CollisionFilterGroups::KinematicFilter };
@@ -199,8 +221,6 @@ public:
 
   tesseract::common::VectorIsometry3d& getCollisionGeometriesTransforms() { return shape_poses_; }
 
-  void setCollisionObjectsTransform(const Eigen::Isometry3d& pose);
-
   void setContactDistanceThreshold(double contact_distance);
 
   double getContactDistanceThreshold() const { return contact_distance_; }
@@ -214,8 +234,6 @@ public:
   /** @brief Append raw pointers from this wrapper's collision objects into @p out. */
   void appendCollisionObjectsRaw(std::vector<CollisionObjectRawPtr>& out) const;
 
-  std::shared_ptr<CollisionObjectWrapper> clone() const;
-
   /**
    * @brief Given Coal collision shape get the index to the links collision shape
    * @param co Coal collision shape
@@ -224,6 +242,21 @@ public:
   static int getShapeIndex(const coal::CollisionObject* co);
 
 protected:
+  CollisionObjectWrapperBase() = default;
+  CollisionObjectWrapperBase(tesseract::common::LinkId&& id,
+                             const int& type_id,
+                             CollisionShapesConst&& shapes,
+                             tesseract::common::VectorIsometry3d&& shape_poses);
+  ~CollisionObjectWrapperBase() = default;
+
+  /** @brief Set the link's pose, and place every collision object by it. */
+  void setCollisionObjectsTransform(const Eigen::Isometry3d& pose);
+
+  /** @brief Make this wrapper a copy of @p other, with collision objects of its own. Only a regular wrapper is
+   *  copied: a copy of a cast wrapper would share its hulls.
+   *  @pre This wrapper holds no collision objects. */
+  void cloneFrom(const CollisionObjectWrapper& other);
+
   tesseract::common::LinkId link_id_;                             // id derived from name, also carries the name string
   int type_id_{ -1 };                                             // user defined type id
   Eigen::Isometry3d world_pose_{ Eigen::Isometry3d::Identity() }; /**< @brief Collision Object World Transformation */
@@ -234,10 +267,138 @@ protected:
   double contact_distance_{ 0 }; /**< @brief The contact distance threshold */
 };
 
+/**
+ * @brief This is a Tesseract link collision object wrapper which add items specific to tesseract. It is a wrapper
+ * around a tesseract link which may contain several collision objects.
+ */
+class CollisionObjectWrapper : public CollisionObjectWrapperBase
+{
+public:
+  using Ptr = std::shared_ptr<CollisionObjectWrapper>;
+  using ConstPtr = std::shared_ptr<const CollisionObjectWrapper>;
+
+  CollisionObjectWrapper() = default;
+  CollisionObjectWrapper(tesseract::common::LinkId id,
+                         const int& type_id,
+                         CollisionShapesConst shapes,
+                         tesseract::common::VectorIsometry3d shape_poses)
+    : CollisionObjectWrapperBase(std::move(id), type_id, std::move(shapes), std::move(shape_poses))
+  {
+  }
+
+  /** @brief Set the link's pose. */
+  using CollisionObjectWrapperBase::setCollisionObjectsTransform;
+
+  std::shared_ptr<CollisionObjectWrapper> clone() const;
+};
+
+/// The displacement of a link that is not swept: exactly the identity.
+inline const Eigen::Isometry3d kNoSweepDisplacement{ Eigen::Isometry3d::Identity() };
+
+/**
+ * @brief The wrapper of a link as a continuous manager sweeps it: the link's shapes as CastHullShapes, and
+ * the sweep they are set to.
+ *
+ * The sweep is held twice - per shape in the hulls, which the narrowphase collides, and per link here,
+ * which a contact's fields and, under relative cast, a pair of two swept links read - and the two agree only
+ * while nothing writes one without the other. setSweep writes both, and is the only way this type offers to
+ * set the link's pose.
+ *
+ * A wrapper made for a static link is deferred: it holds the link's own geometry in place of hulls and takes
+ * no sweep until it is built. See makeCastCollisionObject and castCowNeedsSweptBuild.
+ *
+ * A cast wrapper is built from its link's regular wrapper and has no clone, because a copy would share its
+ * hulls.
+ */
+class CastCollisionObjectWrapper final : public CollisionObjectWrapperBase
+{
+public:
+  using Ptr = std::shared_ptr<CastCollisionObjectWrapper>;
+  using ConstPtr = std::shared_ptr<const CastCollisionObjectWrapper>;
+
+  /** @brief A copy of @p link as CollisionObjectWrapper::clone makes one, not swept.
+   *  @param link The link's regular wrapper
+   *  @param d_arc_compensation See getDArcCompensation */
+  CastCollisionObjectWrapper(const CollisionObjectWrapper& link, bool d_arc_compensation);
+
+  /**
+   * @brief Set the link's sweep: from @p pose1 to @p pose2
+   *
+   * Equal poses are the unswept state, in the hulls and here. Otherwise each hull is padded by the arc sagitta
+   * of the link's turn if the wrapper was made with arc compensation.
+   *
+   * The hulls are written first and the wrapper's poses after: a hull's cast transform determines its
+   * geometry's local AABB, and setting the wrapper's poses derives each object's own AABB from that. So the
+   * objects' bounds are current on return, whether or not the link moved.
+   *
+   * @pre The wrapper is not deferred. A built cast wrapper holds CastHullShapes and nothing else -
+   * makeCastCollisionObject either converts a shape or throws - so the downcast inside is safe exactly then.
+   * Check castCowNeedsSweptBuild first.
+   *
+   * @param pose1 The link's world pose at the start of the sweep; may be a pose this wrapper holds
+   * @param pose2 The link's world pose at the end of the sweep; may be a pose this wrapper holds
+   * @return Whether any hull was rewritten. A hull that changes while the link stays put still has to reach
+   * the broadphase, so a change here is not implied by the link having moved.
+   */
+  bool setSweep(const Eigen::Isometry3d& pose1, const Eigen::Isometry3d& pose2);
+
+  /** @brief The pose the link's current sweep ends at; its world pose when it is not swept. */
+  const Eigen::Isometry3d& getSweepEndTransform() const { return swept_ ? sweep_end_pose_ : world_pose_; }
+
+  /** @brief Whether the link's current sweep ends at a pose other than the one it starts at. */
+  bool isSwept() const { return swept_; }
+
+  /** @brief Whether a swept hull of this link is padded by the arc sagitta of the turn it is swept through; see
+   *  kDefaultDArcCompensation. Fixed when the wrapper is made. */
+  bool getDArcCompensation() const { return d_arc_compensation_; }
+
+  /** @brief The link's world displacement over its sweep, end * start^-1. Exactly the identity when the
+   *  sweep ends at the pose it starts at.
+   *
+   *  Worked out on the first call after a sweep is set, of this or of the inverse, so not safe to call from
+   *  two threads at once. */
+  const Eigen::Isometry3d& getSweepDisplacement() const
+  {
+    if (!swept_)
+      return kNoSweepDisplacement;
+    if (!sweep_displacement_current_)
+      computeSweepDisplacement();
+    return sweep_displacement_;
+  }
+
+  /** @brief The inverse of getSweepDisplacement, start * end^-1; exactly the identity likewise. */
+  const Eigen::Isometry3d& getSweepDisplacementInverse() const
+  {
+    if (!swept_)
+      return kNoSweepDisplacement;
+    if (!sweep_displacement_current_)
+      computeSweepDisplacement();
+    return sweep_displacement_inverse_;
+  }
+
+private:
+  /** @brief See getDArcCompensation. */
+  bool d_arc_compensation_;
+  /** @brief Whether the link is swept. The sweep members below are read only while it is. */
+  bool swept_{ false };
+  /** @brief Whether the two displacements below match the sweep. Few swept links meet another one in the
+   *  narrowphase, so they are worked out for the first reader rather than on every sweep set. */
+  mutable bool sweep_displacement_current_{ false };
+
+  Eigen::Isometry3d sweep_end_pose_{ Eigen::Isometry3d::Identity() }; /**< @brief World pose the sweep ends at */
+  mutable Eigen::Isometry3d sweep_displacement_{ Eigen::Isometry3d::Identity() };         /**< @brief end * start^-1 */
+  mutable Eigen::Isometry3d sweep_displacement_inverse_{ Eigen::Isometry3d::Identity() }; /**< @brief start * end^-1 */
+
+  /** @brief Bring the two displacements up to date with the sweep. */
+  void computeSweepDisplacement() const;
+};
+
 CollisionGeometryPtr createShapePrimitive(const CollisionShapeConstPtr& geom);
 
 using COW = CollisionObjectWrapper;
 using Link2COW = std::unordered_map<tesseract::common::LinkId, COW::Ptr>;
+using CastCOW = CastCollisionObjectWrapper;
+using Link2CastCOW = std::unordered_map<tesseract::common::LinkId, CastCOW::Ptr>;
 
 COW::Ptr createCoalCollisionObject(const tesseract::common::LinkId& id,
                                    const int& type_id,
@@ -266,7 +427,7 @@ bool buildCoalCollisionObjects(const std::vector<CollisionObjectSpec>& objects, 
  * StaticFilter groups can only collide with KinematicFilter groups.
  * KinematicFilter groups can collide with both StaticFilter and KinematicFilter groups.
  */
-void applyCollisionFilterMask(COW& cow);
+void applyCollisionFilterMask(CollisionObjectWrapperBase& cow);
 
 /**
  * @brief Check whether a collision object is filtered as static, i.e. its link is not active.
@@ -275,7 +436,7 @@ void applyCollisionFilterMask(COW& cow);
  * rather than comparing m_collisionFilterGroup: == StaticFilter and != KinematicFilter agree only for
  * as long as the group holds nothing else.
  */
-bool isStatic(const COW& cow);
+bool isStatic(const CollisionObjectWrapperBase& cow);
 
 /**
  * @brief Check whether a collision object is filtered as kinematic, i.e. its link is active.
@@ -284,7 +445,7 @@ bool isStatic(const COW& cow);
  * rather than comparing m_collisionFilterGroup: != StaticFilter and == KinematicFilter agree only for
  * as long as the group holds nothing else.
  */
-bool isKinematic(const COW& cow);
+bool isKinematic(const CollisionObjectWrapperBase& cow);
 
 /**
  * @brief Set a collision object's contact distance threshold from the current margin data.
@@ -296,7 +457,8 @@ bool isKinematic(const COW& cow);
  * @param margin_data The current collision margin data
  * @return True if the threshold changed
  */
-bool applyCollisionMarginThreshold(COW& cow, const tesseract::common::CollisionMarginData& margin_data);
+bool applyCollisionMarginThreshold(CollisionObjectWrapperBase& cow,
+                                   const tesseract::common::CollisionMarginData& margin_data);
 
 /**
  * @brief Update collision objects filters
@@ -326,9 +488,24 @@ void updateCollisionObjectFilters(const std::unordered_set<tesseract::common::Li
  */
 void updateCollisionObjectFilters(const std::unordered_set<tesseract::common::LinkId>& active_ids,
                                   const COW::Ptr& cow,
-                                  COW::Ptr& cast_cow,
+                                  CastCOW::Ptr& cast_cow,
                                   const std::unique_ptr<coal::BroadPhaseCollisionManager>& static_manager,
                                   const std::unique_ptr<coal::BroadPhaseCollisionManager>& dynamic_manager);
+
+/**
+ * @brief Which shape of a pair of two swept objects is the swept one under relative cast
+ *
+ * The smaller shape, and between shapes of one size the shape of the link whose name sorts last;
+ * CoalCastBVHManager states why. For shapes of two links, giving the shapes the other way round gives the
+ * other answer, so the choice does not follow the order a caller holds the pair in.
+ *
+ * @param size1 The first shape's size, as CastHullShape::getShapeBoundRadius measures it
+ * @param size2 The second shape's size
+ * @param link1 The name of the first shape's link
+ * @param link2 The name of the second shape's link
+ * @return Whether the first shape is the swept one
+ */
+bool pairSweepsFirst(coal::Scalar size1, coal::Scalar size2, const std::string& link1, const std::string& link2);
 
 /**
  * @brief Create a cast collision object from a regular collision object
@@ -341,23 +518,11 @@ void updateCollisionObjectFilters(const std::unordered_set<tesseract::common::Li
  * updateCollisionObjectFilters builds it on promotion to kinematic. Deferring is what lets a static link hold
  * geometry Coal can collide but not sweep, such as a mesh. A plane throws too when built swept: it has no
  * support function for a CastHullShape to sweep.
+ * @param d_arc_compensation Whether the wrapper pads its swept hulls by an arc sagitta. A deferred wrapper
+ * keeps it for the wrapper updateCollisionObjectFilters builds in its place.
  * @return A cast collision object, built or deferred
  */
-COW::Ptr makeCastCollisionObject(const COW::Ptr& cow, bool build_swept = true);
-
-/**
- * @brief Return every hull of a cast collision object to the unswept state
- *
- * A built cast wrapper holds CastHullShapes and nothing else - makeCastCollisionObject either converts a
- * shape or throws - so the downcast inside is safe exactly when the wrapper is not still deferred. Check
- * castCowNeedsSweptBuild first, or pass a rebuilt wrapper.
- *
- * @param cast_cow The cast collision object whose hulls to clear
- * @return True if any hull changed. Publishing new bounds takes a world transform re-apply either way:
- * clearing a hull moves the geometry's local AABB, and only setCollisionObjectsTransform recomputes the
- * object's own from it.
- */
-bool clearCastSweep(CollisionObjectWrapper& cast_cow);
+CastCOW::Ptr makeCastCollisionObject(const COW::Ptr& cow, bool build_swept, bool d_arc_compensation);
 
 /**
  * @brief Check whether a cast COW is still deferred, and so must be built before it can carry a sweep.
@@ -368,7 +533,7 @@ bool clearCastSweep(CollisionObjectWrapper& cast_cow);
  * An empty wrapper reads as built. The deferred placeholder is therefore required to carry the link's
  * own collision objects; a placeholder with none would make promotion skip the build silently.
  */
-inline bool castCowNeedsSweptBuild(const CollisionObjectWrapper& cast_cow)
+inline bool castCowNeedsSweptBuild(const CastCollisionObjectWrapper& cast_cow)
 {
   for (const auto& co : cast_cow.getCollisionObjects())
     if (co->collisionGeometryPtr()->getNodeType() != coal::GEOM_CUSTOM)
@@ -378,19 +543,23 @@ inline bool castCowNeedsSweptBuild(const CollisionObjectWrapper& cast_cow)
 
 /**
  * @brief This is used to check if a collision check is required between the provided two collision objects
- * @param cow1 The first collision object
- * @param cow2 The second collision object
+ * @param cd1 The first collision object
+ * @param cd2 The second collision object
+ * @param pair The link ids of the two collision objects
  * @param validator  The contact allowed validator
  * @return True if the two collision objects should be checked for collision, otherwise false
  */
-bool needsCollisionCheck(const CollisionObjectWrapper* cd1,
-                         const CollisionObjectWrapper* cd2,
+bool needsCollisionCheck(const CollisionObjectWrapperBase* cd1,
+                         const CollisionObjectWrapperBase* cd2,
                          const tesseract::common::LinkIdPair& pair,
                          const std::shared_ptr<const tesseract::common::ContactAllowedValidator>& validator);
 
 struct ContactTestDataWrapper : ContactTestData
 {
   CollisionCacheMap* collision_cache{ nullptr };
+  /// See kDefaultRelativeCast. Read when a pair's cache entry is made, so it must not change while
+  /// collision_cache holds entries.
+  bool relative_cast{ kDefaultRelativeCast };
 };
 
 // Disable warnings about non-virtual destructor for coal::CollisionCallBackBase

@@ -64,6 +64,56 @@ namespace tesseract::collision::tesseract_collision_coal
  * CastHullShapes only when the link goes kinematic. Because a static link is collided through its regular
  * wrapper, it may hold any geometry Coal can collide - a mesh, a raw octree - whether or not that geometry
  * has a swept form. Promoting a link whose geometry has no swept form throws.
+ *
+ * Under relative cast, the default (see kDefaultRelativeCast), two kinematic links are not collided hull
+ * against hull, which would report a contact wherever they pass through the same space at different times.
+ * Of each pair of their shapes one is collided as it stands and the other is swept by its link's motion
+ * relative to the first, so links that move rigidly together are checked as an unswept pair: a relative
+ * motion that moves the swept shape by no more than rounding counts as none, by the default tolerances of
+ * tesseract::common::almostEqualRelativeAndAbs. A contact carries one time for both links.
+ *
+ * The smaller shape of a pair is the swept one, by the diagonal of its bounding box, and between shapes of
+ * one size the shape of the link whose name sorts last. A link with several shapes can thus be held for one
+ * of them and swept for another.
+ *
+ * The hull of such a pair, where it is swept, holds both end poses exactly and, between them, the straight
+ * path of every point of the swept shape as the held link sees it. That misreads a contact inside the step
+ * in two ways, as a link's own hull does against a static object:
+ *  - Too near, where the held shape lies in the space the hull fills between the swept shape's two
+ *    orientations, or on the inside of a path that bends.
+ *  - Too far, where it lies on the outside of a path that bends, by an amount that falls with the square of
+ *    the step.
+ * Which shape is swept decides which of the two a contact meets and how large each is, and no choice is
+ * better throughout. Sweeping the smaller shape leaves the least to fill, and keeps down the part its own
+ * size adds to its reach from the axis of a relative turn. It is the worse choice where the smaller shape is
+ * much the farther from that axis: a small link beside a large one that turns in place is swept about the
+ * large one and reads too near, where the large one swept by its own turn would not.
+ *
+ * How far the path bends depends on what moves the two links:
+ *  - When one joint joins the two links, or one of the two does not move, the path is an arc about the axis
+ *    of the relative turn. It bends by at most the swept shape's reach from that axis times
+ *    `1 - cos(angle / 2)`, which is what d_arc compensation pads: that covers a reading that is too far and
+ *    adds to one that is too near. The reach is the shape's size plus its distance from the axis, which is
+ *    not known when the swept shape is chosen.
+ *  - With several joints between the links the path is no single arc, and the padding is an estimate.
+ *  - When the two links move independently, the held link's own turn bends the path as well, by about that
+ *    turn times the swept shape's travel over four. The relative turn does not show this: two links turning
+ *    by one angle about different axes have none. Neither the hull nor the padding covers it, so under
+ *    relative cast such a pair is not conservative with compensation on.
+ * Only a shorter step bounds the last two.
+ *
+ * With relative cast off, each link's own hull is collided against the other's, and a contact carries a
+ * time per link. That reads too near wherever the two links pass through the same space at different times,
+ * and too far by at most the sum of how far each link's path leaves its own hull: d_arc compensation covers
+ * that for a link moved by a single joint and estimates it otherwise. With compensation on it is therefore
+ * conservative for two links each moved by a single joint, which relative cast is not. It gives no such
+ * guarantee where several joints move a link, as along one arm, and without compensation only a shorter step
+ * bounds it.
+ *
+ * Either way a pair is checked only if the two links' own hulls overlap in the broadphase, and each of those
+ * holds its link's two end poses in the world and the straight path between them. A link that turns can
+ * therefore pass through another inside the step unseen, where its arc leaves its own hull: d_arc
+ * compensation pads that hull by the arc's sagitta, and a shorter step bounds it without.
  */
 class CoalCastBVHManager : public ContinuousContactManager
 {
@@ -74,7 +124,8 @@ public:
   using ConstUPtr = std::unique_ptr<const CoalCastBVHManager>;
 
   explicit CoalCastBVHManager(std::string name = "CoalCastBVHManager",
-                              bool d_arc_compensation = kDefaultDArcCompensation);
+                              bool d_arc_compensation = kDefaultDArcCompensation,
+                              bool relative_cast = kDefaultRelativeCast);
   ~CoalCastBVHManager() override = default;
   CoalCastBVHManager(const CoalCastBVHManager&) = delete;
   CoalCastBVHManager& operator=(const CoalCastBVHManager&) = delete;
@@ -178,7 +229,7 @@ public:
    *  setActiveCollisionObjects when it promotes a link whose cast shapes were still deferred, since
    *  building them replaces the wrapper. Constness stops at the wrapper: its collisionGeometryPtr()
    *  still yields a mutable, shared coal::CollisionGeometry*. */
-  const CollisionObjectWrapper* getCastCollisionObject(const tesseract::common::LinkId& id) const;
+  const CastCollisionObjectWrapper* getCastCollisionObject(const tesseract::common::LinkId& id) const;
 
   /** @brief Get the number of entries in the narrowphase collision cache, otherwise unobservable
    *  from outside the manager; useful as a test/diagnostic hook */
@@ -230,12 +281,15 @@ private:
   CollisionCacheMap collision_cache;
 
   Link2COW link2cow_;                                    /** @brief A map of all collision objects being managed */
-  Link2COW link2castcow_;                                /** @brief A map of cast collision objects being managed. */
+  Link2CastCOW link2castcow_;                            /** @brief A map of cast collision objects being managed. */
   std::unordered_set<tesseract::common::LinkId> active_; /** @brief A list of the active collision objects */
   std::vector<tesseract::common::LinkId> collision_objects_; /** @brief A list of the collision objects */
   ContactTestDataWrapper contact_test_data_; /**< @brief Persistent contact test data (Bullet pattern) */
   std::size_t coal_co_count_{ 0 };           /**< @brief The number of coal collision objects */
-  bool d_arc_compensation_; /**< @brief When true, set CastHullShape swept-sphere radius to arc-sagitta */
+  /** @brief When true, pad every swept hull by an arc sagitta, as its swept-sphere radius: a link's own hull
+   *  by that of the link's turn in the world, on every transform update, and under relative cast the hull of
+   *  a pair of two moving links by that of their relative turn, on every narrowphase query of the pair. */
+  bool d_arc_compensation_;
 
   /** @brief This is used to store static collision objects to update */
   std::vector<CollisionObjectRawPtr> static_update_;
@@ -252,7 +306,7 @@ private:
 
   /** @brief Append a cast collision object wrapper to the dynamic batch update vector.
    *  @see appendRegularBroadphaseUpdate for the registration rule both helpers encode. */
-  void appendCastBroadphaseUpdate(COW& cast_cow);
+  void appendCastBroadphaseUpdate(CastCOW& cast_cow);
 
   /** @brief Publish a link's new pose to its regular wrapper, and to the broadphase if it holds it.
    *
@@ -264,19 +318,6 @@ private:
    *          whether the link moved is a property of the link, not of either wrapper. */
   bool collectRegularTransformUpdate(COW& reg_cow, const Eigen::Isometry3d& pose);
 
-  /** @brief Write the sweep from @p pose1 to @p pose2 into a cast wrapper's hulls.
-   *
-   *  Only a kinematic link's cast wrapper may be passed. A static link's is deferred and still holds the
-   *  link's own geometry, on which the static_cast below is undefined behaviour. Callers check the filter
-   *  group; the assertion here records that they must.
-   *
-   *  pose1 == pose2 is a zero-length sweep, which is the unswept state every hull resolves to regardless of
-   *  its local offset, so that case defers to CastHullShape::clearSweep rather than computing it per shape.
-   *
-   *  @return Whether any hull was rewritten. A hull that changes while the link stays put still has to reach
-   *          the broadphase, so a change here is not implied by the link having moved. */
-  bool updateCastShapeTransforms(COW& cast_cow, const Eigen::Isometry3d& pose1, const Eigen::Isometry3d& pose2) const;
-
   /** @brief Collect a single link's transform update into the batch update vectors.
    *  Bumps the COW's GJK generation counter whenever anything was rewritten. */
   void collectTransformUpdate(Link2COW::iterator it, const Eigen::Isometry3d& pose);
@@ -287,7 +328,7 @@ private:
    *  was rewritten.
    *  @param cast_it Iterator into link2castcow_ for the link to update
    *  @param reg_it Iterator into link2cow_ for the same link (may be link2cow_.end()) */
-  void collectCastTransformUpdate(Link2COW::iterator cast_it,
+  void collectCastTransformUpdate(Link2CastCOW::iterator cast_it,
                                   Link2COW::iterator reg_it,
                                   const Eigen::Isometry3d& pose1,
                                   const Eigen::Isometry3d& pose2);

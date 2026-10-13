@@ -113,7 +113,7 @@ TEST(TesseractCollisionUnit, CoalDiscreteBVHContactManagerConfigUnit)  // NOLINT
 TEST(TesseractCollisionUnit, CoalCastBVHContactManagerConfigUnit)  // NOLINT
 {
   tesseract_collision_coal::CoalCastBVHManager checker;
-  test_suite::runTest(checker);
+  test_suite::runTest(checker, /*moving_pairs_share_time=*/true);
 }
 
 TEST(TesseractCollisionUnit, CombineContactAllowedFnUnit)  // NOLINT

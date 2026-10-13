@@ -175,7 +175,62 @@ inline std::string formatContactResult(const ContactResult& cr)
   return os.str();
 }
 
-inline void runTestPrimitive(ContinuousContactManager& checker)
+/// Scenario 2 for a backend that collides two moving links at one shared time. The spheres pass the
+/// crossing point at different times, so they are nearest in between: at t = 0.44, with their centres
+/// 0.4472 apart.
+/// @param tessellated The spheres are convex meshes, whose support radius varies with direction between
+/// that of the inscribed and of the circumscribed sphere, so only ranges hold.
+inline void expectCrossingAtOneTime(const ContactResult& cr,
+                                    const tesseract::common::LinkIdTransformMap& location_start,
+                                    const tesseract::common::LinkIdTransformMap& location_end,
+                                    bool tessellated)
+{
+  const std::size_t s0 = (cr.link_ids[0] == "sphere_link") ? 0U : 1U;  // sphere_link's slot
+  const std::size_t s1 = 1U - s0;
+  const double sign = (s0 == 0U) ? 1.0 : -1.0;
+
+  const double time = 0.44;
+  const Eigen::Vector3d centre0(-0.2, -0.5 + 1.5 * time, SPHERE_LOCAL_Z);
+  const Eigen::Vector3d centre1(0.2, 0.0, -1.0 + 2.0 * time + SPHERE_LOCAL_Z);
+  const double centre_distance = (centre1 - centre0).norm();
+  const Eigen::Vector3d u = (centre1 - centre0) / centre_distance;
+  const double radius = 0.25;
+
+  EXPECT_EQ(cr.cc_type[s0], ContinuousCollisionType::CCType_Between);
+  EXPECT_EQ(cr.cc_type[s1], ContinuousCollisionType::CCType_Between);
+  EXPECT_NEAR(cr.cc_time[s0], cr.cc_time[s1], 1e-9) << "both links meet at one time";
+  EXPECT_NEAR(cr.normal.norm(), 1.0, 1e-4);
+  EXPECT_NEAR((cr.nearest_points[1] - cr.nearest_points[0]).dot(cr.normal), cr.distance, 0.002);
+
+  if (tessellated)
+  {
+    // A facet's normal leans up to 18 degrees off the radius through it (the meshes lie between spheres of
+    // radius 0.2377 and 0.25), and the contact normal is such a facet normal: up to 0.31 from u. The same
+    // lean slides the contact along the sweep by up to 0.25 * sin(36 deg) of its 2.5 length.
+    EXPECT_NEAR(cr.cc_time[s0], time, 0.08);
+    EXPECT_GT(cr.distance, centre_distance - 2.0 * radius - 0.001) << "no deeper than the true spheres";
+    EXPECT_LT(cr.distance, -0.02) << "the meshes overlap at the crossing";
+    EXPECT_LT((cr.normal - sign * u).norm(), 0.35);
+  }
+  else
+  {
+    EXPECT_NEAR(cr.cc_time[s0], time, 0.001);
+    EXPECT_NEAR(cr.distance, centre_distance - 2.0 * radius, 0.0001);
+    EXPECT_LT((cr.normal - sign * u).norm(), 0.001);
+    EXPECT_LT((cr.nearest_points[s0] - (centre0 + radius * u)).norm(), 0.001);
+    EXPECT_LT((cr.nearest_points[s1] - (centre1 - radius * u)).norm(), 0.001);
+    const Eigen::Vector3d local_centre(0.0, 0.0, SPHERE_LOCAL_Z);
+    EXPECT_LT((cr.nearest_points_local[s0] - (local_centre + radius * u)).norm(), 0.001);
+    EXPECT_LT((cr.nearest_points_local[s1] - (local_centre - radius * u)).norm(), 0.001);
+  }
+
+  EXPECT_TRUE(cr.transform[s0].isApprox(location_start.at("sphere_link"), 0.0001));
+  EXPECT_TRUE(cr.transform[s1].isApprox(location_start.at("sphere1_link"), 0.0001));
+  EXPECT_TRUE(cr.cc_transform[s0].isApprox(location_end.at("sphere_link"), 0.0001));
+  EXPECT_TRUE(cr.cc_transform[s1].isApprox(location_end.at("sphere1_link"), 0.0001));
+}
+
+inline void runTestPrimitive(ContinuousContactManager& checker, bool moving_pairs_share_time)
 {
   ///////////////////////////////////////////////////
   // Test when object is in collision at cc_time 0.5
@@ -375,12 +430,20 @@ inline void runTestPrimitive(ContinuousContactManager& checker)
 
   result.flattenCopyResults(result_vector);
 
-  ASSERT_FALSE(result_vector.empty()) << "Scenario 2 (asymmetric cc_time 0.333/0.5): No contacts found. "
+  const std::string scenario2 =
+      moving_pairs_share_time ? "Scenario 2 (cc_time 0.44 for both links): " : "Scenario 2 (cc_time 0.333/0.5): ";
+  ASSERT_FALSE(result_vector.empty()) << scenario2 << "No contacts found. "
                                       << "sphere_link sweeps Y=-0.5->1.0, sphere1_link sweeps Z=-1.0->1.0. "
                                       << "Collision is expected when sweeps cross.";
 
   const auto& cr2 = result_vector[0];
-  SCOPED_TRACE("Scenario 2 (cc_time 0.333/0.5): " + formatContactResult(cr2));
+  SCOPED_TRACE(scenario2 + formatContactResult(cr2));
+
+  if (moving_pairs_share_time)
+  {
+    expectCrossingAtOneTime(cr2, location_start, location_end, /*tessellated=*/false);
+    return;
+  }
 
   EXPECT_NEAR(cr2.distance, -0.1, 0.0001) << "Penetration should be -0.1 (same sphere geometry, same X separation)";
 
@@ -491,8 +554,11 @@ inline void runTestPrimitive(ContinuousContactManager& checker)
  * deep. A backend that does not canonicalise returns an arbitrary one of them, sliding both
  * witnesses together along the sweeps; only that choice varies, so the checks below split into
  * those that hold for any point of the overlap and those that pin the canonical one.
+ * @param moving_pairs_share_time Whether the backend collides two moving links at one shared time. One
+ * that sweeps each link on its own reports a time per link, and finds the two spheres of the second
+ * scenario colliding although they pass the crossing point at different times.
  */
-inline void runTestConvex(ContinuousContactManager& checker, bool canonical_cast_witness)
+inline void runTestConvex(ContinuousContactManager& checker, bool canonical_cast_witness, bool moving_pairs_share_time)
 {
   ///////////////////////////////////////////////////
   // Test when object is in collision at cc_time 0.5
@@ -570,10 +636,21 @@ inline void runTestConvex(ContinuousContactManager& checker, bool canonical_cast
   const double sphere1_z_start = location_start["sphere1_link"].translation().z() + SPHERE_LOCAL_Z;
   const double sphere1_z_end = location_end["sphere1_link"].translation().z() + SPHERE_LOCAL_Z;
 
-  EXPECT_NEAR(cr1.cc_time[i0], (cr1.nearest_points[i0][1] - sphere_y_start) / (sphere_y_end - sphere_y_start), 0.001)
-      << "sphere_link (" << sphere_slot << ") cc_time must locate its own witness along the sweep";
-  EXPECT_NEAR(cr1.cc_time[i1], (cr1.nearest_points[i1][2] - sphere1_z_start) / (sphere1_z_end - sphere1_z_start), 0.001)
-      << "sphere1_link (" << sphere1_slot << ") cc_time must locate its own witness along the sweep";
+  if (moving_pairs_share_time)
+  {
+    // One hull, one time. Where on the degenerate contact face the witness lands moves that time a
+    // little either side of the middle.
+    EXPECT_NEAR(cr1.cc_time[i0], cr1.cc_time[i1], 1e-9) << "both links meet at one time";
+    EXPECT_NEAR(cr1.cc_time[i0], 0.5, 0.05);
+  }
+  else
+  {
+    EXPECT_NEAR(cr1.cc_time[i0], (cr1.nearest_points[i0][1] - sphere_y_start) / (sphere_y_end - sphere_y_start), 0.001)
+        << "sphere_link (" << sphere_slot << ") cc_time must locate its own witness along the sweep";
+    EXPECT_NEAR(
+        cr1.cc_time[i1], (cr1.nearest_points[i1][2] - sphere1_z_start) / (sphere1_z_end - sphere1_z_start), 0.001)
+        << "sphere1_link (" << sphere1_slot << ") cc_time must locate its own witness along the sweep";
+  }
 
   EXPECT_EQ(cr1.cc_type[static_cast<size_t>(idx[0])], ContinuousCollisionType::CCType_Between)
       << "sphere_link (" << sphere_slot << ") cc_type should be CCType_Between (3), "
@@ -594,13 +671,15 @@ inline void runTestConvex(ContinuousContactManager& checker, bool canonical_cast
     EXPECT_NEAR(cr1.nearest_points[i0][1], 0.0, 0.001) << "sphere_link nearest_point.y: at y=0 (midpoint of sweep at "
                                                           "t=0.5)";
   }
-  EXPECT_NEAR(cr1.nearest_points[static_cast<size_t>(idx[0])][2], 0.25, 0.001) << "sphere_link nearest_point.z: "
-                                                                                  "sphere_pose z=0.25 offset";
-
   EXPECT_NEAR(cr1.nearest_points[static_cast<size_t>(idx[1])][0], -0.0377, 0.001) << "sphere1_link nearest_point.x "
                                                                                      "(convex mesh)";
-  EXPECT_NEAR(cr1.nearest_points[static_cast<size_t>(idx[1])][2], 0.25, 0.001) << "sphere1_link nearest_point.z: "
-                                                                                  "sphere_pose z=0.25 offset";
+  if (canonical_cast_witness || !moving_pairs_share_time)
+  {
+    EXPECT_NEAR(cr1.nearest_points[static_cast<size_t>(idx[0])][2], 0.25, 0.001) << "sphere_link nearest_point.z: "
+                                                                                    "sphere_pose z=0.25 offset";
+    EXPECT_NEAR(cr1.nearest_points[static_cast<size_t>(idx[1])][2], 0.25, 0.001) << "sphere1_link nearest_point.z: "
+                                                                                    "sphere_pose z=0.25 offset";
+  }
 
   // Local-frame nearest points (convex mesh values)
   EXPECT_NEAR(cr1.nearest_points_local[static_cast<size_t>(idx[0])][0], 0.2377, 0.001) << "sphere_link "
@@ -704,11 +783,19 @@ inline void runTestConvex(ContinuousContactManager& checker, bool canonical_cast
 
   result.flattenCopyResults(result_vector);
 
-  ASSERT_FALSE(result_vector.empty()) << "Scenario 2 convex (asymmetric cc_time 0.385/0.5): No contacts found. "
+  const std::string scenario2 = moving_pairs_share_time ? "Scenario 2 convex (cc_time near 0.44 for both links): " :
+                                                          "Scenario 2 convex (cc_time 0.385/0.5): ";
+  ASSERT_FALSE(result_vector.empty()) << scenario2 << "No contacts found. "
                                       << "Convex sphere_link sweeps Y=-0.5->1.0, sphere1_link sweeps Z=-1.0->1.0.";
 
   const auto& cr2 = result_vector[0];
-  SCOPED_TRACE("Scenario 2 convex (cc_time 0.385/0.5): " + formatContactResult(cr2));
+  SCOPED_TRACE(scenario2 + formatContactResult(cr2));
+
+  if (moving_pairs_share_time)
+  {
+    expectCrossingAtOneTime(cr2, location_start, location_end, /*tessellated=*/true);
+    return;
+  }
 
   EXPECT_NEAR(cr2.distance, -0.0755, 0.001) << "Penetration for convex mesh spheres";
 
@@ -819,8 +906,12 @@ inline void runTestConvex(ContinuousContactManager& checker, bool canonical_cast
 }  // namespace detail
 
 /** @param canonical_cast_witness See detail::runTestConvex; irrelevant to the primitive geometry,
- * whose curved swept flank has no degenerate contact face. */
-inline void runTest(ContinuousContactManager& checker, bool use_convex_mesh, bool canonical_cast_witness = true)
+ * whose curved swept flank has no degenerate contact face.
+ *  @param moving_pairs_share_time See detail::runTestConvex. */
+inline void runTest(ContinuousContactManager& checker,
+                    bool use_convex_mesh,
+                    bool canonical_cast_witness = true,
+                    bool moving_pairs_share_time = false)
 {
   // Add collision objects
   detail::addCollisionObjects(checker, use_convex_mesh);
@@ -829,9 +920,9 @@ inline void runTest(ContinuousContactManager& checker, bool use_convex_mesh, boo
   detail::addCollisionObjects(checker, use_convex_mesh);
 
   if (use_convex_mesh)
-    detail::runTestConvex(checker, canonical_cast_witness);
+    detail::runTestConvex(checker, canonical_cast_witness, moving_pairs_share_time);
   else
-    detail::runTestPrimitive(checker);
+    detail::runTestPrimitive(checker, moving_pairs_share_time);
 }
 
 }  // namespace tesseract::collision::test_suite

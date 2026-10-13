@@ -121,8 +121,8 @@ inline void moveTwoPoseArray(ContinuousContactManager& checker,
  * the same obstacle onto the same probe and must agree on the contact.
  *
  * With @p disabled_during_move the obstacle is disabled across the move and enabled again before the query.
- * Disabling only suspends narrowphase reporting and enabling refits nothing, so the pose set while disabled
- * must have reached the broadphase all the same.
+ * Disabling only suspends narrowphase reporting, so the pose set while disabled must be in the broadphase by
+ * the time of the query all the same.
  */
 inline void runTestStaticObstacleMoveUpdatesBroadphase(ContinuousContactManager& checker,
                                                        CastMoveFn move_obstacle,
@@ -250,8 +250,8 @@ inline void runTestEnabledLinkEntersBroadphaseAtCurrentPose(ContinuousContactMan
  * by a stale delta.
  *
  * With @p disabled_during_move the probe is disabled across the repositioning and enabled again before the
- * query. A sweep written while disabled is ignored, but clearing one is not writing one: a sweep left in
- * place here is still applied at the next query.
+ * query. Disabling the link does not excuse the single-pose setter: a sweep left in place here is still
+ * applied at the next query.
  */
 inline void runTestSinglePoseClearsPreviousSweep(ContinuousContactManager& checker, bool disabled_during_move = false)
 {

@@ -63,13 +63,21 @@ namespace tesseract::collision::tesseract_collision_coal
  *
  * Wraps an underlying coal::ShapeBase and a cast transform (relative motion from
  * t=0 to t=1). The narrowphase uses the Schulman support function which queries
- * the underlying shape's exact support at both poses, so no convex hull vertices
- * are materialized. This mirrors Bullet's btCastHullShape design.
+ * the underlying shape's exact support at both poses, or once where the cast
+ * transform is the identity, so no convex hull vertices are materialized. This
+ * mirrors Bullet's btCastHullShape design.
  */
 class CastHullShape : public coal::ShapeBase
 {
 public:
   CastHullShape(std::shared_ptr<coal::ShapeBase> shape, const coal::Transform3s& castTransform);
+
+  /// @brief Copy everything but the scratch hull: the copy has none until its own scratchHull() makes it.
+  CastHullShape(const CastHullShape& other);
+  ~CastHullShape() override = default;
+  CastHullShape& operator=(const CastHullShape&) = delete;
+  CastHullShape(CastHullShape&&) = delete;
+  CastHullShape& operator=(CastHullShape&&) = delete;
 
   void computeLocalAABB() override;
 
@@ -104,12 +112,29 @@ public:
 
   const coal::Transform3s& getCastTransform() const { return castTransform_; }
 
+  /// @brief Whether the cast transform is exactly the identity: the hull holds one pose.
+  bool isCastIdentity() const { return cast_is_identity_; }
+
+  /// @brief Half the diagonal of the wrapped shape's own bounding box, its swept-sphere radius left out: a
+  /// measure of the shape's size that no sweep changes. Fixed when the hull is made.
+  coal::Scalar getShapeBoundRadius() const { return 0.5 * (wrapped_aabb_.max_ - wrapped_aabb_.min_).norm(); }
+
+  /// @brief A second hull over the same shape, for a caller that needs the shape swept by a motion other
+  /// than this hull's own. The same object on every call, made on the first, and unswept then: it takes
+  /// neither this hull's cast transform nor its swept-sphere radius. This class never reads or writes its
+  /// sweep afterwards: it holds whatever the caller wrote last, so a caller must write the sweep it wants
+  /// before each use. A copy of this hull does not carry it.
+  CastHullShape& scratchHull() const;
+
   /// @brief Accessors for the GJK sweep's mutable vertex hints and
   /// ShapeSupportData. After GJK converges, the hint vertex and its last_dir are
   /// high-quality starting points for support queries along related directions
   /// (e.g. the contact normal), so callers may read them to seed their own
   /// queries. Callers should climb on their own scratch rather than mutating
-  /// these, so they do not perturb the sweep's warm-start chain.
+  /// these, so they do not perturb the sweep's warm-start chain. While the cast
+  /// transform is exactly the identity, queries run on the pose-1 hint and data
+  /// alone and the pose-0 ones are stale: seed from the pose-1 ones. Writing a
+  /// sweep to such a hull copies the pose-1 hint and last_dir to pose 0.
   int& getHint0() const { return hint0_; }
   int& getHint1() const { return hint1_; }
   coal::details::ShapeSupportData& getSupportData0() const { return support_data0_; }
@@ -128,6 +153,12 @@ private:
 
   std::shared_ptr<coal::ShapeBase> shape_;
   coal::Transform3s castTransform_;
+  /// Whether castTransform_ is exactly the identity. Every writer of castTransform_ keeps it current.
+  bool cast_is_identity_;
+
+  /// See scratchHull(). Mutable for the same reason as the support hints below: made lazily, per
+  /// instance, and never shared between threads.
+  mutable std::unique_ptr<CastHullShape> scratch_hull_;
 
   /// @brief The wrapped shape's local AABB with its swept-sphere radius removed, captured at
   /// construction. computeLocalAABB re-inflates it by the shape's live radius rather than

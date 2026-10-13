@@ -1,10 +1,12 @@
 #include <tesseract/common/macros.h>
 TESSERACT_COMMON_IGNORE_WARNINGS_PUSH
 #include <gtest/gtest.h>
+#include <algorithm>
 #include <cmath>
 #include <memory>
 #include <vector>
 #include <Eigen/Core>
+#include <coal/narrowphase/support_functions.h>
 #include <coal/shape/convex.h>
 TESSERACT_COMMON_IGNORE_WARNINGS_POP
 
@@ -148,6 +150,14 @@ void expectUnitCubeBoundedWithoutWriting(coal::ShapeBase& convex)
     EXPECT_NEAR(bv.max_[i], 0.5, tolerance);
   }
   expectPoisonIntact(convex);
+}
+
+/** @brief The support of @p shape along @p dir, the shape's own swept-sphere radius included. A hull
+ * answers through its support function. */
+coal::Vec3s supportAlong(const coal::ShapeBase& shape, const coal::Vec3s& dir)
+{
+  int hint = 0;
+  return coal::details::getSupport<coal::details::SupportOptions::WithSweptSphere>(&shape, dir, hint);
 }
 }  // namespace
 
@@ -536,6 +546,104 @@ TEST(CoalCastHullShapeUnit, ComputeVolumeLeavesWarmStartStateUntouched)  // NOLI
   EXPECT_EQ(cast_hull.getHint1(), 7);
   EXPECT_TRUE(cast_hull.getSupportData0().last_dir.isApprox(coal::Vec3s(1.0, 0.0, 0.0)));
   EXPECT_TRUE(cast_hull.getSupportData1().last_dir.isApprox(coal::Vec3s(1.0, 0.0, 0.0)));
+}
+
+TEST(CoalCastHullShapeUnit, HullSupportFollowsItsSweepBeingSetAndCleared)  // NOLINT
+{
+  using namespace tesseract::collision::tesseract_collision_coal;
+
+  const coal::Vec3s step(0.5, -0.2, 0.3);
+  const std::vector<std::shared_ptr<coal::ShapeBase>> shapes{ std::make_shared<coal::Box>(0.4, 0.6, 0.8),
+                                                              std::make_shared<coal::Sphere>(0.3),
+                                                              makeLargeConvex() };
+  const std::vector<coal::Vec3s> dirs{ coal::Vec3s(1.0, 0.0, 0.0),
+                                       coal::Vec3s(0.0, 0.0, -1.0),
+                                       coal::Vec3s(1.0, 2.0, 3.0).normalized(),
+                                       coal::Vec3s(-0.3, 0.5, 0.1).normalized() };
+
+  // An unswept hull returns its shape's own point. One swept by a step reaches as far as its shape does
+  // from whichever end of the step lies further along the direction.
+  for (const auto& shape : shapes)
+  {
+    ASSERT_NE(shape, nullptr);
+    CastHullShape hull(shape, coal::Transform3s());
+    const auto expect_the_shapes_own = [&] {
+      for (const coal::Vec3s& dir : dirs)
+        EXPECT_LT((supportAlong(hull, dir) - supportAlong(*shape, dir)).norm(), 1e-12);
+    };
+    const auto expect_the_swept_reach = [&](const CastHullShape& swept) {
+      for (const coal::Vec3s& dir : dirs)
+        EXPECT_NEAR(dir.dot(supportAlong(swept, dir)),
+                    dir.dot(supportAlong(*shape, dir)) + std::max(0.0, dir.dot(step)),
+                    1e-12);
+    };
+
+    expect_the_shapes_own();
+
+    hull.updateCastTransform(coal::Transform3s(step));
+    expect_the_swept_reach(hull);
+    expect_the_swept_reach(CastHullShape(hull));
+
+    hull.clearSweep();
+    expect_the_shapes_own();
+  }
+}
+
+TEST(CoalCastHullShapeUnit, UnsweptHullAsksItsShapeOnce)  // NOLINT
+{
+  using namespace tesseract::collision::tesseract_collision_coal;
+
+  auto convex = makeLargeConvex();
+  ASSERT_NE(convex, nullptr);
+
+  // A query that climbs the convex sizes the scratch buffer of the pose it ran for, so a pose-1 buffer
+  // sized beside a pose-0 one left empty means the shape was asked once.
+  const auto expect_one_query = [](const CastHullShape& hull) {
+    EXPECT_NEAR(supportAlong(hull, coal::Vec3s(1.0, 0.0, 0.0)).x(), 1.0, 1e-12);
+
+    EXPECT_FALSE(hull.getSupportData1().visited.empty());
+    EXPECT_TRUE(hull.getSupportData0().visited.empty());
+  };
+
+  // The copy is made ahead of its source's first query, so its buffers are its own to size.
+  const CastHullShape made_unswept(convex, coal::Transform3s());
+  expect_one_query(CastHullShape(made_unswept));
+  expect_one_query(made_unswept);
+
+  CastHullShape cleared(convex, coal::Transform3s(coal::Vec3s(0.5, 0.0, 0.0)));
+  cleared.clearSweep();
+  expect_one_query(cleared);
+}
+
+TEST(CoalCastHullShapeUnit, SweepWrittenToAnUnsweptHullStartsPoseZeroFromPoseOne)  // NOLINT
+{
+  using namespace tesseract::collision::tesseract_collision_coal;
+
+  auto convex = makeLargeConvex();
+  ASSERT_NE(convex, nullptr);
+
+  // A hull with an identity cast transform runs its queries on the pose-1 hint and last_dir alone, so the
+  // pose-0 ones are whatever they were.
+  CastHullShape hull(convex, coal::Transform3s());
+  supportAlong(hull, coal::Vec3s(1.0, 0.0, 0.0));
+  const int queried_hint = hull.getHint1();
+  const coal::Vec3s queried_dir = hull.getSupportData1().last_dir;
+  const int stale_hint = queried_hint + 1;
+  hull.getHint0() = stale_hint;
+  ASSERT_FALSE(hull.getSupportData0().last_dir == queried_dir);
+
+  // A sweep written to it starts them from where those queries left off.
+  hull.updateCastTransform(coal::Transform3s(coal::Vec3s(0.5, 0.0, 0.0)));
+  EXPECT_EQ(hull.getHint0(), queried_hint);
+  EXPECT_TRUE(hull.getSupportData0().last_dir == queried_dir);
+
+  // A sweep written to a swept hull leaves them be: each pose keeps its own warm start.
+  const coal::Vec3s stale_dir(0.0, 0.0, 1.0);
+  hull.getHint0() = stale_hint;
+  hull.getSupportData0().last_dir = stale_dir;
+  hull.updateCastTransform(coal::Transform3s(coal::Vec3s(0.0, 0.5, 0.0)));
+  EXPECT_EQ(hull.getHint0(), stale_hint);
+  EXPECT_TRUE(hull.getSupportData0().last_dir == stale_dir);
 }
 
 TEST(CoalCastHullShapeUnit, TightLocalAABBBoundsPrimitivesWithoutWritingToThem)  // NOLINT

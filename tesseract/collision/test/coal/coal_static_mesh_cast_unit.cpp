@@ -202,8 +202,8 @@ TEST_F(StaticMeshCastUnit, CloneKeepsStaticMeshCollidable)  // NOLINT
 TEST_F(StaticMeshCastUnit, DualPoseTransformOnStaticMeshIsHarmless)  // NOLINT
 {
   // The mesh link is static, so its cast wrapper is deferred and holds the mesh's own BVHModel, not a
-  // CastHullShape. A dual-pose transform must not run the static_cast<CastHullShape*> in
-  // updateCastShapeTransforms against it (exercises the StaticFilter guard in collectCastTransformUpdate).
+  // CastHullShape. A dual-pose transform must not run the static_cast<CastHullShape*> in setSweep
+  // against it: collectCastTransformUpdate stops at a static link before that.
   Eigen::Isometry3d pose1 = Eigen::Isometry3d::Identity();
   Eigen::Isometry3d pose2 = Eigen::Isometry3d::Identity();
   pose2.translation() = Eigen::Vector3d(1, 0, 0);
@@ -230,10 +230,8 @@ TEST_F(StaticMeshCastUnit, DualPoseTransformOnStaticMeshIsHarmless)  // NOLINT
 
 TEST_F(StaticMeshCastUnit, DualPoseTransformOnDisabledStaticMeshIsHarmless)  // NOLINT
 {
-  // Disabling the link takes collectCastTransformUpdate's !m_enabled branch, which runs before the
-  // StaticFilter gate and writes cow->setCollisionObjectsTransform(pose1) straight into the deferred
-  // wrapper. That call is safe only because CollisionObjectWrapper::setCollisionObjectsTransform performs
-  // no downcast on the collision objects it walks.
+  // A disabled static link stops at collectCastTransformUpdate's StaticFilter gate as an enabled one does:
+  // its deferred wrapper holds no CastHullShape to write a sweep to.
   checker_.disableCollisionObject("mesh_link");
 
   Eigen::Isometry3d pose1 = Eigen::Isometry3d::Identity();
