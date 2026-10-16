@@ -51,6 +51,7 @@ TESSERACT_COMMON_IGNORE_WARNINGS_PUSH
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <cstdint>
 #include <functional>
 #include <limits>
 #include <memory>
@@ -64,6 +65,7 @@ TESSERACT_COMMON_IGNORE_WARNINGS_POP
 #include <tesseract/collision/coal/coal_collision_geometry_cache.h>
 #include <tesseract/collision/coal/coal_casthullshape.h>
 #include <tesseract/collision/coal/coal_collision_object_wrapper.h>
+#include <tesseract/collision/implicit_sdf_collision_solver.h>
 #include <tesseract/geometry/geometries.h>
 
 namespace tesseract::collision::tesseract_collision_coal
@@ -206,6 +208,20 @@ CollisionGeometryPtr createShapePrimitive(const tesseract::geometry::Cone::Const
 CollisionGeometryPtr createShapePrimitive(const tesseract::geometry::Capsule::ConstPtr& geom)
 {
   return std::make_shared<coal::Capsule>(geom->getRadius(), geom->getLength());
+}
+
+CollisionGeometryPtr createShapePrimitive(const tesseract::geometry::SignedDistanceField::ConstPtr& geom)
+{
+  if (!makeImplicitSDFShape(*geom, Eigen::Isometry3d::Identity()).isValid())
+    throw std::invalid_argument("Coal signed distance field geometry is invalid");
+
+  // Coal has no SDF geometry. The box only bounds the field for the broadphase; SDF pairs are
+  // intercepted in CollisionCallback::collide and evaluated by the implicit solver, so the field
+  // is queried directly and never resampled.
+  const Eigen::Vector3d scaled_min = geom->getDomain().min().cwiseProduct(geom->getScale());
+  const Eigen::Vector3d scaled_max = geom->getDomain().max().cwiseProduct(geom->getScale());
+  const Eigen::Vector3d half_extents = scaled_min.cwiseAbs().cwiseMax(scaled_max.cwiseAbs());
+  return std::make_shared<coal::Box>(2.0 * half_extents);
 }
 
 CollisionGeometryPtr createShapePrimitive(const tesseract::geometry::Mesh::ConstPtr& geom)
@@ -378,6 +394,10 @@ CollisionGeometryPtr createShapePrimitiveHelper(const CollisionShapeConstPtr& ge
     case tesseract::geometry::GeometryType::CAPSULE:
     {
       return createShapePrimitive(std::static_pointer_cast<const tesseract::geometry::Capsule>(geom));
+    }
+    case tesseract::geometry::GeometryType::SIGNED_DISTANCE_FIELD:
+    {
+      return createShapePrimitive(std::static_pointer_cast<const tesseract::geometry::SignedDistanceField>(geom));
     }
     case tesseract::geometry::GeometryType::MESH:
     {
@@ -803,6 +823,174 @@ int getReportedSubshapeIndex(const coal::CollisionObject* object, int coal_subsh
 /// which costs it a warm start it may not have needed but cannot leave its leaves sharing a seed.
 static bool isMultiLeaf(const coal::CollisionGeometry& geometry) { return geometry.getObjectType() != coal::OT_GEOM; }
 
+namespace
+{
+const CollisionShapeConstPtr& getTesseractGeometry(const coal::CollisionObject* object)
+{
+  const auto* cow = static_cast<const CollisionObjectWrapper*>(object->getUserData());
+  return cow->getCollisionGeometries()[static_cast<std::size_t>(CollisionObjectWrapper::getShapeIndex(object))];
+}
+
+bool isSignedDistanceField(const coal::CollisionObject* object)
+{
+  return getTesseractGeometry(object)->getType() == tesseract::geometry::GeometryType::SIGNED_DISTANCE_FIELD;
+}
+
+/**
+ * @brief Signed distance to a convex Coal shape, queried through Coal with a point (zero-radius sphere).
+ * @details Covers the shapes the implicit solver has no analytic form for: convex meshes and the swept
+ * CastHullShape of a kinematic link, which is what makes static-SDF vs cast-shape pairs continuous. The
+ * gradient is the query's own witness direction, so it costs no extra queries, and the last query is
+ * memoized because the solver asks for the distance and the gradient at the same point.
+ */
+ImplicitSDFShape makePointQueryShape(const coal::CollisionObject* object)
+{
+  struct Query
+  {
+    coal::Sphere point{ 0 };
+    coal::ComputeDistance functor;
+    coal::Transform3s shape_tf;
+    coal::DistanceRequest request;
+    Eigen::Vector3d last_point{ Eigen::Vector3d::Constant(std::numeric_limits<double>::quiet_NaN()) };
+    double distance{ 0 };
+    Eigen::Vector3d gradient{ Eigen::Vector3d::Zero() };
+
+    Query(const coal::CollisionObject* o) : functor(&point, o->collisionGeometryPtr()), shape_tf(o->getTransform()) {}
+
+    void evaluate(const Eigen::Vector3d& p)
+    {
+      if (p == last_point)
+        return;
+      coal::DistanceResult result;
+      distance = functor(coal::Transform3s(coal::Matrix3s::Identity(), p), shape_tf, request, result);
+      // normal points from the query point toward the shape, so the field increases along its negation.
+      gradient = -result.normal;
+      last_point = p;
+    }
+  };
+
+  auto query = std::make_shared<Query>(object);
+  ImplicitSDFShape shape;
+  shape.distance = [query](const Eigen::Vector3d& p) {
+    query->evaluate(p);
+    return query->distance;
+  };
+  shape.gradient = [query](const Eigen::Vector3d& p) -> Eigen::Vector3d {
+    query->evaluate(p);
+    return query->gradient;
+  };
+  const coal::AABB& aabb = object->getAABB();
+  shape.aabb = Eigen::AlignedBox3d(aabb.min_, aabb.max_);
+  return shape;
+}
+
+ImplicitSDFShape makeImplicitShape(const coal::CollisionObject* object)
+{
+  const coal::Transform3s& tf = object->getTransform();
+  Eigen::Isometry3d pose = Eigen::Isometry3d::Identity();
+  pose.linear() = tf.getRotation();
+  pose.translation() = tf.getTranslation();
+
+  // A cast shape is swept, so its tesseract geometry no longer describes it.
+  const auto* geometry = object->collisionGeometryPtr();
+  if (dynamic_cast<const CastHullShape*>(geometry) == nullptr)
+  {
+    ImplicitSDFShape shape = makeImplicitSDFShape(*getTesseractGeometry(object), pose);
+    if (shape.isValid())
+      return shape;
+  }
+
+  const coal::NODE_TYPE type = geometry->getNodeType();
+  if (type == coal::GEOM_CUSTOM || type == coal::GEOM_CONVEX16 || type == coal::GEOM_CONVEX32)
+    return makePointQueryShape(object);
+
+  throw std::runtime_error("Coal signed distance field collision does not support geometry type " +
+                           std::to_string(static_cast<int>(getTesseractGeometry(object)->getType())));
+}
+
+/** @brief Collide a pair involving a signed distance field with the backend-neutral implicit solver. */
+bool collideImplicit(coal::CollisionObject* o1,
+                     coal::CollisionObject* o2,
+                     const tesseract::common::LinkIdPair& link_pair,
+                     ContactTestDataWrapper& cdata)
+{
+  const auto* cd1 = static_cast<const CollisionObjectWrapper*>(o1->getUserData());
+  const auto* cd2 = static_cast<const CollisionObjectWrapper*>(o2->getUserData());
+  const double margin = cdata.collision_margin_data.getCollisionMargin(link_pair);
+
+  ImplicitSDFCollisionConfig config;
+  config.contact_margin = margin;
+  if (cdata.req.type == ContactTestType::FIRST || cdata.req.type == ContactTestType::CLOSEST)
+    config.max_contacts = 1;
+  else if (cdata.req.contact_limit > 0)
+    config.max_contacts =
+        static_cast<int>(std::min<std::int64_t>(cdata.req.contact_limit, std::numeric_limits<int>::max()));
+
+  const std::array<ImplicitSDFShape, 2> shapes{ makeImplicitShape(o1), makeImplicitShape(o2) };
+  const std::vector<ImplicitSDFContact> contacts = collideImplicitSDF(shapes[0], shapes[1], config);
+
+  const Eigen::Isometry3d& tf1 = cd1->getCollisionObjectsTransform();
+  const Eigen::Isometry3d& tf2 = cd2->getCollisionObjectsTransform();
+
+  // At most one side is swept: a kinematic SDF is rejected when its cast shape is built.
+  int cast_index = -1;
+  if (dynamic_cast<const CastHullShape*>(o1->collisionGeometryPtr()) != nullptr)
+    cast_index = 0;
+  else if (dynamic_cast<const CastHullShape*>(o2->collisionGeometryPtr()) != nullptr)
+    cast_index = 1;
+
+  bool found = false;
+  for (const auto& implicit_contact : contacts)
+  {
+    ContactResult contact;
+    contact.link_ids[0] = cd1->getLinkId();
+    contact.link_ids[1] = cd2->getLinkId();
+    contact.shape_id[0] = CollisionObjectWrapper::getShapeIndex(o1);
+    contact.shape_id[1] = CollisionObjectWrapper::getShapeIndex(o2);
+    contact.subshape_id[0] = getReportedSubshapeIndex(o1, -1);
+    contact.subshape_id[1] = getReportedSubshapeIndex(o2, -1);
+    contact.nearest_points = implicit_contact.nearest_points;
+    contact.nearest_points_local[0] = applyInverse(tf1, contact.nearest_points[0]);
+    contact.nearest_points_local[1] = applyInverse(tf2, contact.nearest_points[1]);
+    contact.transform[0] = tf1;
+    contact.transform[1] = tf2;
+    contact.type_id[0] = cd1->getTypeID();
+    contact.type_id[1] = cd2->getTypeID();
+    contact.distance = implicit_contact.distance;
+    contact.normal = implicit_contact.normal;
+
+    if (cast_index >= 0)
+    {
+      // The sweep is classified by comparing the swept shape's support at t=0 and t=1 along the normal, so a
+      // normal tilted toward the motion flips a mid-sweep contact to Time0/Time1. The solver's normal blends in
+      // the field's gradient at a contact point it only locates approximately; the swept shape's own surface
+      // normal, taken at the other shape's witness point, is exact. It is the normal GJK/EPA would classify by.
+      const auto c = static_cast<std::size_t>(cast_index);
+      const Eigen::Vector3d outward = shapes[c].gradient(contact.nearest_points[1 - c]);
+      if (std::abs(contact.distance) > COAL_LENGTH_TOLERANCE && outward.allFinite() && !outward.isZero())
+        contact.normal = (cast_index == 0 ? outward : Eigen::Vector3d(-outward)).normalized();
+
+      // ponytail: cc_time and the reported normal are only as accurate as the solver's contact point, which stalls
+      // ~1% of the feature size off the deepest point (more iterations do not help). Upgrade path: a convergence
+      // polish in tesseract::collision::collideImplicitSDF.
+      // No GJK sweep ran on this pair, so its warm-start hints are not aimed at the normal; use the flat scan.
+      populateContinuousCollisionFields(contact, o1, o2, tf1, tf2, /*use_flat=*/true);
+      contact.normal = implicit_contact.normal;
+    }
+
+    if (!found)
+    {
+      const auto it = cdata.res->find(link_pair);
+      found = (it != cdata.res->end() && !it->second.empty());
+    }
+    processResult(cdata, contact, link_pair, margin, found);
+    if (cdata.done)
+      break;
+  }
+  return cdata.done;
+}
+}  // namespace
+
 bool CollisionCallback::collide(coal::CollisionObject* o1, coal::CollisionObject* o2)
 {
   if (cdata->done)
@@ -815,6 +1003,11 @@ bool CollisionCallback::collide(coal::CollisionObject* o1, coal::CollisionObject
 
   if (!needsCollisionCheck(cd1, cd2, link_pair, cdata->validator))
     return false;
+
+  // Must precede the Coal narrowphase: an SDF is registered as a placeholder box, which Coal would
+  // otherwise collide as a box.
+  if (isSignedDistanceField(o1) || isSignedDistanceField(o2))
+    return collideImplicit(o1, o2, link_pair, *cdata);
 
   std::size_t num_contacts = (cdata->req.contact_limit > 0) ? static_cast<std::size_t>(cdata->req.contact_limit) :
                                                               std::numeric_limits<std::size_t>::max();
@@ -1363,6 +1556,11 @@ COW::Ptr makeCastCollisionObject(const COW::Ptr& cow, bool build_swept)
     const auto old_shape_index = static_cast<std::size_t>(co->getShapeIndex());
     assert(old_shape_index < current_shapes.size());
     assert(old_shape_index < current_shape_poses.size());
+
+    // An SDF's placeholder box is a ShapeBase, so it must be caught before it is swept as a box.
+    if (current_shapes[old_shape_index]->getType() == tesseract::geometry::GeometryType::SIGNED_DISTANCE_FIELD)
+      throw std::runtime_error("Link '" + cow->getLinkId().name() +
+                               "': a signed distance field can only be continuous collision checked while static");
 
     auto geo = co->collisionGeometry();
     auto* shape_base_ptr = dynamic_cast<coal::ShapeBase*>(geo.get());
