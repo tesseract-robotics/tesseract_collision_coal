@@ -1116,8 +1116,8 @@ static CollisionCacheEntry makeCacheEntry(const coal::CollisionObject& co1,
   if (relative_cast && hull1 != nullptr && hull2 != nullptr)
   {
     // Under relative cast two swept objects are collided as the plain shape of one against a hull of the
-    // other's motion relative to it; CoalCastBVHManager states why. Which one is swept does not follow the
-    // cache key, whose order is that of two addresses.
+    // other's motion relative to it; CoalCastBVHManager states why. Which one is swept follows their sizes,
+    // not the cache key's order.
     sweeps_first = pairSweepsFirst(
         hull1->getShapeBoundRadius(), hull2->getShapeBoundRadius(), cow1.getLinkId().name(), cow2.getLinkId().name());
     pair_hull = &(sweeps_first ? hull1 : hull2)->scratchHull();
@@ -1167,10 +1167,10 @@ bool CollisionCallback::collide(coal::CollisionObject* o1, coal::CollisionObject
     num_contacts = 1;
   const auto security_margin = cdata->collision_margin_data.getCollisionMargin(link_pair);
 
-  // Normalize pair ordering for consistent cache lookups: Coal's broadphase
-  // does not guarantee a stable (o1, o2) ordering across tree rebalances,
-  // so always put the smaller pointer first to avoid duplicate cache entries.
-  const bool pair_swapped = std::greater<>{}(o1, o2);
+  // Coal's broadphase hands a pair over in either order. Fix the order by link, as
+  // link_pair does, so a pair has one cache entry and GJK always takes it the same
+  // way round. The links differ: Tesseract never checks a link against itself.
+  const bool pair_swapped = cd2->getLinkId() < cd1->getLinkId();
   auto* co1 = pair_swapped ? o2 : o1;
   auto* co2 = pair_swapped ? o1 : o2;
   // The wrappers in the cache key's order.
