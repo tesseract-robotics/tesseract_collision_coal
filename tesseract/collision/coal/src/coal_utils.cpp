@@ -1226,8 +1226,12 @@ bool CollisionCallback::collide(coal::CollisionObject* o1, coal::CollisionObject
         *entry.pair_hull, pair->motion, pair->swept_object->getTransform(), pair->swept->getDArcCompensation());
   }
 
+  // Reset to a new result by copying from a const one: a copy keeps the contacts' capacity, where a move would
+  // give it up, and clear() alone keeps the GJK guesses, which Coal's exit for a margin of -inf does not write.
+  static const coal::CollisionResult new_col_result;
+  col_result = new_col_result;
+
   // Both objects sit at their start poses: a swept pair's motion is all in its hull.
-  coal::CollisionResult col_result;
   entry.functor(co1->getTransform(), co2->getTransform(), cached_request, col_result);
 
   // Warm-start: cache the GJK/EPA result for the next call on this pair.
@@ -1274,7 +1278,11 @@ bool CollisionCallback::collide(coal::CollisionObject* o1, coal::CollisionObject
   for (size_t i = 0; i < col_result.numContacts(); ++i)
   {
     const coal::Contact& coal_contact = col_result.getContact(i);
-    ContactResult contact;
+    // Not every field is written below: the continuous fields only on cast paths, single_contact_point never.
+    // Copy from a const contact rather than clear(), which moves into the link ids: a copy keeps the names'
+    // capacity with every standard library.
+    static const ContactResult new_contact;
+    contact = new_contact;
     contact.link_ids[0] = cd1->getLinkId();
     contact.link_ids[1] = cd2->getLinkId();
     contact.shape_id[0] = CollisionObjectWrapperBase::getShapeIndex(o1);

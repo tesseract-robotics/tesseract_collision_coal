@@ -570,8 +570,11 @@ struct CollisionCallback : coal::CollisionCallBackBase
 {
   ContactTestDataWrapper* cdata{};
 
-  /** @brief Reused across candidate pairs, so the per-pair lookups are allocation-free */
+  /// Scratch for collide(), overwritten by every candidate pair and reused across the pairs of one query.
+  /// Nothing in it outlives a call.
   tesseract::common::LinkIdPair link_pair;
+  coal::CollisionResult col_result;
+  ContactResult contact;
 
   bool collide(coal::CollisionObject* o1, coal::CollisionObject* o2) override;
   virtual ~CollisionCallback() = default;
