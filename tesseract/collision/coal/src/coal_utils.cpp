@@ -1138,7 +1138,7 @@ static CollisionCacheEntry makeCacheEntry(const coal::CollisionObject& co1,
   // direction, which every leaf of a multi-leaf pair would then share.
   col_request.gjk_initial_guess = coal::BoundingVolumeGuess;
 
-  CollisionCacheEntry entry{ std::move(col_request),
+  CollisionCacheEntry entry{ col_request,
                              coal::ComputeCollision(geometry1, geometry2),
                              hull1 != nullptr || hull2 != nullptr,
                              isMultiLeaf(*geometry1) || isMultiLeaf(*geometry2) };
